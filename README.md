@@ -1,35 +1,214 @@
-# CricSync
+# CricSync - The All-in-One Cricket Application
 
-CricSync is a comprehensive cricket application designed to provide an all-in-one experience for cricket enthusiasts, players, and tournament organizers. This repository serves as the central hub for the entire project ecosystem, encompassing the web application, mobile application, backend API, AI tactical recommendation system, and extensive project documentation.
+CricSync is a comprehensive, full-stack cricket application designed to provide an all-in-one experience for cricket enthusiasts, players, and tournament organizers. Built with modern technologies across web, mobile, and backend platforms, CricSync brings together team management, scoring, commerce, and AI-powered tactical recommendations.
 
-## Project Architecture
+## Project Overview
 
-The application is structured into several core modules to ensure scalability and maintainability across different platforms:
+This repository contains the complete CricSync ecosystem, including:
 
-- **web-app/**: React-based frontend components featuring a robust shopping cart, secure payment integration, and a sophisticated messaging system.
-- **mobile-app/**: React Native codebase utilizing the Expo framework to deliver platform-specific optimizations for both iOS and Android devices.
-- **backend/**: Node.js/Express API providing the server-side logic, user authentication, and database management for the entire ecosystem.
-- **ai-system/**: Advanced tactical analysis through specialized components designed for player performance evaluation and fielding position optimization.
-- **documentation/**: Comprehensive suite covering implementation details, mobile optimization, testing plans, and development roadmaps.
+- **Web Application**: React-based frontend with shopping cart and payment integration
+- **Mobile Application**: React Native (Expo) with platform-specific optimizations for iOS and Android
+- **Backend API**: Node.js/Express server with MongoDB for data persistence
+- **AI Recommendation Engine**: Python-based machine learning service for tactical analysis
+- **Comprehensive Documentation**: Guides for development, testing, and deployment
 
-## Core Capabilities
+## Technology Stack
 
-The CricSync ecosystem offers a wide range of features tailored to the needs of the cricket community. The mobile application provides a native user experience, incorporating platform-specific animations and navigation patterns. The integrated commerce system facilitates a complete checkout flow, supporting both Stripe and PayPal for secure transactions.
+| Component | Technology |
+| :--- | :--- |
+| **Frontend (Web)** | React, TypeScript, TailwindCSS |
+| **Frontend (Mobile)** | React Native, Expo, TypeScript |
+| **Backend** | Node.js, Express.js, MongoDB |
+| **AI Engine** | Python, Flask, scikit-learn |
+| **Authentication** | JWT, bcryptjs |
+| **Security** | Helmet, CORS |
 
-Communication is central to the platform, with dedicated modules for team chat and direct messaging. Furthermore, the tournament management system automates the complexities of scheduling and scoring, while the AI-driven recommendation engine offers strategic insights for batsmen and bowlers based on historical match data.
+## Project Structure
 
-## Backend Infrastructure
+```
+CricSync/
+├── web-app/                 # React web application
+│   ├── components/          # Reusable UI components
+│   ├── app/                 # Application pages
+│   └── documentation/       # Web app docs
+├── mobile-app/              # React Native mobile application
+│   ├── src/
+│   │   ├── screens/         # App screens
+│   │   ├── platform/        # Platform-specific code (iOS/Android)
+│   │   ├── navigation/      # Navigation configuration
+│   │   └── contexts/        # State management
+│   └── documentation/       # Mobile app docs
+├── backend/                 # Node.js/Express backend
+│   ├── src/
+│   │   ├── controllers/     # Business logic
+│   │   ├── models/          # Database schemas
+│   │   ├── routes/          # API endpoints
+│   │   ├── middleware/      # Express middleware
+│   │   └── config/          # Configuration files
+│   └── BACKEND_DOCUMENTATION.md
+├── ai-engine/               # Python AI recommendation engine
+│   ├── src/
+│   │   ├── models/          # ML models
+│   │   ├── api/             # Flask API routes
+│   │   └── utils/           # Utility functions
+│   └── README.md
+├── ai-system/               # AI tactical components
+├── documentation/           # Project documentation
+└── README.md               # This file
+```
 
-The backend is built on a modern stack using Node.js, Express, and MongoDB. It provides a secure RESTful API with the following core functionalities:
+## Core Features
 
-- **Authentication**: Secure user registration and login using JWT and bcrypt.
-- **User Roles**: Support for different user types including players, captains, and organizers.
-- **Data Models**: Structured models for players, teams, matches, and marketplace items.
-- **Security**: Implementation of security headers (Helmet), CORS, and environment-based configuration.
+### Team Management
+Create and manage cricket teams with player registration, role assignment, and team statistics tracking.
 
-## Implementation and Deployment
+### Scoring System
+Real-time ball-by-ball scoring with automatic wicket tracking, run calculations, and match result generation.
 
-Detailed instructions for setting up the development environment, conducting cross-platform testing, and preparing for App Store submission are available within the documentation directories. These resources provide a step-by-step guide for developers and stakeholders to ensure the project's continued success and evolution.
+### Marketplace
+Browse and purchase cricket equipment with a fully functional shopping cart, checkout process, and payment integration (Stripe & PayPal).
+
+### Communication
+Team chat groups and individual messaging for seamless communication between players, captains, and organizers.
+
+### AI Tactical Recommendations
+Machine learning-powered recommendations for:
+- Next batsman selection based on match conditions
+- Optimal bowler choice considering current situation
+- Fielding position optimization for each player
+
+### Tournament Management
+Automated fixture generation, scheduling, and standings calculation for cricket tournaments.
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 16+ (for backend and web)
+- Python 3.8+ (for AI engine)
+- MongoDB (local or cloud)
+- npm or yarn (package manager)
+
+### Backend Setup
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+# Configure .env with your MongoDB URI and JWT secret
+npm run dev
+```
+
+Backend runs on `http://localhost:5000`
+
+### Mobile App Setup
+
+```bash
+cd mobile-app
+npm install
+# For iOS
+npx expo start --ios
+# For Android
+npx expo start --android
+```
+
+### AI Engine Setup
+
+```bash
+cd ai-engine
+pip install -r requirements.txt
+cp .env.example .env
+python app.py
+```
+
+AI engine runs on `http://localhost:5001`
+
+## API Documentation
+
+### Backend API
+
+Comprehensive API documentation is available in [backend/BACKEND_DOCUMENTATION.md](backend/BACKEND_DOCUMENTATION.md)
+
+Key endpoints:
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/auth/me` - Get current user
+- `POST /api/players/register` - Register player profile
+- `GET /api/players` - Get all players
+- `GET /api/players/:id` - Get player by ID
+
+### AI Recommendation API
+
+Available in [ai-engine/README.md](ai-engine/README.md)
+
+Key endpoints:
+- `POST /api/recommendations/batsman` - Get batsman recommendation
+- `POST /api/recommendations/bowler` - Get bowler recommendation
+- `POST /api/recommendations/fielding` - Get fielding position recommendation
+
+## Development Workflow
+
+1. **Create a feature branch**: `git checkout -b feature/feature-name`
+2. **Make your changes**: Implement the feature with proper testing
+3. **Commit with clear messages**: `git commit -m "Add feature description"`
+4. **Push to GitHub**: `git push origin feature/feature-name`
+5. **Create a Pull Request**: For code review and merging
+
+## Documentation
+
+- [Backend Documentation](backend/BACKEND_DOCUMENTATION.md)
+- [AI Engine Documentation](ai-engine/README.md)
+- [Mobile App Documentation](mobile-app/documentation/)
+- [Project Documentation](documentation/)
+
+## Quality Assurance
+
+The CricSync project maintains high quality standards:
+
+- Comprehensive error handling
+- Input validation on all endpoints
+- Security best practices (JWT, bcrypt, CORS, Helmet)
+- Responsive design for all screen sizes
+- Platform-specific optimizations for iOS and Android
+
+## Future Roadmap
+
+### Short-term (1-2 months)
+- Complete iOS testing and App Store submission
+- Implement Android-specific components
+- Prepare for Google Play Store submission
+
+### Medium-term (3-6 months)
+- Add offline functionality
+- Implement push notifications
+- Enhance performance optimizations
+- Add real-time match updates
+
+### Long-term (6-12 months)
+- Implement advanced features like AR ball tracking
+- Add machine learning for player performance analysis
+- Expand to additional platforms (desktop, web)
+- Integrate with wearable devices
+
+## Contributing
+
+We welcome contributions from the community. Please ensure:
+
+1. Code follows the existing style and conventions
+2. All new features include appropriate documentation
+3. Tests are included for new functionality
+4. Commit messages are clear and descriptive
+
+## License
+
+This project is licensed under the ISC License.
+
+## Support
+
+For issues, questions, or suggestions, please open an issue on GitHub or contact the development team.
 
 ---
-*This project was developed and documented with the assistance of Manus.*
+
+**CricSync** - *Bringing the world of cricket together, one match at a time.*
+
+*Developed with the assistance of Manus AI*
