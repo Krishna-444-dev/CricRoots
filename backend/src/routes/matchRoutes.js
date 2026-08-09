@@ -7,6 +7,7 @@ const {
   updateMatch,
   recordBall,
   getScorecard,
+  getAIInsights,
   deleteMatch
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/auth');
@@ -15,6 +16,7 @@ const { protect } = require('../middleware/auth');
 router.get('/', getAllMatches);
 router.get('/:id', getMatch);
 router.get('/:id/scorecard', getScorecard);
+router.get('/:id/ai-insights', getAIInsights);
 
 // Protected routes
 router.post('/', protect, createMatch);

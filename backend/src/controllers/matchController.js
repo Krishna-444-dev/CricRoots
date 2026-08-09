@@ -1,5 +1,6 @@
 const Match = require('../models/Match');
 const Team = require('../models/Team');
+const AIService = require('../utils/aiService');
 
 // @desc    Create a new match
 // @route   POST /api/matches
@@ -8,7 +9,6 @@ exports.createMatch = async (req, res) => {
   try {
     const { title, team1Id, team2Id, matchType, venue, scheduledDate } = req.body;
 
-    // Validate input
     if (!title || !team1Id || !team2Id || !venue || !scheduledDate) {
       return res.status(400).json({
         success: false,
@@ -16,7 +16,6 @@ exports.createMatch = async (req, res) => {
       });
     }
 
-    // Check if teams exist
     const team1 = await Team.findById(team1Id);
     const team2 = await Team.findById(team2Id);
 
@@ -27,7 +26,6 @@ exports.createMatch = async (req, res) => {
       });
     }
 
-    // Create match
     const match = await Match.create({
       title,
       team1: team1Id,
@@ -35,7 +33,11 @@ exports.createMatch = async (req, res) => {
       matchType: matchType || 'T20',
       venue,
       scheduledDate,
-      createdBy: req.user.id
+      createdBy: req.user.id,
+      innings: [
+        { team: team1Id, runs: 0, wickets: 0, overs: 0, balls: [] },
+        { team: team2Id, runs: 0, wickets: 0, overs: 0, balls: [] }
+      ]
     });
 
     await match.populate('team1');
@@ -122,7 +124,6 @@ exports.updateMatch = async (req, res) => {
       });
     }
 
-    // Check if user created the match
     if (match.createdBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -153,7 +154,7 @@ exports.updateMatch = async (req, res) => {
   }
 };
 
-// @desc    Record a ball in match
+// @desc    Record a ball in match with AI insights
 // @route   POST /api/matches/:id/record-ball
 // @access  Private
 exports.recordBall = async (req, res) => {
@@ -169,7 +170,6 @@ exports.recordBall = async (req, res) => {
       });
     }
 
-    // Check if user created the match
     if (match.createdBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -177,7 +177,6 @@ exports.recordBall = async (req, res) => {
       });
     }
 
-    // Validate innings index
     if (inningsIndex < 0 || inningsIndex >= match.innings.length) {
       return res.status(400).json({
         success: false,
@@ -196,21 +195,34 @@ exports.recordBall = async (req, res) => {
     };
 
     match.innings[inningsIndex].balls.push(ball);
-
-    // Update runs and wickets
     match.innings[inningsIndex].runs += runs || 0;
     if (isWicket) {
       match.innings[inningsIndex].wickets += 1;
     }
 
+    // Calculate overs (6 balls = 1 over)
+    const totalBalls = match.innings[inningsIndex].balls.length;
+    match.innings[inningsIndex].overs = Math.floor(totalBalls / 6) + (totalBalls % 6) / 10;
+
     match = await match.save();
     await match.populate('team1');
     await match.populate('team2');
 
+    // Get AI insights for the current situation
+    const aiInsights = await AIService.getTacticalAdvice({
+      oversRemaining: 20 - (match.innings[inningsIndex].overs || 0),
+      wicketsDown: match.innings[inningsIndex].wickets,
+      currentRunRate: match.innings[inningsIndex].runs / (match.innings[inningsIndex].overs || 1),
+      targetScore: match.innings[0]?.runs || 150,
+      oppositionStrength: 7,
+      pitchType: 1
+    });
+
     res.status(200).json({
       success: true,
       message: 'Ball recorded successfully',
-      match
+      match,
+      aiInsights: aiInsights.success ? aiInsights : null
     });
   } catch (error) {
     res.status(500).json({
@@ -220,7 +232,7 @@ exports.recordBall = async (req, res) => {
   }
 };
 
-// @desc    Get match scorecard
+// @desc    Get match scorecard with AI insights
 // @route   GET /api/matches/:id/scorecard
 // @access  Public
 exports.getScorecard = async (req, res) => {
@@ -237,7 +249,6 @@ exports.getScorecard = async (req, res) => {
       });
     }
 
-    // Calculate scorecard details
     const scorecard = {
       matchTitle: match.title,
       matchType: match.matchType,
@@ -260,9 +271,67 @@ exports.getScorecard = async (req, res) => {
       manOfTheMatch: match.manOfTheMatch
     };
 
+    // Get AI insights for current match state
+    const currentInningsIndex = match.status === 'Live' ? 1 : 0;
+    const aiInsights = await AIService.getTacticalAdvice({
+      oversRemaining: 20 - (match.innings[currentInningsIndex]?.overs || 0),
+      wicketsDown: match.innings[currentInningsIndex]?.wickets || 0,
+      currentRunRate: match.innings[currentInningsIndex]?.runs / (match.innings[currentInningsIndex]?.overs || 1) || 0,
+      targetScore: match.innings[0]?.runs || 150,
+      oppositionStrength: 7,
+      pitchType: 1
+    });
+
     res.status(200).json({
       success: true,
-      scorecard
+      scorecard,
+      aiInsights: aiInsights.success ? aiInsights : null
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get AI tactical insights for a match
+// @route   GET /api/matches/:id/ai-insights
+// @access  Public
+exports.getAIInsights = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    // Determine which innings is currently active
+    const currentInningsIndex = match.status === 'Live' ? 1 : 0;
+    const innings = match.innings[currentInningsIndex];
+
+    const aiInsights = await AIService.getTacticalAdvice({
+      oversRemaining: 20 - (innings?.overs || 0),
+      wicketsDown: innings?.wickets || 0,
+      currentRunRate: innings?.runs / (innings?.overs || 1) || 0,
+      targetScore: match.innings[0]?.runs || 150,
+      oppositionStrength: 7,
+      pitchType: 1
+    });
+
+    if (!aiInsights.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to get AI insights'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      aiInsights
     });
   } catch (error) {
     res.status(500).json({
@@ -286,7 +355,6 @@ exports.deleteMatch = async (req, res) => {
       });
     }
 
-    // Check if user created the match
     if (match.createdBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
