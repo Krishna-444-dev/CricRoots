@@ -1,240 +1,178 @@
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 import joblib
 import os
 
 class RecommendationModel:
     """
-    AI model for tactical cricket recommendations.
-    Provides batsman, bowler, and fielding position recommendations.
+    Enhanced AI model for tactical cricket recommendations and match analysis.
     """
     
     def __init__(self):
         self.batsman_model = None
         self.bowler_model = None
         self.fielding_model = None
+        self.win_prob_model = None
         self.scaler = StandardScaler()
         self.model_dir = os.path.join(os.path.dirname(__file__), 'trained_models')
+        os.makedirs(self.model_dir, exist_ok=True)
         
-    def train_batsman_model(self, X_train, y_train):
-        """
-        Train model to recommend next batsman based on match conditions.
+    def train_all_models(self, data_dir='data'):
+        """Trains all models using generated synthetic data."""
+        print("Training models...")
         
-        Features:
-        - Current run rate
-        - Wickets down
-        - Overs remaining
-        - Opposition bowling strength
-        - Batsman form (recent scores)
-        """
-        self.batsman_model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42,
-            n_jobs=-1
-        )
+        # 1. Train Batsman & Bowler Models
+        matches_df = pd.read_csv(os.path.join(data_dir, 'matches.csv'))
         
-        X_scaled = self.scaler.fit_transform(X_train)
-        self.batsman_model.fit(X_scaled, y_train)
+        # Batsman Features
+        X_bat = matches_df[['current_run_rate', 'wickets_down', 'overs_remaining', 'opposition_strength']]
+        y_bat = matches_df['recommended_batsman']
+        self.batsman_model = RandomForestClassifier(n_estimators=50, random_state=42)
+        self.batsman_model.fit(X_bat, y_bat)
         
-        return self.batsman_model
-    
-    def train_bowler_model(self, X_train, y_train):
-        """
-        Train model to recommend next bowler based on match conditions.
+        # Bowler Features
+        X_bowl = matches_df[['current_run_rate', 'wickets_down', 'overs_remaining', 'pitch_type']]
+        y_bowl = matches_df['recommended_bowler']
+        self.bowler_model = RandomForestClassifier(n_estimators=50, random_state=42)
+        self.bowler_model.fit(X_bowl, y_bowl)
         
-        Features:
-        - Current run rate against
-        - Overs bowled
-        - Wickets taken
-        - Batsman strengths
-        - Pitch conditions
-        """
-        self.bowler_model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42,
-            n_jobs=-1
-        )
+        # Win Probability (Regression)
+        X_win = matches_df[['overs_remaining', 'wickets_down', 'current_run_rate', 'target_score']]
+        y_win = matches_df['win_probability']
+        self.win_prob_model = RandomForestRegressor(n_estimators=50, random_state=42)
+        self.win_prob_model.fit(X_win, y_win)
         
-        X_scaled = self.scaler.fit_transform(X_train)
-        self.bowler_model.fit(X_scaled, y_train)
+        # 2. Train Fielding Model
+        fielding_df = pd.read_csv(os.path.join(data_dir, 'fielding.csv'))
+        X_field = fielding_df[['fielding_ability', 'throwing_accuracy', 'speed_agility', 'catching_ability', 'batsman_shot_tendency']]
+        y_field = fielding_df['optimal_position']
+        self.fielding_model = RandomForestClassifier(n_estimators=50, random_state=42)
+        self.fielding_model.fit(X_field, y_field)
         
-        return self.bowler_model
-    
-    def train_fielding_model(self, X_train, y_train):
-        """
-        Train model to recommend fielding positions based on player abilities.
+        self.save_models()
+        print("All models trained and saved successfully.")
+
+    def predict_win_probability(self, match_data):
+        """Predicts the probability of winning the match."""
+        if self.win_prob_model is None:
+            return {'success': False, 'message': 'Win probability model not trained'}
         
-        Features:
-        - Player fielding ability
-        - Throwing accuracy
-        - Speed/agility
-        - Catching ability
-        - Batsman tendencies
-        """
-        self.fielding_model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42,
-            n_jobs=-1
-        )
+        features = [[
+            match_data.get('overs_remaining', 10),
+            match_data.get('wickets_down', 5),
+            match_data.get('current_run_rate', 8),
+            match_data.get('target_score', 150)
+        ]]
         
-        X_scaled = self.scaler.fit_transform(X_train)
-        self.fielding_model.fit(X_scaled, y_train)
-        
-        return self.fielding_model
-    
+        prediction = self.win_prob_model.predict(features)[0]
+        return {
+            'success': True,
+            'win_probability': float(prediction),
+            'status': 'Dominant' if prediction > 0.7 else 'Balanced' if prediction > 0.4 else 'Challenging'
+        }
+
     def recommend_batsman(self, match_data):
-        """
-        Recommend the best batsman for current match situation.
-        
-        Args:
-            match_data: Dictionary containing match conditions
-            
-        Returns:
-            Dictionary with recommended batsman and confidence score
-        """
         if self.batsman_model is None:
-            return {
-                'success': False,
-                'message': 'Batsman model not trained'
-            }
+            return {'success': False, 'message': 'Batsman model not trained'}
         
-        # Prepare features
-        features = self._prepare_batsman_features(match_data)
-        features_scaled = self.scaler.transform([features])
+        features = [[
+            match_data.get('current_run_rate', 6),
+            match_data.get('wickets_down', 2),
+            match_data.get('overs_remaining', 15),
+            match_data.get('opposition_strength', 7)
+        ]]
         
-        # Get prediction and probability
-        prediction = self.batsman_model.predict(features_scaled)[0]
-        probabilities = self.batsman_model.predict_proba(features_scaled)[0]
-        confidence = np.max(probabilities)
+        prediction = self.batsman_model.predict(features)[0]
+        probs = self.batsman_model.predict_proba(features)[0]
         
         return {
             'success': True,
             'recommended_batsman_id': int(prediction),
-            'confidence': float(confidence),
-            'all_probabilities': probabilities.tolist()
+            'confidence': float(np.max(probs))
         }
-    
+
     def recommend_bowler(self, match_data):
-        """
-        Recommend the best bowler for current match situation.
-        
-        Args:
-            match_data: Dictionary containing match conditions
-            
-        Returns:
-            Dictionary with recommended bowler and confidence score
-        """
         if self.bowler_model is None:
-            return {
-                'success': False,
-                'message': 'Bowler model not trained'
-            }
+            return {'success': False, 'message': 'Bowler model not trained'}
         
-        # Prepare features
-        features = self._prepare_bowler_features(match_data)
-        features_scaled = self.scaler.transform([features])
+        features = [[
+            match_data.get('current_run_rate', 6),
+            match_data.get('wickets_down', 2),
+            match_data.get('overs_remaining', 15),
+            match_data.get('pitch_type', 1)
+        ]]
         
-        # Get prediction and probability
-        prediction = self.bowler_model.predict(features_scaled)[0]
-        probabilities = self.bowler_model.predict_proba(features_scaled)[0]
-        confidence = np.max(probabilities)
+        prediction = self.bowler_model.predict(features)[0]
+        probs = self.bowler_model.predict_proba(features)[0]
         
         return {
             'success': True,
             'recommended_bowler_id': int(prediction),
-            'confidence': float(confidence),
-            'all_probabilities': probabilities.tolist()
+            'confidence': float(np.max(probs))
         }
-    
-    def recommend_fielding_positions(self, player_data, batsman_data):
-        """
-        Recommend optimal fielding positions for players.
-        
-        Args:
-            player_data: Dictionary with player abilities
-            batsman_data: Dictionary with batsman tendencies
-            
-        Returns:
-            Dictionary with recommended positions for each player
-        """
+
+    def recommend_fielding(self, player_data, batsman_data):
         if self.fielding_model is None:
-            return {
-                'success': False,
-                'message': 'Fielding model not trained'
-            }
+            return {'success': False, 'message': 'Fielding model not trained'}
         
-        # Prepare features
-        features = self._prepare_fielding_features(player_data, batsman_data)
-        features_scaled = self.scaler.transform([features])
+        features = [[
+            player_data.get('fielding_ability', 8),
+            player_data.get('throwing_accuracy', 7),
+            player_data.get('speed_agility', 8),
+            player_data.get('catching_ability', 8),
+            batsman_data.get('shot_tendency', 5)
+        ]]
         
-        # Get prediction
-        prediction = self.fielding_model.predict(features_scaled)[0]
-        probabilities = self.fielding_model.predict_proba(features_scaled)[0]
+        prediction = self.fielding_model.predict(features)[0]
+        
+        # Map prediction to position name
+        positions = {1: 'Slips', 2: 'Boundary', 3: 'Inner Circle'}
         
         return {
             'success': True,
-            'recommended_position': int(prediction),
-            'position_probabilities': probabilities.tolist()
+            'recommended_position_id': int(prediction),
+            'recommended_position_name': positions.get(int(prediction), 'Unknown')
         }
-    
-    def _prepare_batsman_features(self, match_data):
-        """Prepare features for batsman recommendation."""
-        features = [
-            match_data.get('current_run_rate', 0),
-            match_data.get('wickets_down', 0),
-            match_data.get('overs_remaining', 0),
-            match_data.get('opposition_bowling_strength', 0),
-            match_data.get('batsman_form_score', 0)
-        ]
-        return features
-    
-    def _prepare_bowler_features(self, match_data):
-        """Prepare features for bowler recommendation."""
-        features = [
-            match_data.get('current_run_rate_against', 0),
-            match_data.get('overs_bowled', 0),
-            match_data.get('wickets_taken', 0),
-            match_data.get('batsman_strength', 0),
-            match_data.get('pitch_condition_score', 0)
-        ]
-        return features
-    
-    def _prepare_fielding_features(self, player_data, batsman_data):
-        """Prepare features for fielding recommendation."""
-        features = [
-            player_data.get('fielding_ability', 0),
-            player_data.get('throwing_accuracy', 0),
-            player_data.get('speed_agility', 0),
-            player_data.get('catching_ability', 0),
-            batsman_data.get('shot_tendency', 0)
-        ]
-        return features
-    
+
+    def get_tactical_summary(self, match_data):
+        """Combines all recommendations into a single tactical summary."""
+        win_prob = self.predict_win_probability(match_data)
+        batsman = self.recommend_batsman(match_data)
+        bowler = self.recommend_bowler(match_data)
+        
+        return {
+            'success': True,
+            'match_status': win_prob.get('status'),
+            'win_probability': win_prob.get('win_probability'),
+            'key_recommendations': {
+                'batsman': batsman.get('recommended_batsman_id'),
+                'bowler': bowler.get('recommended_bowler_id')
+            },
+            'tactical_advice': self._generate_advice(win_prob.get('win_probability'), match_data)
+        }
+
+    def _generate_advice(self, win_prob, match_data):
+        if win_prob > 0.8:
+            return "Maintain current momentum. Focus on steady scoring and minimizing risks."
+        elif win_prob > 0.5:
+            return "Aggressive approach recommended. Increase run rate to pressure the opposition."
+        else:
+            return "Defensive strategy needed. Focus on building partnerships and preserving wickets."
+
     def save_models(self):
-        """Save trained models to disk."""
-        os.makedirs(self.model_dir, exist_ok=True)
-        
-        if self.batsman_model:
-            joblib.dump(self.batsman_model, os.path.join(self.model_dir, 'batsman_model.pkl'))
-        
-        if self.bowler_model:
-            joblib.dump(self.bowler_model, os.path.join(self.model_dir, 'bowler_model.pkl'))
-        
-        if self.fielding_model:
-            joblib.dump(self.fielding_model, os.path.join(self.model_dir, 'fielding_model.pkl'))
-    
+        joblib.dump(self.batsman_model, os.path.join(self.model_dir, 'batsman_model.pkl'))
+        joblib.dump(self.bowler_model, os.path.join(self.model_dir, 'bowler_model.pkl'))
+        joblib.dump(self.fielding_model, os.path.join(self.model_dir, 'fielding_model.pkl'))
+        joblib.dump(self.win_prob_model, os.path.join(self.model_dir, 'win_prob_model.pkl'))
+
     def load_models(self):
-        """Load trained models from disk."""
-        if os.path.exists(os.path.join(self.model_dir, 'batsman_model.pkl')):
+        try:
             self.batsman_model = joblib.load(os.path.join(self.model_dir, 'batsman_model.pkl'))
-        
-        if os.path.exists(os.path.join(self.model_dir, 'bowler_model.pkl')):
             self.bowler_model = joblib.load(os.path.join(self.model_dir, 'bowler_model.pkl'))
-        
-        if os.path.exists(os.path.join(self.model_dir, 'fielding_model.pkl')):
             self.fielding_model = joblib.load(os.path.join(self.model_dir, 'fielding_model.pkl'))
+            self.win_prob_model = joblib.load(os.path.join(self.model_dir, 'win_prob_model.pkl'))
+            return True
+        except:
+            return False
