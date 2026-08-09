@@ -33,8 +33,8 @@ app.get('/', (req, res) => {
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/players', require('./routes/playerRoutes'));
-// app.use('/api/teams', require('./routes/teamRoutes'));
-// app.use('/api/matches', require('./routes/matchRoutes'));
+app.use('/api/teams', require('./routes/teamRoutes'));
+app.use('/api/matches', require('./routes/matchRoutes'));
 // app.use('/api/shop', require('./routes/shopRoutes'));
 
 // Error Handling Middleware
