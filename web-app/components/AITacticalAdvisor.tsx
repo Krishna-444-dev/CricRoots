@@ -1,65 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import styles from './AITacticalAdvisor.module.css';
+'use client';
 
-interface AIInsight {
-  match_status: string;
-  win_probability: number;
-  tactical_advice: string;
-  key_recommendations: {
-    batsman: number;
-    bowler: number;
-  };
-}
+import React from 'react';
+import { useMatchWebSocket } from '@/hooks/useMatchWebSocket';
+import styles from './AITacticalAdvisor.module.css';
 
 interface AITacticalAdvisorProps {
   matchId: string;
+  userId: string;
+  token: string;
   isLive: boolean;
 }
 
-export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, isLive }) => {
-  const [aiInsights, setAiInsights] = useState<AIInsight | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isLive) {
-      fetchAIInsights();
-      const interval = setInterval(fetchAIInsights, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [matchId, isLive]);
-
-  const fetchAIInsights = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/matches/${matchId}/ai-insights`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setAiInsights(data.aiInsights);
-        setError(null);
-      } else {
-        setError('Failed to fetch AI insights');
-      }
-    } catch (err) {
-      setError('Error fetching AI insights');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
+  matchId,
+  userId,
+  token,
+  isLive
+}) => {
+  const { isConnected, error, aiInsights, connectedUsers } = useMatchWebSocket({
+    matchId,
+    userId,
+    token,
+    enabled: isLive
+  });
 
   if (!isLive) {
     return null;
-  }
-
-  if (loading && !aiInsights) {
-    return (
-      <div className={styles.loadingContainer}>
-        <div className={styles.spinner}></div>
-        <p>Loading AI Insights...</p>
-      </div>
-    );
   }
 
   if (error) {
@@ -70,8 +36,13 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, i
     );
   }
 
-  if (!aiInsights) {
-    return null;
+  if (!isConnected || !aiInsights) {
+    return (
+      <div className={styles.loadingContainer}>
+        <div className={styles.spinner}></div>
+        <p>{!isConnected ? 'Connecting to live updates...' : 'Loading AI insights...'}</p>
+      </div>
+    );
   }
 
   const getStatusColor = (status: string) => {
@@ -108,6 +79,17 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, i
             <span>{getStatusEmoji(aiInsights.match_status)}</span>
             AI Tactical Advisor
           </h2>
+          <div className={styles.connectionBadge}>
+            <span className={`${styles.statusDot} ${isConnected ? styles.connected : styles.disconnected}`}></span>
+            <span className={styles.connectionText}>
+              {isConnected ? '🔴 Live' : 'Reconnecting...'}
+            </span>
+            {connectedUsers > 0 && (
+              <span className={styles.usersCount}>
+                👥 {connectedUsers} watching
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Win Probability Section */}
@@ -163,7 +145,7 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, i
 
         {/* Footer */}
         <div className={styles.footer}>
-          <p className={styles.footerText}>Updates automatically every 30 seconds</p>
+          <p className={styles.footerText}>🔴 Real-time updates via WebSocket</p>
         </div>
       </div>
     </div>

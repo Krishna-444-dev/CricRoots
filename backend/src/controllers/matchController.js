@@ -44,6 +44,13 @@ exports.createMatch = async (req, res) => {
     await match.populate('team2');
     await match.populate('createdBy');
 
+    // Emit match created event
+    req.io.emit('match-created', {
+      matchId: match._id,
+      match,
+      timestamp: new Date()
+    });
+
     res.status(201).json({
       success: true,
       match
@@ -142,6 +149,9 @@ exports.updateMatch = async (req, res) => {
     await match.populate('team2');
     await match.populate('manOfTheMatch');
 
+    // Emit match status change event
+    req.socketManager.emitMatchStatusChange(match._id, match.status);
+
     res.status(200).json({
       success: true,
       match
@@ -154,7 +164,7 @@ exports.updateMatch = async (req, res) => {
   }
 };
 
-// @desc    Record a ball in match with AI insights
+// @desc    Record a ball in match with WebSocket and AI insights
 // @route   POST /api/matches/:id/record-ball
 // @access  Private
 exports.recordBall = async (req, res) => {
@@ -208,21 +218,34 @@ exports.recordBall = async (req, res) => {
     await match.populate('team1');
     await match.populate('team2');
 
-    // Get AI insights for the current situation
-    const aiInsights = await AIService.getTacticalAdvice({
+    // Prepare match state for AI
+    const matchState = {
       oversRemaining: 20 - (match.innings[inningsIndex].overs || 0),
       wicketsDown: match.innings[inningsIndex].wickets,
       currentRunRate: match.innings[inningsIndex].runs / (match.innings[inningsIndex].overs || 1),
       targetScore: match.innings[0]?.runs || 150,
       oppositionStrength: 7,
       pitchType: 1
-    });
+    };
+
+    // Emit ball recorded event via WebSocket
+    req.socketManager.emitBallRecorded(match._id, ball, matchState);
+
+    // Emit wicket event if applicable
+    if (isWicket) {
+      req.socketManager.emitWicket(match._id, {
+        ballNumber,
+        batsmanId,
+        bowlerId,
+        wicketType,
+        currentWickets: match.innings[inningsIndex].wickets
+      });
+    }
 
     res.status(200).json({
       success: true,
       message: 'Ball recorded successfully',
-      match,
-      aiInsights: aiInsights.success ? aiInsights : null
+      match
     });
   } catch (error) {
     res.status(500).json({

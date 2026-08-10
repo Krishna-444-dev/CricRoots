@@ -1,67 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Card, ProgressBar } from 'react-native-paper';
+import { useMatchWebSocket } from '../hooks/useMatchWebSocket';
 import { colors } from '../theme';
-
-interface AIInsight {
-  match_status: string;
-  win_probability: number;
-  tactical_advice: string;
-  key_recommendations: {
-    batsman: number;
-    bowler: number;
-  };
-}
 
 interface AITacticalAdvisorProps {
   matchId: string;
+  userId: string;
+  token: string;
   isLive: boolean;
 }
 
-export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, isLive }) => {
-  const [aiInsights, setAiInsights] = useState<AIInsight | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isLive) {
-      fetchAIInsights();
-      // Refresh AI insights every 30 seconds during live match
-      const interval = setInterval(fetchAIInsights, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [matchId, isLive]);
-
-  const fetchAIInsights = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/matches/${matchId}/ai-insights`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setAiInsights(data.aiInsights);
-        setError(null);
-      } else {
-        setError('Failed to fetch AI insights');
-      }
-    } catch (err) {
-      setError('Error fetching AI insights');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
+  matchId,
+  userId,
+  token,
+  isLive
+}) => {
+  const { isConnected, error, aiInsights } = useMatchWebSocket({
+    matchId,
+    userId,
+    token,
+    enabled: isLive
+  });
 
   if (!isLive) {
     return null;
-  }
-
-  if (loading && !aiInsights) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
   }
 
   if (error) {
@@ -74,8 +38,15 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, i
     );
   }
 
-  if (!aiInsights) {
-    return null;
+  if (!isConnected || !aiInsights) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>
+          {!isConnected ? 'Connecting to live updates...' : 'Loading AI insights...'}
+        </Text>
+      </View>
+    );
   }
 
   const getStatusColor = (status: string) => {
@@ -111,6 +82,14 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, i
           <View style={styles.headerRow}>
             <Text style={styles.title}>AI Tactical Advisor</Text>
             <Text style={styles.emoji}>{getStatusEmoji(aiInsights.match_status)}</Text>
+          </View>
+
+          {/* Connection Status */}
+          <View style={styles.connectionStatus}>
+            <View style={[styles.statusDot, { backgroundColor: isConnected ? '#4CAF50' : '#FF9800' }]} />
+            <Text style={styles.connectionText}>
+              {isConnected ? 'Live Updates' : 'Reconnecting...'}
+            </Text>
           </View>
 
           {/* Win Probability Section */}
@@ -162,10 +141,10 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({ matchId, i
             </View>
           </View>
 
-          {/* Refresh Button */}
-          <View style={styles.refreshButtonContainer}>
-            <Text style={styles.refreshText}>
-              Updates automatically every 30 seconds
+          {/* Live Status Footer */}
+          <View style={styles.liveFooter}>
+            <Text style={styles.liveText}>
+              🔴 Live - Updates in real-time
             </Text>
           </View>
         </Card.Content>
@@ -186,6 +165,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+  },
   errorCard: {
     backgroundColor: '#ffebee',
     borderLeftWidth: 4,
@@ -204,7 +188,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
@@ -216,6 +200,26 @@ const styles = StyleSheet.create({
   },
   emoji: {
     fontSize: 24,
+  },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 6,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  connectionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
   },
   section: {
     marginBottom: 20,
@@ -281,15 +285,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-  refreshButtonContainer: {
+  liveFooter: {
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
-  refreshText: {
+  liveText: {
     fontSize: 12,
-    color: '#999',
+    color: '#F44336',
+    fontWeight: '600',
   },
 });
 

@@ -16,6 +16,9 @@
   padding: 20px;
   border-bottom: 2px solid #e0e0e0;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .title {
@@ -30,6 +33,48 @@
 
 .title span {
   font-size: 24px;
+}
+
+.connectionBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.statusDot.connected {
+  background: #4CAF50;
+}
+
+.statusDot.disconnected {
+  background: #FF9800;
+}
+
+.connectionText {
+  font-weight: 600;
+}
+
+.usersCount {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #e0e0e0;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .section {
@@ -136,8 +181,9 @@
 
 .footerText {
   font-size: 12px;
-  color: #999;
+  color: #F44336;
   margin: 0;
+  font-weight: 600;
 }
 
 .loadingContainer {

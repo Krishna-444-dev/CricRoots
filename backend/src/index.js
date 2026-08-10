@@ -3,16 +3,37 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const http = require('http');
+const socketIo = require('socket.io');
 const connectDB = require('./config/database');
+const SocketManager = require('./utils/socketManager');
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || '*',
+    methods: ['GET', 'POST']
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 
 // Connect to database
 connectDB();
+
+// Initialize Socket Manager
+const socketManager = new SocketManager(io);
+
+// Make socketManager available to routes
+app.use((req, res, next) => {
+  req.io = io;
+  req.socketManager = socketManager;
+  next();
+});
 
 // Middleware
 app.use(helmet());
@@ -26,7 +47,8 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to CricSync API',
     version: '1.0.0',
-    status: 'Running'
+    status: 'Running',
+    websocket: 'Enabled'
   });
 });
 
@@ -55,6 +77,7 @@ app.use((req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`CricSync Backend running on port ${PORT}`);
+  console.log(`WebSocket server ready for connections`);
 });
