@@ -86,7 +86,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
 }) => {
   const [ballType, setBallType] = useState<'normal' | 'extra' | 'wicket'>('normal');
   const [runsScored, setRunsScored] = useState<number>(0);
-  const [extraType, setExtraType] = useState<'wide' | 'noBall' | 'bye' | 'legBye' | 'penalty'>('wide');
+  const [extraType, setExtraType] = useState<'wides' | 'noBalls' | 'byes' | 'legByes' | 'penalty'>('wides');
   const [extraRuns, setExtraRuns] = useState<number>(1);
   const [wicketType, setWicketType] = useState<string>('bowled');
   const [fielder, setFielder] = useState<Player | null>(null);
@@ -113,12 +113,12 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
   };
 
   // Handle extra button click
-  const handleExtraClick = (type: 'wide' | 'noBall' | 'bye' | 'legBye' | 'penalty') => {
+  const handleExtraClick = (type: 'wides' | 'noBalls' | 'byes' | 'legByes' | 'penalty') => {
     setBallType('extra');
     setExtraType(type);
     
     // Set default extra runs based on type
-    if (type === 'wide' || type === 'noBall') {
+    if (type === 'wides' || type === 'noBalls') {
       setExtraRuns(1);
     } else {
       setExtraRuns(0);
@@ -235,7 +235,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       let runsToAdd = extraRuns;
       
       // For wides and no balls, add 1 extra run plus any additional runs
-      if (extraType === 'wide' || extraType === 'noBall') {
+      if (extraType === 'wides' || extraType === 'noBalls') {
         runsToAdd = extraRuns;
         
         // Update extras
@@ -244,7 +244,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         // Update bowler stats
         updatedInningsData.bowlingScorecard[bowlerIndex].runs += runsToAdd;
         
-        if (extraType === 'wide') {
+        if (extraType === 'wides') {
           updatedInningsData.bowlingScorecard[bowlerIndex].wides += runsToAdd;
         } else {
           updatedInningsData.bowlingScorecard[bowlerIndex].noBalls += 1;
@@ -281,7 +281,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       updatedInningsData.totalRuns += runsToAdd;
       
       // Swap batsmen if odd number of runs (except for wides)
-      if (extraType !== 'wide' && runsToAdd % 2 === 1) {
+      if (extraType !== 'wides' && runsToAdd % 2 === 1) {
         updatedInningsData.currentBatsmen = [
           updatedInningsData.currentBatsmen[1],
           updatedInningsData.currentBatsmen[0]
@@ -331,7 +331,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       
       // Add fall of wicket
       updatedInningsData.fallOfWickets.push({
-        player: striker,
+        player: striker!,
         runs: updatedInningsData.totalRuns,
         overs: updatedInningsData.overs,
         balls: updatedInningsData.balls,
@@ -381,7 +381,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
     // Reset state
     setBallType('normal');
     setRunsScored(0);
-    setExtraType('wide');
+    setExtraType('wides');
     setExtraRuns(1);
     setWicketType('bowled');
     setFielder(null);
@@ -463,4 +463,149 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
           {[0, 1, 2, 3, 4, 5, 6].map(runs => (
             <button
-              key<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>
+              key={runs}
+              onClick={() => handleRunsClick(runs)}
+              className={`py-3 rounded-md font-semibold text-lg touch-manipulation border ${
+                ballType === 'normal' && runsScored === runs
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {runs}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Extras</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {(['wides', 'noBalls', 'byes', 'legByes', 'penalty'] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => handleExtraClick(type)}
+              className={`py-3 rounded-md font-medium text-sm touch-manipulation border ${
+                ballType === 'extra' && extraType === type
+                  ? 'bg-yellow-500 text-white border-yellow-500'
+                  : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {type === 'noBalls' ? 'No Ball' : type === 'legByes' ? 'Leg Bye' : type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
+        {ballType === 'extra' && (
+          <div className="mt-3 flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700">Additional runs</label>
+            <select
+              value={extraRuns}
+              onChange={(e) => setExtraRuns(parseInt(e.target.value, 10))}
+              className="border border-gray-300 rounded-md px-3 py-2"
+            >
+              {[0, 1, 2, 3, 4].map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <button
+          onClick={handleWicketClick}
+          className="w-full py-3 rounded-md font-semibold text-white bg-red-600 hover:bg-red-700 touch-manipulation"
+        >
+          Wicket
+        </button>
+      </div>
+
+      <button
+        onClick={handleRecordBall}
+        disabled={isProcessing || ballType === 'wicket'}
+        className="w-full py-4 rounded-md font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+      >
+        {isProcessing ? 'Recording...' : 'Record Ball'}
+      </button>
+
+      {showWicketModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Record Wicket</h3>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">How out?</label>
+              <select
+                value={wicketType}
+                onChange={(e) => setWicketType(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+              >
+                {['bowled', 'caught', 'lbw', 'run out', 'stumped', 'hit wicket', 'retired hurt', 'retired out'].map(w => (
+                  <option key={w} value={w}>{w.charAt(0).toUpperCase() + w.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+
+            {['caught', 'run out', 'stumped'].includes(wicketType) && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fielder</label>
+                <select
+                  value={fielder?.id ?? ''}
+                  onChange={(e) => {
+                    const selected = inningsData.bowlingScorecard.find(
+                      b => b.player.id === parseInt(e.target.value, 10)
+                    );
+                    setFielder(selected ? selected.player : null);
+                  }}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                >
+                  <option value="">Select fielder</option>
+                  {inningsData.bowlingScorecard.map(entry => (
+                    <option key={entry.player.id} value={entry.player.id}>{entry.player.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">New Batsman</label>
+              <select
+                value={newBatsman?.id ?? ''}
+                onChange={(e) => {
+                  const selected = availableBatsmen.find(p => p.id === parseInt(e.target.value, 10));
+                  setNewBatsman(selected ?? null);
+                }}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+              >
+                <option value="">Select new batsman</option>
+                {availableBatsmen.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowWicketModal(false);
+                  setBallType('normal');
+                }}
+                className="flex-1 py-3 rounded-md font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 touch-manipulation"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRecordBall}
+                disabled={isProcessing || !newBatsman}
+                className="flex-1 py-3 rounded-md font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+              >
+                Confirm Wicket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default BallByBallScoring;
