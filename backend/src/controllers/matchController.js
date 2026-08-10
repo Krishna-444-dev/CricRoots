@@ -169,7 +169,11 @@ exports.updateMatch = async (req, res) => {
 // @access  Private
 exports.recordBall = async (req, res) => {
   try {
-    const { inningsIndex, ballNumber, batsmanId, bowlerId, runs, isWicket, wicketType } = req.body;
+    const {
+      inningsIndex, ballNumber, batsmanId, bowlerId, runs, isWicket, wicketType,
+      isExtra, extraType,
+      line, length, shotType, shotZone, fielderId, fielderPosition
+    } = req.body;
 
     let match = await Match.findById(req.params.id);
 
@@ -201,7 +205,15 @@ exports.recordBall = async (req, res) => {
       bowlerId,
       runs: runs || 0,
       isWicket: isWicket || false,
-      wicketType: wicketType || null
+      wicketType: wicketType || null,
+      isExtra: isExtra || false,
+      extraType: extraType || 'none',
+      line: line || 'unknown',
+      length: length || 'unknown',
+      shotType: shotType || null,
+      shotZone: shotZone || null,
+      fielderId: fielderId || null,
+      fielderPosition: fielderPosition || null
     };
 
     match.innings[inningsIndex].balls.push(ball);
@@ -210,9 +222,11 @@ exports.recordBall = async (req, res) => {
       match.innings[inningsIndex].wickets += 1;
     }
 
-    // Calculate overs (6 balls = 1 over)
-    const totalBalls = match.innings[inningsIndex].balls.length;
-    match.innings[inningsIndex].overs = Math.floor(totalBalls / 6) + (totalBalls % 6) / 10;
+    // Calculate overs (6 legal balls = 1 over; wides/no-balls don't count toward the over)
+    const legalBalls = match.innings[inningsIndex].balls.filter(
+      b => !(b.isExtra && ['wide', 'no-ball'].includes(b.extraType))
+    ).length;
+    match.innings[inningsIndex].overs = Math.floor(legalBalls / 6) + (legalBalls % 6) / 10;
 
     match = await match.save();
     await match.populate('team1');
