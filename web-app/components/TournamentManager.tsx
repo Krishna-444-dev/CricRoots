@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import styles from './TournamentManager.module.css';
+import { useAuth } from '@/AuthContext';
+import { apiFetch } from '@/lib/apiFetch';
+import { useChatSocket, ChatMessage } from '@/hooks/useChatSocket';
 
 interface Tournament {
   _id: string;
@@ -16,6 +19,7 @@ interface Tournament {
   teams: any[];
   maxTeams: number;
   standings: any[];
+  organizer: { _id: string; name: string };
   statistics: {
     totalMatches: number;
     completedMatches: number;
@@ -28,11 +32,49 @@ interface TournamentManagerProps {
 }
 
 export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournamentId }) => {
+  const { user, token } = useAuth();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'statistics'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'statistics' | 'announcements'>('list');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [announcements, setAnnouncements] = useState<ChatMessage[]>([]);
+  const [announcementText, setAnnouncementText] = useState('');
+  const [postingAnnouncement, setPostingAnnouncement] = useState(false);
+
+  const isOrganizer = Boolean(user && selectedTournament && selectedTournament.organizer?._id === user.id);
+
+  useEffect(() => {
+    if (activeTab === 'announcements' && selectedTournament) {
+      fetch(`/api/tournaments/${selectedTournament._id}/messages`)
+        .then(r => r.json())
+        .then(data => { if (data.success) setAnnouncements(data.messages); });
+    }
+  }, [activeTab, selectedTournament]);
+
+  useChatSocket({
+    scope: 'tournament',
+    id: selectedTournament?._id || '',
+    token,
+    enabled: activeTab === 'announcements' && Boolean(selectedTournament),
+    onMessage: (message) => setAnnouncements(prev => [...prev, message]),
+  });
+
+  const handlePostAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!announcementText.trim() || !selectedTournament || postingAnnouncement) return;
+    setPostingAnnouncement(true);
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ text: announcementText }),
+      });
+      const data = await res.json();
+      if (data.success) setAnnouncementText('');
+    } finally {
+      setPostingAnnouncement(false);
+    }
+  };
 
   useEffect(() => {
     fetchTournaments();
@@ -138,6 +180,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
               onClick={() => setActiveTab('statistics')}
             >
               📊 Statistics
+            </button>
+            <button
+              className={`${styles.tab} ${activeTab === 'announcements' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('announcements')}
+            >
+              📢 Announcements
             </button>
           </>
         )}
@@ -255,6 +303,40 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 <span className={styles.statValue}>{selectedTournament.statistics.lowestScore}</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'announcements' && selectedTournament && (
+          <div className={styles.card}>
+            <h2>{selectedTournament.name} - Announcements</h2>
+            {isOrganizer && (
+              <form onSubmit={handlePostAnnouncement} style={{ display: 'flex', gap: '0.5rem', margin: '1rem 0' }}>
+                <input
+                  type="text"
+                  value={announcementText}
+                  onChange={(e) => setAnnouncementText(e.target.value)}
+                  placeholder="Post an announcement to everyone following this tournament..."
+                  style={{ flex: 1, padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                />
+                <button type="submit" disabled={postingAnnouncement || !announcementText.trim()} className={styles.createBtn}>
+                  Post
+                </button>
+              </form>
+            )}
+            {announcements.length === 0 ? (
+              <p className={styles.infoText}>No announcements yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {announcements.map(a => (
+                  <div key={a._id} style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>
+                    <p style={{ fontSize: '0.75rem', color: '#888' }}>
+                      {a.sender.name} · {new Date(a.createdAt).toLocaleString()}
+                    </p>
+                    <p>{a.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

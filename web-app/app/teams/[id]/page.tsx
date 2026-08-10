@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 
@@ -90,8 +91,15 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
   return (
     <main className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900">{team.name}</h1>
-        <p className="text-gray-500 mb-6">{team.city}</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{team.name}</h1>
+            <p className="text-gray-500 mb-6">{team.city}</p>
+          </div>
+          <Link href={`/teams/${team._id}/chat`} className="text-blue-600 hover:underline text-sm whitespace-nowrap">
+            Team Chat
+          </Link>
+        </div>
         {team.description && <p className="text-gray-600 mb-6">{team.description}</p>}
 
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">

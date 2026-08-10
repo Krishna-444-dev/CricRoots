@@ -1,4 +1,5 @@
 const AIService = require('./aiService');
+const { verifyToken } = require('../config/jwt');
 
 class SocketManager {
   constructor(io) {
@@ -9,14 +10,18 @@ class SocketManager {
   }
 
   setupMiddleware() {
-    // Middleware to verify JWT tokens
+    // Middleware to verify JWT tokens - socket.userId is derived from the
+    // verified token payload, never trusted from client-supplied handshake data.
     this.io.use((socket, next) => {
       const token = socket.handshake.auth.token;
       if (!token) {
         return next(new Error('Authentication error'));
       }
-      // Token verification would happen here
-      socket.userId = socket.handshake.auth.userId;
+      const decoded = verifyToken(token);
+      if (!decoded) {
+        return next(new Error('Authentication error'));
+      }
+      socket.userId = decoded.id;
       next();
     });
   }
@@ -47,6 +52,22 @@ class SocketManager {
           userId: socket.userId,
           timestamp: new Date()
         });
+      });
+
+      // Join/leave a team chat room
+      socket.on('join-team', (teamId) => {
+        socket.join(`team-${teamId}`);
+      });
+      socket.on('leave-team', (teamId) => {
+        socket.leave(`team-${teamId}`);
+      });
+
+      // Join/leave a tournament announcements room
+      socket.on('join-tournament', (tournamentId) => {
+        socket.join(`tournament-${tournamentId}`);
+      });
+      socket.on('leave-tournament', (tournamentId) => {
+        socket.leave(`tournament-${tournamentId}`);
       });
 
       // Handle disconnection
@@ -147,6 +168,18 @@ class SocketManager {
     this.io.to(`match-${matchId}`).emit('scorecard-update', {
       matchId,
       scorecard,
+      timestamp: new Date()
+    });
+  }
+
+  /**
+   * Emit a new chat/announcement message to a team or tournament room
+   */
+  emitNewMessage(scope, id, message) {
+    this.io.to(`${scope}-${id}`).emit('new-message', {
+      scope,
+      id,
+      message,
       timestamp: new Date()
     });
   }
