@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # MongoDB Database
   mongodb:
-    image: mongo:6.0-alpine
+    image: mongo:6.0
     container_name: cricsync-mongodb
     restart: unless-stopped
     environment:

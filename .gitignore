@@ -63,6 +63,9 @@ htmlcov/
 # Build outputs
 dist/
 build/
+.next/
+.expo/
+*.tsbuildinfo
 
 # Temporary files
 tmp/

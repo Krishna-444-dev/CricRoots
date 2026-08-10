@@ -42,4 +42,4 @@ def internal_error(error):
 
 if __name__ == '__main__':
     PORT = os.getenv('PORT', 5001)
-    app.run(debug=True, port=PORT)
+    app.run(host='0.0.0.0', debug=True, port=PORT)
