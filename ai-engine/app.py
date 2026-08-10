@@ -12,9 +12,11 @@ CORS(app)
 
 # Import API routes
 from src.api.recommendations import recommendations_bp
+from src.api.analytics import analytics_bp
 
 # Register blueprints
 app.register_blueprint(recommendations_bp, url_prefix='/api/recommendations')
+app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
 
 @app.route('/', methods=['GET'])
 def home():
