@@ -1,6 +1,7 @@
 'use client';
 
 import PlayerRegistrationForm from '@/components/player/PlayerRegistrationForm';
+import { useAuth } from '@/AuthContext';
 
 function generateDemoPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
@@ -12,6 +13,8 @@ function generateDemoPassword(): string {
 }
 
 export default function RegisterPage() {
+  const { setSession } = useAuth();
+
   const handleSubmit = async (formData: any) => {
     const password = generateDemoPassword();
     const result: {
@@ -50,6 +53,7 @@ export default function RegisterPage() {
       }
 
       result.accountCreated = true;
+      setSession(registerData.user, registerData.token);
 
       const playerRes = await fetch('/api/players/register', {
         method: 'POST',

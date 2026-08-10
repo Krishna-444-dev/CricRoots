@@ -4,9 +4,46 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface Player {
-  id: number;
+  id: string;
   name: string;
   role: string;
+}
+
+export type Line = 'wide-outside-off' | 'outside-off' | 'off-stump' | 'middle-stump' | 'leg-stump' | 'down-leg' | 'unknown';
+export type Length = 'full-toss' | 'yorker' | 'full' | 'good-length' | 'short-of-good-length' | 'short' | 'bouncer' | 'unknown';
+export type ShotType = 'defensive' | 'drive' | 'cut' | 'pull-hook' | 'sweep' | 'flick-glance' | 'loft' | 'reverse-scoop' | 'edge' | 'other';
+export type ShotZone = 'fine-leg' | 'square-leg' | 'mid-wicket' | 'mid-on' | 'mid-off' | 'cover' | 'point' | 'third-man';
+export type FielderPosition = ShotZone | 'wicket-keeper' | 'bowler' | 'not-applicable';
+
+const LINES: Line[] = ['wide-outside-off', 'outside-off', 'off-stump', 'middle-stump', 'leg-stump', 'down-leg'];
+const LENGTHS: Length[] = ['full-toss', 'yorker', 'full', 'good-length', 'short-of-good-length', 'short', 'bouncer'];
+const SHOT_TYPES: ShotType[] = ['defensive', 'drive', 'cut', 'pull-hook', 'sweep', 'flick-glance', 'loft', 'reverse-scoop', 'edge', 'other'];
+// Batsman-relative wagon-wheel order (off side -> straight -> leg side); labels alone carry the
+// batsman-relative meaning ("cover" is always the batsman's own cover, left- or right-handed).
+const SHOT_ZONES: ShotZone[] = ['third-man', 'point', 'cover', 'mid-off', 'mid-on', 'mid-wicket', 'square-leg', 'fine-leg'];
+
+function labelize(value: string): string {
+  return value
+    .split('-')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+export interface BallEvent {
+  ballNumber: number;
+  batsmanId: string;
+  bowlerId: string;
+  runs: number;
+  isWicket: boolean;
+  wicketType: string | null;
+  isExtra: boolean;
+  extraType: 'none' | 'wide' | 'no-ball' | 'bye' | 'leg-bye' | 'penalty';
+  line: Line;
+  length: Length;
+  shotType: ShotType | null;
+  shotZone: ShotZone | null;
+  fielderId: string | null;
+  fielderPosition: FielderPosition | null;
 }
 
 interface BatsmanScorecard {
@@ -76,8 +113,16 @@ interface InningsData {
 interface BallByBallScoringProps {
   matchId: string;
   inningsData: InningsData;
-  onBallRecorded: (updatedInningsData: InningsData) => void;
+  onBallRecorded: (updatedInningsData: InningsData, ballEvent: BallEvent) => void;
 }
+
+const EXTRA_TYPE_TO_BACKEND: Record<'wides' | 'noBalls' | 'byes' | 'legByes' | 'penalty', BallEvent['extraType']> = {
+  wides: 'wide',
+  noBalls: 'no-ball',
+  byes: 'bye',
+  legByes: 'leg-bye',
+  penalty: 'penalty',
+};
 
 const BallByBallScoring: React.FC<BallByBallScoringProps> = ({ 
   matchId, 
@@ -93,6 +138,14 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
   const [newBatsman, setNewBatsman] = useState<Player | null>(null);
   const [showWicketModal, setShowWicketModal] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // Optional delivery/shot tagging (progressive disclosure)
+  const [detailExpanded, setDetailExpanded] = useState<boolean>(false);
+  const [line, setLine] = useState<Line>('unknown');
+  const [length, setLength] = useState<Length>('unknown');
+  const [shotType, setShotType] = useState<ShotType | null>(null);
+  const [shotZone, setShotZone] = useState<ShotZone | null>(null);
+  const [fielderPosition, setFielderPosition] = useState<FielderPosition | null>(null);
 
   // Get current batsman (striker)
   const striker = inningsData.currentBatsmen[0];
@@ -110,6 +163,9 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
   const handleRunsClick = (runs: number) => {
     setRunsScored(runs);
     setBallType('normal');
+    if (runs === 4 || runs === 6) {
+      setDetailExpanded(true);
+    }
   };
 
   // Handle extra button click
@@ -129,6 +185,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
   const handleWicketClick = () => {
     setBallType('wicket');
     setShowWicketModal(true);
+    setDetailExpanded(true);
   };
 
   // Calculate strike rate
@@ -147,9 +204,14 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
   // Handle recording a ball
   const handleRecordBall = () => {
     if (isProcessing) return;
+    if (ballType === 'wicket' && (line === 'unknown' || length === 'unknown')) {
+      alert('Please tag line and length before confirming a wicket');
+      return;
+    }
     setIsProcessing(true);
-    
+
     let updatedInningsData = { ...inningsData };
+    const ballNumber = inningsData.overs * 6 + inningsData.balls + 1;
     
     // Find striker and bowler in scorecards
     const strikerIndex = updatedInningsData.battingScorecard.findIndex(
@@ -375,9 +437,27 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         );
     }
     
-    // Call the callback with updated innings data
-    onBallRecorded(updatedInningsData);
-    
+    // Build the raw ball event for the parent to persist via the record-ball API
+    const ballEvent: BallEvent = {
+      ballNumber,
+      batsmanId: striker?.id ?? '',
+      bowlerId: bowler?.id ?? '',
+      runs: ballType === 'normal' ? runsScored : ballType === 'extra' ? extraRuns : 0,
+      isWicket: ballType === 'wicket',
+      wicketType: ballType === 'wicket' ? wicketType : null,
+      isExtra: ballType === 'extra',
+      extraType: ballType === 'extra' ? EXTRA_TYPE_TO_BACKEND[extraType] : 'none',
+      line,
+      length,
+      shotType,
+      shotZone,
+      fielderId: ballType === 'wicket' ? fielder?.id ?? null : null,
+      fielderPosition: ballType === 'wicket' ? fielderPosition : null
+    };
+
+    // Call the callback with updated innings data and the raw event to persist
+    onBallRecorded(updatedInningsData, ballEvent);
+
     // Reset state
     setBallType('normal');
     setRunsScored(0);
@@ -386,6 +466,12 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
     setWicketType('bowled');
     setFielder(null);
     setNewBatsman(null);
+    setDetailExpanded(false);
+    setLine('unknown');
+    setLength('unknown');
+    setShotType(null);
+    setShotZone(null);
+    setFielderPosition(null);
     setIsProcessing(false);
   };
 
@@ -512,6 +598,92 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
 
       <div className="mb-6">
         <button
+          type="button"
+          onClick={() => setDetailExpanded(prev => !prev)}
+          className="text-sm font-medium text-blue-600 hover:underline mb-3"
+        >
+          {detailExpanded ? '− Hide shot detail' : '+ Add shot detail'}
+        </button>
+
+        {detailExpanded && (
+          <div className="space-y-4 bg-gray-50 rounded-md p-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Line</p>
+              <div className="flex flex-wrap gap-1">
+                {LINES.map(l => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setLine(l)}
+                    className={`px-2 py-1 rounded text-xs border touch-manipulation ${
+                      line === l ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
+                    }`}
+                  >
+                    {labelize(l)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Length</p>
+              <div className="flex flex-wrap gap-1">
+                {LENGTHS.map(l => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setLength(l)}
+                    className={`px-2 py-1 rounded text-xs border touch-manipulation ${
+                      length === l ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
+                    }`}
+                  >
+                    {labelize(l)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Shot Zone (where it went)</p>
+              <div className="flex flex-wrap gap-1">
+                {SHOT_ZONES.map(z => (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => setShotZone(prev => (prev === z ? null : z))}
+                    className={`px-2 py-1 rounded text-xs border touch-manipulation ${
+                      shotZone === z ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300'
+                    }`}
+                  >
+                    {labelize(z)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Shot Type</p>
+              <div className="flex flex-wrap gap-1">
+                {SHOT_TYPES.map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setShotType(prev => (prev === s ? null : s))}
+                    className={`px-2 py-1 rounded text-xs border touch-manipulation ${
+                      shotType === s ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-300'
+                    }`}
+                  >
+                    {labelize(s)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <button
           onClick={handleWicketClick}
           className="w-full py-3 rounded-md font-semibold text-white bg-red-600 hover:bg-red-700 touch-manipulation"
         >
@@ -545,25 +717,69 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
               </select>
             </div>
 
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Line <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={line}
+                onChange={(e) => setLine(e.target.value as Line)}
+                className={`w-full border rounded-md px-3 py-2 ${line === 'unknown' ? 'border-red-400' : 'border-gray-300'}`}
+              >
+                <option value="unknown">Select line</option>
+                {LINES.map(l => <option key={l} value={l}>{labelize(l)}</option>)}
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Length <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={length}
+                onChange={(e) => setLength(e.target.value as Length)}
+                className={`w-full border rounded-md px-3 py-2 ${length === 'unknown' ? 'border-red-400' : 'border-gray-300'}`}
+              >
+                <option value="unknown">Select length</option>
+                {LENGTHS.map(l => <option key={l} value={l}>{labelize(l)}</option>)}
+              </select>
+            </div>
+
             {['caught', 'run out', 'stumped'].includes(wicketType) && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fielder</label>
-                <select
-                  value={fielder?.id ?? ''}
-                  onChange={(e) => {
-                    const selected = inningsData.bowlingScorecard.find(
-                      b => b.player.id === parseInt(e.target.value, 10)
-                    );
-                    setFielder(selected ? selected.player : null);
-                  }}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                >
-                  <option value="">Select fielder</option>
-                  {inningsData.bowlingScorecard.map(entry => (
-                    <option key={entry.player.id} value={entry.player.id}>{entry.player.name}</option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fielder</label>
+                  <select
+                    value={fielder?.id ?? ''}
+                    onChange={(e) => {
+                      const selected = inningsData.bowlingScorecard.find(
+                        b => b.player.id === e.target.value
+                      );
+                      setFielder(selected ? selected.player : null);
+                    }}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="">Select fielder</option>
+                    {inningsData.bowlingScorecard.map(entry => (
+                      <option key={entry.player.id} value={entry.player.id}>{entry.player.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fielder Position</label>
+                  <select
+                    value={fielderPosition ?? ''}
+                    onChange={(e) => setFielderPosition((e.target.value || null) as FielderPosition | null)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="">Select position</option>
+                    {SHOT_ZONES.map(z => <option key={z} value={z}>{labelize(z)}</option>)}
+                    <option value="wicket-keeper">Wicket-keeper</option>
+                    <option value="bowler">Bowler</option>
+                  </select>
+                </div>
+              </>
             )}
 
             <div className="mb-6">
@@ -571,7 +787,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
               <select
                 value={newBatsman?.id ?? ''}
                 onChange={(e) => {
-                  const selected = availableBatsmen.find(p => p.id === parseInt(e.target.value, 10));
+                  const selected = availableBatsmen.find(p => p.id === e.target.value);
                   setNewBatsman(selected ?? null);
                 }}
                 className="w-full border border-gray-300 rounded-md px-3 py-2"
@@ -595,7 +811,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
               </button>
               <button
                 onClick={handleRecordBall}
-                disabled={isProcessing || !newBatsman}
+                disabled={isProcessing || !newBatsman || line === 'unknown' || length === 'unknown'}
                 className="flex-1 py-3 rounded-md font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
               >
                 Confirm Wicket
