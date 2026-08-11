@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
 import ManhattanChart from '@/components/insights/ManhattanChart';
 import WormChart from '@/components/insights/WormChart';
+import PredictionWidget from '@/components/match/PredictionWidget';
 import styles from './page.module.css';
 
 interface ChartInnings {
@@ -181,6 +182,16 @@ export default function MatchPage() {
             </p>
           )}
         </div>
+      </div>
+
+      {/* Predict the Winner */}
+      <div className="max-w-[1200px] mx-auto px-5 mt-4">
+        <PredictionWidget
+          matchId={matchId}
+          matchStatus={match.status}
+          team1={match.team1}
+          team2={match.team2}
+        />
       </div>
 
       {/* Tab Navigation */}

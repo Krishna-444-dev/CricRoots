@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { href: '/edtech', label: 'Learn' },
   { href: '/news', label: 'News' },
   { href: '/marketplace', label: 'Market' },
+  { href: '/predictions/leaderboard', label: 'Predict' },
 ];
 
 export default function Navbar() {
