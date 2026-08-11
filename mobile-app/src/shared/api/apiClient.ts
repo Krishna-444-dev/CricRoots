@@ -4,6 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
+import type { Prediction, LeaderboardEntry } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -186,6 +187,29 @@ export const ordersAPI = {
   updateOrderStatus: (orderId: string, status: string) => apiFetch(`/orders/${orderId}/status`, 'PUT', { status }),
 };
 
+// --- Match predictions (backend/src/routes/predictionRoutes.js) - a free, points-based
+//     predict-the-winner game, NOT real-money betting. Predictions lock once a match goes Live
+//     and settle automatically server-side when a match completes. ---
+export const predictionsAPI = {
+  submit: (matchId: string, predictedWinnerId: string, predictedMotmId?: string) =>
+    apiFetch<{ success: true; prediction: Prediction }>('/predictions', 'POST', {
+      matchId,
+      predictedWinnerId,
+      ...(predictedMotmId && { predictedMotmId }),
+    }),
+  getForMatch: (matchId: string) =>
+    apiFetch<{
+      success: true;
+      mine: Prediction | null;
+      totalPredictions: number;
+      communitySplit: Record<string, number>;
+    }>(`/predictions/match/${matchId}`),
+  getMine: () =>
+    apiFetch<{ success: true; predictions: Prediction[]; totalPoints: number }>('/predictions/me'),
+  getLeaderboard: (limit = 50) =>
+    apiFetch<{ success: true; leaderboard: LeaderboardEntry[] }>(`/predictions/leaderboard?limit=${limit}`),
+};
+
 export const api = {
   auth: authAPI,
   users: usersAPI,
@@ -199,6 +223,7 @@ export const api = {
   news: newsAPI,
   products: productsAPI,
   orders: ordersAPI,
+  predictions: predictionsAPI,
 };
 
 export default api;
