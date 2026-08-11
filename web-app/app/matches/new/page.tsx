@@ -14,13 +14,21 @@ interface Team {
   name: string;
 }
 
+interface Tournament {
+  _id: string;
+  name: string;
+  status: string;
+}
+
 export default function NewMatchPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const [teams, setTeams] = useState<Team[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [title, setTitle] = useState('');
   const [team1Id, setTeam1Id] = useState('');
   const [team2Id, setTeam2Id] = useState('');
+  const [tournamentId, setTournamentId] = useState('');
   const [matchType, setMatchType] = useState('T20');
   const [pitchType, setPitchType] = useState('unknown');
   const [venue, setVenue] = useState('');
@@ -33,6 +41,13 @@ export default function NewMatchPage() {
       .then(res => res.json())
       .then(data => {
         if (data.success) setTeams(data.teams);
+      });
+    fetch('/api/tournaments')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setTournaments(data.tournaments.filter((t: Tournament) => ['Registration', 'Ongoing'].includes(t.status)));
+        }
       });
   }, []);
 
@@ -53,7 +68,7 @@ export default function NewMatchPage() {
     try {
       const res = await apiFetch('/api/matches', {
         method: 'POST',
-        body: JSON.stringify({ title, team1Id, team2Id, matchType, venue, pitchType, scheduledDate }),
+        body: JSON.stringify({ title, team1Id, team2Id, matchType, venue, pitchType, scheduledDate, tournamentId: tournamentId || undefined }),
       });
       const data = await res.json();
       if (data.success) {
@@ -125,6 +140,16 @@ export default function NewMatchPage() {
               <label htmlFor="scheduledDate" className={labelClass}>Date</label>
               <input type="datetime-local" id="scheduledDate" required value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className={inputClass} />
             </div>
+            {tournaments.length > 0 && (
+              <div>
+                <label htmlFor="tournament" className={labelClass}>Tournament (optional)</label>
+                <select id="tournament" value={tournamentId} onChange={(e) => setTournamentId(e.target.value)} className={inputClass}>
+                  <option value="">Not part of a tournament</option>
+                  {tournaments.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+                </select>
+                <p className="text-xs text-ink-muted mt-1">Linking a match to a tournament updates its points table when the match is completed.</p>
+              </div>
+            )}
             <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? 'Creating...' : 'Create Match'}
             </Button>

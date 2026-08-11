@@ -72,6 +72,7 @@ exports.getAllTournaments = async (req, res) => {
     const tournaments = await Tournament.find(query)
       .populate('organizer')
       .populate('teams')
+      .populate('standings.team')
       .sort({ [sortBy]: parseInt(order) });
 
     res.status(200).json({
@@ -96,6 +97,7 @@ exports.getTournament = async (req, res) => {
       .populate('organizer')
       .populate('teams')
       .populate('matches')
+      .populate('standings.team')
       .populate('awards.winner')
       .populate('awards.manOfTheTournament');
 

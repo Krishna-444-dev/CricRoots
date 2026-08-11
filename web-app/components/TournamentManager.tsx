@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import styles from './TournamentManager.module.css';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import { useChatSocket, ChatMessage } from '@/hooks/useChatSocket';
 import { inputClass } from '@/components/ui/formStyles';
 import { buttonVariants } from '@/components/ui/buttonStyles';
+import Badge from '@/components/ui/Badge';
 
 interface Tournament {
   _id: string;
@@ -29,6 +31,15 @@ interface Tournament {
   };
 }
 
+interface TournamentMatch {
+  _id: string;
+  title: string;
+  team1: { _id: string; name: string };
+  team2: { _id: string; name: string };
+  status: string;
+  scheduledDate: string;
+}
+
 interface TournamentManagerProps {
   tournamentId?: string;
 }
@@ -43,6 +54,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [announcements, setAnnouncements] = useState<ChatMessage[]>([]);
   const [announcementText, setAnnouncementText] = useState('');
   const [postingAnnouncement, setPostingAnnouncement] = useState(false);
+  const [tournamentMatches, setTournamentMatches] = useState<TournamentMatch[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
 
   const isOrganizer = Boolean(user && selectedTournament && selectedTournament.organizer?._id === user.id);
 
@@ -51,6 +64,16 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       fetch(`/api/tournaments/${selectedTournament._id}/messages`)
         .then(r => r.json())
         .then(data => { if (data.success) setAnnouncements(data.messages); });
+    }
+  }, [activeTab, selectedTournament]);
+
+  useEffect(() => {
+    if (activeTab === 'matches' && selectedTournament) {
+      setMatchesLoading(true);
+      fetch(`/api/tournaments/${selectedTournament._id}/matches`)
+        .then(r => r.json())
+        .then(data => { if (data.success) setTournamentMatches(data.matches); })
+        .finally(() => setMatchesLoading(false));
     }
   }, [activeTab, selectedTournament]);
 
@@ -249,38 +272,67 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
         {activeTab === 'standings' && selectedTournament && (
           <div className={styles.card}>
             <h2>{selectedTournament.name} - Standings</h2>
-            <div className={styles.standingsTable}>
-              <div className={styles.tableHeader}>
-                <div className={styles.col1}>Rank</div>
-                <div className={styles.col2}>Team</div>
-                <div className={styles.col3}>P</div>
-                <div className={styles.col4}>W</div>
-                <div className={styles.col5}>L</div>
-                <div className={styles.col6}>Pts</div>
-                <div className={styles.col7}>NRR</div>
-              </div>
-              {selectedTournament.standings.map((standing, idx) => (
-                <div key={idx} className={styles.tableRow}>
-                  <div className={styles.col1}>{idx + 1}</div>
-                  <div className={styles.col2}>{standing.team?.name || 'Team'}</div>
-                  <div className={styles.col3}>{standing.played}</div>
-                  <div className={styles.col4}>{standing.won}</div>
-                  <div className={styles.col5}>{standing.lost}</div>
-                  <div className={styles.col6}>{standing.points}</div>
-                  <div className={styles.col7}>{standing.netRunRate.toFixed(2)}</div>
+            {selectedTournament.standings.length === 0 ? (
+              <p className={styles.infoText}>No standings yet — register teams and complete a match to populate the points table.</p>
+            ) : (
+              <div className={styles.standingsTable}>
+                <div className={styles.tableHeader}>
+                  <div className={styles.col1}>Rank</div>
+                  <div className={styles.col2}>Team</div>
+                  <div className={styles.col3}>P</div>
+                  <div className={styles.col4}>W</div>
+                  <div className={styles.col5}>L</div>
+                  <div className={styles.col6}>T</div>
+                  <div className={styles.col7}>NR</div>
+                  <div className={styles.col8}>Pts</div>
+                  <div className={styles.col9}>NRR</div>
                 </div>
-              ))}
-            </div>
+                {selectedTournament.standings.map((standing, idx) => (
+                  <div key={idx} className={styles.tableRow}>
+                    <div className={styles.col1}>{idx + 1}</div>
+                    <div className={styles.col2}>{standing.team?.name || 'Team'}</div>
+                    <div className={styles.col3}>{standing.played}</div>
+                    <div className={styles.col4}>{standing.won}</div>
+                    <div className={styles.col5}>{standing.lost}</div>
+                    <div className={styles.col6}>{standing.tied}</div>
+                    <div className={styles.col7}>{standing.noResult}</div>
+                    <div className={styles.col8}>{standing.points}</div>
+                    <div className={styles.col9}>{standing.netRunRate >= 0 ? '+' : ''}{standing.netRunRate.toFixed(2)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === 'matches' && selectedTournament && (
           <div className={styles.card}>
             <h2>{selectedTournament.name} - Matches</h2>
-            <p className={styles.infoText}>
-              Total Matches: {selectedTournament.statistics.totalMatches} | Completed:{' '}
-              {selectedTournament.statistics.completedMatches}
-            </p>
+            {matchesLoading ? (
+              <p className={styles.infoText}>Loading matches...</p>
+            ) : tournamentMatches.length === 0 ? (
+              <p className={styles.infoText}>
+                No matches linked to this tournament yet. Create one from the New Match page and select this tournament.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3 mt-4">
+                {tournamentMatches.map(m => (
+                  <Link
+                    key={m._id}
+                    href={m.status === 'Completed' ? `/match/${m._id}` : `/match/${m._id}/score`}
+                    className="flex items-center justify-between gap-3 bg-surface-alt border border-border rounded-lg p-3 hover:bg-surface-hover transition-colors"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-ink">{m.team1.name} vs {m.team2.name}</p>
+                      <p className="text-xs text-ink-muted">{new Date(m.scheduledDate).toLocaleDateString()}</p>
+                    </div>
+                    <Badge variant={m.status === 'Live' ? 'live' : m.status === 'Completed' ? 'success' : m.status === 'Cancelled' ? 'danger' : 'neutral'} pulse={m.status === 'Live'}>
+                      {m.status}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

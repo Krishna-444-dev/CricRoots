@@ -1,5 +1,6 @@
 const Match = require('../models/Match');
 const Team = require('../models/Team');
+const Tournament = require('../models/Tournament');
 const AIService = require('../utils/aiService');
 
 // @desc    Create a new match
@@ -7,7 +8,7 @@ const AIService = require('../utils/aiService');
 // @access  Private
 exports.createMatch = async (req, res) => {
   try {
-    const { title, team1Id, team2Id, matchType, venue, scheduledDate, pitchType } = req.body;
+    const { title, team1Id, team2Id, matchType, venue, scheduledDate, pitchType, tournamentId } = req.body;
 
     if (!title || !team1Id || !team2Id || !venue || !scheduledDate) {
       return res.status(400).json({
@@ -26,6 +27,17 @@ exports.createMatch = async (req, res) => {
       });
     }
 
+    let tournament = null;
+    if (tournamentId) {
+      tournament = await Tournament.findById(tournamentId);
+      if (!tournament) {
+        return res.status(404).json({
+          success: false,
+          message: 'Tournament not found'
+        });
+      }
+    }
+
     const match = await Match.create({
       title,
       team1: team1Id,
@@ -35,11 +47,17 @@ exports.createMatch = async (req, res) => {
       pitchType: pitchType || 'unknown',
       scheduledDate,
       createdBy: req.user.id,
+      tournament: tournament ? tournament._id : null,
       innings: [
         { team: team1Id, runs: 0, wickets: 0, overs: 0, balls: [] },
         { team: team2Id, runs: 0, wickets: 0, overs: 0, balls: [] }
       ]
     });
+
+    if (tournament) {
+      tournament.matches.push(match._id);
+      await tournament.save();
+    }
 
     await match.populate('team1');
     await match.populate('team2');
@@ -145,10 +163,34 @@ exports.updateMatch = async (req, res) => {
     if (result) match.result = result;
     if (manOfTheMatch) match.manOfTheMatch = manOfTheMatch;
 
+    // Auto-derive the result from the innings totals when a match is marked
+    // Completed without an explicit result being supplied.
+    if (status === 'Completed' && !result) {
+      const runs1 = match.innings[0]?.runs || 0;
+      const runs2 = match.innings[1]?.runs || 0;
+      if (runs1 === runs2) {
+        match.result = { winningTeam: null, margin: 'tie', marginValue: 0 };
+      } else if (runs1 > runs2) {
+        match.result = { winningTeam: match.team1, margin: 'runs', marginValue: runs1 - runs2 };
+      } else {
+        match.result = { winningTeam: match.team2, margin: 'runs', marginValue: runs2 - runs1 };
+      }
+    }
+
     match = await match.save();
     await match.populate('team1');
     await match.populate('team2');
     await match.populate('manOfTheMatch');
+
+    // Refresh the tournament's points table if this match belongs to one
+    // and just moved into a state that counts toward standings.
+    if (match.tournament && ['Completed', 'Cancelled'].includes(match.status)) {
+      const tournament = await Tournament.findById(match.tournament);
+      if (tournament) {
+        await tournament.updateStandings();
+        await tournament.save();
+      }
+    }
 
     // Emit match status change event
     req.socketManager.emitMatchStatusChange(match._id, match.status);

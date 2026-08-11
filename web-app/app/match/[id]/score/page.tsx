@@ -28,6 +28,7 @@ interface MatchDoc {
   team2: TeamDoc;
   createdBy: { _id: string; name: string };
   status: string;
+  tournament: string | null;
 }
 
 interface UiPlayer {
@@ -88,6 +89,8 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
   const [inningsIndex, setInningsIndex] = useState<0 | 1>(0);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showInsights, setShowInsights] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [finished, setFinished] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -158,6 +161,28 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
     }
   };
 
+  const handleFinishMatch = async () => {
+    if (isFinishing) return;
+    setIsFinishing(true);
+    setSyncError(null);
+    try {
+      const res = await apiFetch(`/api/matches/${match._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'Completed' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFinished(true);
+      } else {
+        setSyncError(data.message || 'Could not finish the match');
+      }
+    } catch {
+      setSyncError('Could not reach the server to finish the match');
+    } finally {
+      setIsFinishing(false);
+    }
+  };
+
   return (
     <main className="max-w-2xl mx-auto px-4 py-6">
       <h1 className="text-xl font-bold text-ink mb-1">{match.title}</h1>
@@ -171,7 +196,18 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
         </div>
       )}
 
-      {!inningsData ? (
+      {finished ? (
+        <div className="bg-surface border border-border rounded-xl shadow-card p-6 text-center">
+          <p className="text-2xl mb-2">🏁</p>
+          <h2 className="text-lg font-semibold text-ink mb-1">Match completed</h2>
+          <p className="text-sm text-ink-secondary mb-4">
+            The result has been recorded{match.tournament ? ' and the tournament points table has been updated.' : '.'}
+          </p>
+          <Link href={`/match/${match._id}`} className="text-pitch-400 hover:underline text-sm">
+            View match summary
+          </Link>
+        </div>
+      ) : !inningsData ? (
         <form onSubmit={handleStartInnings} className="bg-surface border border-border rounded-xl shadow-card p-4 sm:p-5 space-y-4">
           <h2 className="text-lg font-semibold text-ink">Start Innings</h2>
           <div>
@@ -241,12 +277,21 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
             inningsData={inningsData}
             onBallRecorded={handleBallRecorded}
           />
-          <button
-            onClick={() => { setInningsData(null); setBattingTeamId(''); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }}
-            className="w-full mt-4 py-2 text-sm text-ink-secondary hover:text-ink transition-colors"
-          >
-            End Innings / Start Next Innings
-          </button>
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => { setInningsData(null); setBattingTeamId(''); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }}
+              className="flex-1 py-2 text-sm text-ink-secondary hover:text-ink transition-colors"
+            >
+              End Innings / Start Next Innings
+            </button>
+            <button
+              onClick={handleFinishMatch}
+              disabled={isFinishing}
+              className="flex-1 py-2 rounded-lg text-sm font-medium bg-wicket-500/10 border border-wicket-500/30 text-wicket-400 hover:bg-wicket-500/20 disabled:opacity-50 transition-colors"
+            >
+              {isFinishing ? 'Finishing...' : 'Finish Match'}
+            </button>
+          </div>
         </>
       )}
     </main>

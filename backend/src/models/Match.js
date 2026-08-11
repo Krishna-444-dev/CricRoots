@@ -38,6 +38,11 @@ const matchSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  tournament: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tournament',
+    default: null
+  },
   innings: [{
     team: {
       type: mongoose.Schema.Types.ObjectId,
