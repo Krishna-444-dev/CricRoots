@@ -143,8 +143,12 @@ export default function LeaderboardScreen() {
                       <Text style={styles.predictionTeams}>{matchTeams(p)}</Text>
                       <Text style={styles.predictionPick}>You picked {winnerName(p)}</Text>
                       {p.status === 'settled' && (
-                        <Text style={[styles.predictionResult, p.wonOnWinner ? styles.predictionResultWin : styles.predictionResultLoss]}>
-                          {p.wonOnWinner ? `Correct! +${p.points} points` : 'Not this time - 0 points'}
+                        <Text style={[styles.predictionResult, p.points > 0 ? styles.predictionResultWin : styles.predictionResultLoss]}>
+                          {p.wonOnWinner
+                            ? `Correct winner! +${p.points} points`
+                            : p.points > 0
+                            ? `+${p.points} points`
+                            : 'Not this time - 0 points'}
                         </Text>
                       )}
                     </View>

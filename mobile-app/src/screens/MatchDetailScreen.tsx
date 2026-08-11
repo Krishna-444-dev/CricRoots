@@ -372,9 +372,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
               You predicted {myPickId === team1Id ? teamName(match.team1) : teamName(match.team2)} to win
             </Text>
             {prediction.mine.status === 'settled' ? (
-              <Text style={[styles.predictResult, prediction.mine.wonOnWinner ? styles.predictResultWin : styles.predictResultLoss]}>
+              <Text style={[styles.predictResult, prediction.mine.points > 0 ? styles.predictResultWin : styles.predictResultLoss]}>
                 {prediction.mine.wonOnWinner
-                  ? `Correct! +${prediction.mine.points} points`
+                  ? `Correct winner! +${prediction.mine.points} points`
+                  : prediction.mine.points > 0
+                  ? `+${prediction.mine.points} points`
                   : 'Not this time - 0 points'}
               </Text>
             ) : (
