@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
@@ -21,10 +21,11 @@ export default function NewLessonPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isLoading && !user) {
-    router.push('/login');
-    return null;
-  }
+  useEffect(() => {
+    if (!isLoading && !user) router.push('/login');
+  }, [isLoading, user, router]);
+
+  if (!isLoading && !user) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

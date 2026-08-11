@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
@@ -24,10 +24,11 @@ export default function CheckoutPaymentPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isLoading && !user) {
-    router.push('/login');
-    return null;
-  }
+  useEffect(() => {
+    if (!isLoading && !user) router.push('/login');
+  }, [isLoading, user, router]);
+
+  if (!isLoading && !user) return null;
 
   if (items.length === 0) {
     return (

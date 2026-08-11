@@ -36,10 +36,11 @@ export default function NewMatchPage() {
       });
   }, []);
 
-  if (!isLoading && !user) {
-    router.push('/login');
-    return null;
-  }
+  useEffect(() => {
+    if (!isLoading && !user) router.push('/login');
+  }, [isLoading, user, router]);
+
+  if (!isLoading && !user) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
