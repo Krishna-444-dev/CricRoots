@@ -55,15 +55,57 @@ the broader AI/data strategy this feeds into.
   - `recentForm` and per-leaderboard-row `centuries` are hardcoded empty/0 for now — real
     "recent form" needs a chronological per-match trend, not just a total, and wasn't built here.
 
+- **Auto-generated fixtures** (`d1d3bad`): `POST /api/tournaments/:id/generate-fixtures`
+  (organizer-only) builds round-robin (every registered team plays every other team once) or
+  knockout (round 1 only, paired by registration order — later rounds depend on unknown results
+  so aren't generated) pairings, spreads `scheduledDate` evenly across the tournament's date
+  range, and links each match. Guards against <2 teams and against regenerating once fixtures
+  exist. "Generate Fixtures" button in TournamentManager's Matches tab.
+- **Tournament MVP/awards** (`4071964`): `POST /api/tournaments/:id/compute-awards`
+  (organizer-only, Completed tournaments only) fills in all six `Tournament.awards` fields —
+  winner/runner-up/third-place from the points table, best batsman/bowler from new
+  tournament-scoped leaderboard aggregations (`getTournamentBattingLeaderboard`/
+  `getTournamentBowlingLeaderboard` in `tendencyAnalytics.js`), and man-of-the-tournament from a
+  documented heuristic (most `manOfTheMatch` awards in the tournament, tie-broken by a combined
+  runs+wickets score, falling back to that score if no `manOfTheMatch` data exists). New Awards
+  tab in TournamentManager.
+- **Event calendar** (`4fe7c68`): read-only `/calendar` page, month-grid view with Prev/Next/Today
+  navigation, matches shown as status-colored badges on their scheduled day, tournaments shown as
+  a badge spanning their `[startDate, endDate]` range. Added to the main nav. Pure frontend, no
+  backend changes — built entirely on the existing `/api/matches` and `/api/tournaments`
+  endpoints.
+
 ### Backlog (not started, roughly in priority order)
 
-- **Auto-generated fixtures** — given a tournament + registered teams, generate a full
-  round-robin/knockout schedule instead of creating matches one at a time.
-- **MVP / awards tracking** — `Tournament.awards` schema fields already exist
-  (`manOfTheTournament`, `bestBatsman`, `bestBowler`) but nothing computes or sets them.
 - **Match notifications** — push/email when a followed team's match goes live or a tournament
   posts an announcement (announcement chat already exists; notification delivery doesn't).
-- **Event calendar** — surfacing scheduled matches/tournament dates in a calendar view.
+  Deliberately left out of the parallel batch below — needs a new data model and touches trigger
+  points across several controllers (match status changes, announcement posts), which made it the
+  track most likely to conflict with the other three if run in parallel.
+
+## Note on how the last three items got built
+
+Fixture-generation, MVP/awards, and the event calendar were built by three background agents
+running in parallel, each in its own isolated git worktree (`isolation: "worktree"` on the `Agent`
+tool), rather than sequentially by hand. Worth recording what actually happened, for next time:
+
+- All three finished successfully and needed no correctness fixes after review — just one cosmetic
+  nit (two tournament tabs both defaulting to a 🏆 emoji).
+- The real friction wasn't code quality, it was **merge order**: the awards agent's worktree
+  branched before the fixtures agent's was merged, so by the time it finished,
+  `tournamentController.js` and `TournamentManager.tsx` (both files) had moved out from under it.
+  Its raw diff no longer applied cleanly and had to be reapplied by hand, hunk by hunk, against the
+  current file state — not because the agent did anything wrong, just because two of the three
+  tracks both landed in the tournament domain. Tracks that share a file are still fine to
+  parallelize, but expect to hand-merge the second one in, not just `git apply`.
+- Each agent could only self-verify with static checks (`node --check`, `tsc --noEmit`) since the
+  dev server/docker ports were already in use by the orchestrating session — live/E2E verification
+  against the running stack still had to happen after merging, one track at a time, same as any
+  sequentially-built feature.
+- Net effect: three feature-sized chunks of work landed in the time one background agent run takes
+  (they ran concurrently), at the cost of the merge-order overhead above. Worth repeating for the
+  next genuinely-independent batch; picking tracks that don't share files would remove the one real
+  friction point.
 
 ## Working notes for whoever picks this up next
 
