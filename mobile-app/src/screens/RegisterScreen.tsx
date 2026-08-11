@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 import { colors, commonStyles } from '../theme';
 
-const RegisterScreen = ({ navigation }) => {
+const RegisterScreen = ({ navigation }: any) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -20,12 +20,12 @@ const RegisterScreen = ({ navigation }) => {
   
   const { register, isLoading, error, clearError } = useAuth();
 
-  const validateEmail = (email) => {
+  const validateEmail = (email: string) => {
     const re = /\S+@\S+\.\S+/;
     return re.test(email);
   };
 
-  const validatePhone = (phone) => {
+  const validatePhone = (phone: string) => {
     const re = /^\d{10}$/;
     return re.test(phone);
   };
