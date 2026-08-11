@@ -38,7 +38,7 @@ the broader AI/data strategy this feeds into.
   where `standings.team` was never populated (table always showed generic "Team"). Tournament
   Matches tab now lists real matches instead of just a count.
 
-- **Wagon wheel + player career stats** (`<pending commit>`): `GET /api/player-stats/:playerId`,
+- **Wagon wheel + player career stats** (`ecd610c`): `GET /api/player-stats/:playerId`,
   `.../rankings/batsmen`, `.../rankings/bowlers` were already called by
   `PlayerStatsDashboard.tsx` but always returned empty/404 — they read from a `PlayerStats`
   collection nothing ever wrote to. Rewrote all three to compute live from `Match` documents
