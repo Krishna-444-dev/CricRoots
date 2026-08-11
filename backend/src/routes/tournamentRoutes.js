@@ -10,6 +10,7 @@ const {
   getTournamentMatches,
   getTournamentStats,
   generateFixtures,
+  computeAwards,
   deleteTournament
 } = require('../controllers/tournamentController');
 const { getTournamentMessages, postTournamentMessage } = require('../controllers/messageController');
@@ -28,6 +29,7 @@ router.post('/', protect, createTournament);
 router.put('/:id', protect, updateTournament);
 router.post('/:id/register-team', protect, registerTeam);
 router.post('/:id/generate-fixtures', protect, generateFixtures);
+router.post('/:id/compute-awards', protect, computeAwards);
 router.delete('/:id', protect, deleteTournament);
 router.post('/:id/messages', protect, postTournamentMessage);
 

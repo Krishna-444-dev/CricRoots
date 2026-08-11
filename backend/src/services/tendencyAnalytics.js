@@ -354,6 +354,100 @@ async function getBowlingLeaderboard(limit = 10) {
   ]);
 }
 
+/**
+ * Batting leaderboard scoped to a single tournament, ranked by average (min 1
+ * completed innings with the bat, and > 0 runs - same convention as
+ * getBattingLeaderboard above, just filtered down to one tournament's matches).
+ */
+async function getTournamentBattingLeaderboard(tournamentId, limit = 10) {
+  return Match.aggregate([
+    { $match: { status: 'Completed', tournament: oid(tournamentId) } },
+    { $unwind: '$innings' },
+    { $unwind: '$innings.balls' },
+    { $match: { 'innings.balls.batsmanId': { $ne: null } } },
+    {
+      $group: {
+        _id: { match: '$_id', batsman: '$innings.balls.batsmanId' },
+        runs: { $sum: '$innings.balls.runs' },
+        ballsFaced: { $sum: { $cond: [{ $eq: ['$innings.balls.extraType', 'wide'] }, 0, 1] } },
+        out: { $max: { $cond: ['$innings.balls.isWicket', 1, 0] } }
+      }
+    },
+    {
+      $group: {
+        _id: '$_id.batsman',
+        matches: { $sum: 1 },
+        runs: { $sum: '$runs' },
+        ballsFaced: { $sum: '$ballsFaced' },
+        dismissals: { $sum: '$out' },
+        highestScore: { $max: '$runs' }
+      }
+    },
+    {
+      $project: {
+        matches: 1,
+        runs: 1,
+        highestScore: 1,
+        average: { $cond: [{ $eq: ['$dismissals', 0] }, '$runs', { $divide: ['$runs', '$dismissals'] }] },
+        strikeRate: { $cond: [{ $eq: ['$ballsFaced', 0] }, 0, { $multiply: [{ $divide: ['$runs', '$ballsFaced'] }, 100] }] }
+      }
+    },
+    { $match: { runs: { $gt: 0 } } },
+    { $sort: { average: -1 } },
+    { $limit: limit }
+  ]);
+}
+
+/**
+ * Bowling leaderboard scoped to a single tournament, ranked by average (ascending -
+ * lower is better). Requires at least one wicket to rank, same convention as
+ * getBowlingLeaderboard above, just filtered down to one tournament's matches.
+ */
+async function getTournamentBowlingLeaderboard(tournamentId, limit = 10) {
+  return Match.aggregate([
+    { $match: { status: 'Completed', tournament: oid(tournamentId) } },
+    { $unwind: '$innings' },
+    { $unwind: '$innings.balls' },
+    { $match: { 'innings.balls.bowlerId': { $ne: null } } },
+    {
+      $group: {
+        _id: { match: '$_id', bowler: '$innings.balls.bowlerId' },
+        legalBalls: { $sum: { $cond: [{ $in: ['$innings.balls.extraType', ['wide', 'no-ball']] }, 0, 1] } },
+        runs: { $sum: { $cond: [{ $in: ['$innings.balls.extraType', ['bye', 'leg-bye']] }, 0, '$innings.balls.runs'] } },
+        wickets: {
+          $sum: {
+            $cond: [
+              { $and: ['$innings.balls.isWicket', { $not: [{ $in: ['$innings.balls.wicketType', NON_BOWLER_WICKET_TYPES] }] }] },
+              1,
+              0
+            ]
+          }
+        }
+      }
+    },
+    {
+      $group: {
+        _id: '$_id.bowler',
+        matches: { $sum: 1 },
+        balls: { $sum: '$legalBalls' },
+        runs: { $sum: '$runs' },
+        wickets: { $sum: '$wickets' }
+      }
+    },
+    { $match: { wickets: { $gt: 0 } } },
+    {
+      $project: {
+        matches: 1,
+        wickets: 1,
+        average: { $divide: ['$runs', '$wickets'] },
+        economyRate: { $cond: [{ $eq: ['$balls', 0] }, 0, { $multiply: [{ $divide: ['$runs', '$balls'] }, 6] }] }
+      }
+    },
+    { $sort: { average: 1 } },
+    { $limit: limit }
+  ]);
+}
+
 function round(n) {
   return Math.round(n * 100) / 100;
 }
@@ -365,5 +459,7 @@ module.exports = {
   getFieldingStats,
   getCareerStats,
   getBattingLeaderboard,
-  getBowlingLeaderboard
+  getBowlingLeaderboard,
+  getTournamentBattingLeaderboard,
+  getTournamentBowlingLeaderboard
 };

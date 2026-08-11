@@ -1,6 +1,93 @@
 const Tournament = require('../models/Tournament');
 const Team = require('../models/Team');
 const Match = require('../models/Match');
+const tendencyAnalytics = require('../services/tendencyAnalytics');
+
+// Wicket weight used to blend a bowler's contribution into the same scale as a
+// batsman's runs when tie-breaking "man of the tournament" (see computeManOfTheTournament
+// below). 20 runs-per-wicket is a common rough equivalence used in fantasy-cricket-style
+// scoring; it's a judgment call, not a standard, and only matters for breaking ties.
+const WICKET_TIEBREAK_WEIGHT = 20;
+
+// Award-eligible wicket types for a bowler - mirrors NON_BOWLER_WICKET_TYPES in
+// tendencyAnalytics.js (run outs/retirements aren't credited to the bowler).
+const NON_BOWLER_WICKET_TYPES = ['run out', 'retired hurt', 'retired out'];
+
+/**
+ * Man of the Tournament heuristic: the player with the most Match.manOfTheMatch
+ * awards among this tournament's Completed matches (ties broken by combined
+ * runs + wickets*20 across those matches). If no match in the tournament has a
+ * manOfTheMatch set, falls back to the player with the single highest combined
+ * runs + wickets*20 score. This is a deliberate simplification - not an official
+ * award formula - chosen because manOfTheMatch is already tracked per match and
+ * needs no new data collection; the combined score exists purely to break ties
+ * and to provide a fallback when no manOfTheMatch data exists at all.
+ */
+async function computeManOfTheTournament(tournamentId) {
+  const matches = await Match.find({
+    tournament: tournamentId,
+    status: 'Completed'
+  }).select('innings manOfTheMatch');
+
+  if (matches.length === 0) return null;
+
+  const momCounts = new Map(); // playerId -> number of manOfTheMatch awards
+  const comboScore = new Map(); // playerId -> runs scored + wickets * WICKET_TIEBREAK_WEIGHT
+
+  const addScore = (id, amount) => {
+    comboScore.set(id, (comboScore.get(id) || 0) + amount);
+  };
+
+  matches.forEach((match) => {
+    if (match.manOfTheMatch) {
+      const id = match.manOfTheMatch.toString();
+      momCounts.set(id, (momCounts.get(id) || 0) + 1);
+    }
+
+    match.innings.forEach((innings) => {
+      innings.balls.forEach((ball) => {
+        if (ball.batsmanId) {
+          addScore(ball.batsmanId.toString(), ball.runs || 0);
+        }
+        if (ball.bowlerId && ball.isWicket && !NON_BOWLER_WICKET_TYPES.includes(ball.wicketType)) {
+          addScore(ball.bowlerId.toString(), WICKET_TIEBREAK_WEIGHT);
+        }
+      });
+    });
+  });
+
+  if (momCounts.size === 0) {
+    // No manOfTheMatch awards recorded anywhere in this tournament - fall back to
+    // the player with the highest combined runs + wickets*20 score.
+    let bestId = null;
+    let bestScore = -1;
+    comboScore.forEach((score, id) => {
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = id;
+      }
+    });
+    return bestId;
+  }
+
+  const maxCount = Math.max(...momCounts.values());
+  const topPlayers = [...momCounts.entries()]
+    .filter(([, count]) => count === maxCount)
+    .map(([id]) => id);
+
+  if (topPlayers.length === 1) return topPlayers[0];
+
+  let bestId = topPlayers[0];
+  let bestScore = comboScore.get(bestId) || 0;
+  topPlayers.slice(1).forEach((id) => {
+    const score = comboScore.get(id) || 0;
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = id;
+    }
+  });
+  return bestId;
+}
 
 // @desc    Create a new tournament
 // @route   POST /api/tournaments
@@ -73,6 +160,12 @@ exports.getAllTournaments = async (req, res) => {
       .populate('organizer')
       .populate('teams')
       .populate('standings.team')
+      .populate('awards.winner')
+      .populate('awards.runnerUp')
+      .populate('awards.thirdPlace')
+      .populate({ path: 'awards.manOfTheTournament', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'awards.bestBatsman', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'awards.bestBowler', populate: { path: 'user', select: 'name' } })
       .sort({ [sortBy]: parseInt(order) });
 
     res.status(200).json({
@@ -99,7 +192,11 @@ exports.getTournament = async (req, res) => {
       .populate('matches')
       .populate('standings.team')
       .populate('awards.winner')
-      .populate('awards.manOfTheTournament');
+      .populate('awards.runnerUp')
+      .populate('awards.thirdPlace')
+      .populate({ path: 'awards.manOfTheTournament', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'awards.bestBatsman', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'awards.bestBowler', populate: { path: 'user', select: 'name' } });
 
     if (!tournament) {
       return res.status(404).json({
@@ -443,6 +540,83 @@ exports.getTournamentStats = async (req, res) => {
         ...tournament.statistics,
         standings: tournament.getLeaderboard()
       }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Compute and save tournament awards (winner, runner-up, third place,
+//          man of the tournament, best batsman, best bowler)
+// @route   POST /api/tournaments/:id/compute-awards
+// @access  Private (organizer only)
+exports.computeAwards = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    if (tournament.organizer.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to compute awards for this tournament'
+      });
+    }
+
+    if (tournament.status !== 'Completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Awards can only be computed once the tournament status is Completed'
+      });
+    }
+
+    // Winner / runner-up / third place come straight from the points table -
+    // getLeaderboard() is already sorted best-first by points then NRR.
+    const leaderboard = tournament.getLeaderboard();
+    tournament.awards.winner = leaderboard[0]?.team || null;
+    tournament.awards.runnerUp = leaderboard[1]?.team || null;
+    tournament.awards.thirdPlace = tournament.teams.length >= 3 ? (leaderboard[2]?.team || null) : null;
+
+    // Best batsman: highest career average among this tournament's matches, requiring
+    // at least 1 completed innings with the bat and > 0 runs (mirrors the minimum-sample
+    // convention already used by the global getBattingLeaderboard). Best bowler: lowest
+    // career average, requiring at least 1 wicket (mirrors getBowlingLeaderboard). Both
+    // leaderboards return [] rather than throwing when a tournament has no qualifying
+    // data, so these safely resolve to null instead of crashing.
+    const [battingLeaders, bowlingLeaders] = await Promise.all([
+      tendencyAnalytics.getTournamentBattingLeaderboard(tournament._id, 1),
+      tendencyAnalytics.getTournamentBowlingLeaderboard(tournament._id, 1)
+    ]);
+    tournament.awards.bestBatsman = battingLeaders[0]?._id || null;
+    tournament.awards.bestBowler = bowlingLeaders[0]?._id || null;
+
+    tournament.awards.manOfTheTournament = await computeManOfTheTournament(tournament._id);
+
+    await tournament.save();
+
+    const populated = await Tournament.findById(tournament._id)
+      .populate('organizer')
+      .populate('teams')
+      .populate('standings.team')
+      .populate('awards.winner')
+      .populate('awards.runnerUp')
+      .populate('awards.thirdPlace')
+      .populate({ path: 'awards.manOfTheTournament', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'awards.bestBatsman', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'awards.bestBowler', populate: { path: 'user', select: 'name' } });
+
+    res.status(200).json({
+      success: true,
+      message: 'Tournament awards computed successfully',
+      tournament: populated
     });
   } catch (error) {
     res.status(500).json({

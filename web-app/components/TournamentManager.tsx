@@ -10,6 +10,26 @@ import { inputClass } from '@/components/ui/formStyles';
 import { buttonVariants } from '@/components/ui/buttonStyles';
 import Badge from '@/components/ui/Badge';
 
+interface AwardTeam {
+  _id: string;
+  name: string;
+}
+
+interface AwardPlayer {
+  _id: string;
+  specialization: string;
+  user?: { name: string };
+}
+
+interface TournamentAwards {
+  winner?: AwardTeam | null;
+  runnerUp?: AwardTeam | null;
+  thirdPlace?: AwardTeam | null;
+  manOfTheTournament?: AwardPlayer | null;
+  bestBatsman?: AwardPlayer | null;
+  bestBowler?: AwardPlayer | null;
+}
+
 interface Tournament {
   _id: string;
   name: string;
@@ -29,6 +49,7 @@ interface Tournament {
     completedMatches: number;
     totalRuns: number;
   };
+  awards?: TournamentAwards;
 }
 
 interface TournamentMatch {
@@ -49,7 +70,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'statistics' | 'announcements'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'statistics' | 'announcements' | 'awards'>('list');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [announcements, setAnnouncements] = useState<ChatMessage[]>([]);
   const [announcementText, setAnnouncementText] = useState('');
@@ -57,6 +78,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [tournamentMatches, setTournamentMatches] = useState<TournamentMatch[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [generatingFixtures, setGeneratingFixtures] = useState(false);
+  const [computingAwards, setComputingAwards] = useState(false);
+  const [awardsError, setAwardsError] = useState('');
 
   const isOrganizer = Boolean(user && selectedTournament && selectedTournament.organizer?._id === user.id);
 
@@ -100,6 +123,29 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       console.error('Error generating fixtures:', error);
     } finally {
       setGeneratingFixtures(false);
+    }
+  };
+
+  const handleComputeAwards = async () => {
+    if (!selectedTournament || computingAwards) return;
+    setComputingAwards(true);
+    setAwardsError('');
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/compute-awards`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedTournament(data.tournament);
+        setTournaments(prev => prev.map(t => (t._id === data.tournament._id ? data.tournament : t)));
+      } else {
+        setAwardsError(data.message || 'Failed to compute awards');
+      }
+    } catch (error) {
+      console.error('Error computing awards:', error);
+      setAwardsError('Failed to compute awards');
+    } finally {
+      setComputingAwards(false);
     }
   };
 
@@ -237,6 +283,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
               onClick={() => setActiveTab('announcements')}
             >
               📢 Announcements
+            </button>
+            <button
+              className={`${styles.tab} ${activeTab === 'awards' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('awards')}
+            >
+              🎖️ Awards
             </button>
           </>
         )}
@@ -426,6 +478,69 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                     <p className="text-ink">{a.text}</p>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'awards' && selectedTournament && (
+          <div className={styles.card}>
+            <h2>{selectedTournament.name} - Awards</h2>
+            {!selectedTournament.awards?.winner ? (
+              <>
+                <p className={styles.infoText}>
+                  {selectedTournament.status === 'Completed'
+                    ? 'Awards have not been computed for this tournament yet.'
+                    : 'Awards can be computed once this tournament is marked Completed.'}
+                </p>
+                {awardsError && <p className={styles.infoText} style={{ color: '#F87171' }}>{awardsError}</p>}
+                {isOrganizer && selectedTournament.status === 'Completed' && (
+                  <button
+                    className={buttonVariants('accent')}
+                    onClick={handleComputeAwards}
+                    disabled={computingAwards}
+                  >
+                    {computingAwards ? 'Computing...' : '🎖️ Compute Awards'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className={styles.statsGrid}>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Winner</span>
+                  <span className={styles.statValue}>{selectedTournament.awards.winner?.name || '-'}</span>
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Runner-up</span>
+                  <span className={styles.statValue}>{selectedTournament.awards.runnerUp?.name || '-'}</span>
+                </div>
+                {selectedTournament.awards.thirdPlace && (
+                  <div className={styles.statBox}>
+                    <span className={styles.statLabel}>Third Place</span>
+                    <span className={styles.statValue}>{selectedTournament.awards.thirdPlace?.name || '-'}</span>
+                  </div>
+                )}
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Man of the Tournament</span>
+                  <span className={styles.statValue}>{selectedTournament.awards.manOfTheTournament?.user?.name || '-'}</span>
+                  {selectedTournament.awards.manOfTheTournament?.specialization && (
+                    <span className={styles.statSubtext}>{selectedTournament.awards.manOfTheTournament.specialization}</span>
+                  )}
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Best Batsman</span>
+                  <span className={styles.statValue}>{selectedTournament.awards.bestBatsman?.user?.name || '-'}</span>
+                  {selectedTournament.awards.bestBatsman?.specialization && (
+                    <span className={styles.statSubtext}>{selectedTournament.awards.bestBatsman.specialization}</span>
+                  )}
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Best Bowler</span>
+                  <span className={styles.statValue}>{selectedTournament.awards.bestBowler?.user?.name || '-'}</span>
+                  {selectedTournament.awards.bestBowler?.specialization && (
+                    <span className={styles.statSubtext}>{selectedTournament.awards.bestBowler.specialization}</span>
+                  )}
+                </div>
               </div>
             )}
           </div>
