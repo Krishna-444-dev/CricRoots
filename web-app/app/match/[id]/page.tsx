@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/AuthContext';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
 import ManhattanChart from '@/components/insights/ManhattanChart';
 import WormChart from '@/components/insights/WormChart';
@@ -74,6 +75,7 @@ function overBallLabel(balls: Ball[], index: number): string {
 export default function MatchPage() {
   const params = useParams();
   const matchId = params.id as string;
+  const { user, token } = useAuth();
 
   const [match, setMatch] = useState<Match | null>(null);
   const [chartsInnings, setChartsInnings] = useState<ChartInnings[]>([]);
@@ -334,7 +336,12 @@ export default function MatchPage() {
             )}
           </>
         ) : (
-          <AITacticalAdvisor matchId={matchId} isLive={match.status === 'Live'} />
+          <AITacticalAdvisor
+            matchId={matchId}
+            userId={user?.id || ''}
+            token={token || ''}
+            isLive={match.status === 'Live'}
+          />
         )}
       </div>
     </div>

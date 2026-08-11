@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import BallByBallScoring, { BallEvent } from '@/components/scoring/BallByBallScoring';
+import BallByBallScoring, { BallEvent, InningsData } from '@/components/scoring/BallByBallScoring';
 import BatsmanInsights from '@/components/insights/BatsmanInsights';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
@@ -74,7 +74,7 @@ function buildInnings(battingRoster: UiPlayer[], bowlingRoster: UiPlayer[], stri
   };
 }
 
-type InningsState = ReturnType<typeof buildInnings>;
+type InningsState = InningsData;
 
 export default function LiveScoringPage({ params }: { params: { id: string } }) {
   const { user, token, isLoading: authLoading } = useAuth();

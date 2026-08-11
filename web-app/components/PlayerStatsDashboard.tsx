@@ -12,15 +12,27 @@ interface PlayerStats {
     specialization: string;
   };
   batting: {
-    average: number;
+    matches: number;
+    innings: number;
     runs: number;
+    balls: number;
     highestScore: number;
+    average: number;
     strikeRate: number;
     centuries: number;
+    halfCenturies: number;
+    fours: number;
+    sixes: number;
+    ducks: number;
+    notOuts: number;
   };
   bowling: {
-    average: number;
+    matches: number;
+    innings: number;
+    balls: number;
+    runs: number;
     wickets: number;
+    average: number;
     economyRate: number;
   };
   fielding: {
@@ -30,7 +42,10 @@ interface PlayerStats {
   };
   overall: {
     matches: number;
+    wins: number;
+    losses: number;
     winPercentage: number;
+    manOfTheMatch: number;
   };
   recentForm: Array<{
     date: string;

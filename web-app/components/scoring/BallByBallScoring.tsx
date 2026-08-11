@@ -87,7 +87,7 @@ interface Extras {
   penalty: number;
 }
 
-interface InningsData {
+export interface InningsData {
   battingTeam: any;
   bowlingTeam: any;
   totalRuns: number;

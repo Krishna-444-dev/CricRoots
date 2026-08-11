@@ -48,6 +48,11 @@ interface Tournament {
     totalMatches: number;
     completedMatches: number;
     totalRuns: number;
+    totalWickets: number;
+    highestScore: number;
+    lowestScore: number;
+    highestIndividualScore: number;
+    bestBowlingFigures: string;
   };
   awards?: TournamentAwards;
 }
