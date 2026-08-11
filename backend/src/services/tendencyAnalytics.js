@@ -262,6 +262,139 @@ async function getCareerStats(playerId) {
   };
 }
 
+const ACHIEVEMENT_DEFS = [
+  { key: 'century-maker', label: 'Century Maker', description: '100+ runs in a single innings' },
+  { key: 'half-century-hero', label: 'Half-Century Hero', description: '50-99 runs in a single innings' },
+  { key: 'five-wicket-haul', label: 'Five-Wicket Haul', description: '5+ wickets in a single innings' },
+  { key: 'hat-trick-hero', label: 'Hat-trick Hero', description: '3 wickets on 3 consecutive legal deliveries in a single innings' },
+  { key: 'golden-duck', label: 'Golden Duck', description: 'Dismissed for 0 off the very first ball faced in an innings' },
+  { key: 'century-of-wickets', label: 'Century of Wickets', description: '50+ career wickets' },
+  { key: 'all-rounder', label: 'All-Rounder', description: '500+ career runs and 50+ career wickets' },
+  { key: 'wicketkeeper-great', label: 'Wicketkeeper Great', description: '50+ combined career catches and stumpings' }
+];
+
+/**
+ * Achievement/badge computation for a single player.
+ *
+ * Reuses getCareerStats() for the aggregate figures most badges need directly
+ * (career runs, career wickets, centuries, half-centuries, fielding dismissals -
+ * getCareerStats already computes centuries/halfCenturies per match, which is
+ * equivalent to per-innings here since each team bats/bowls exactly once per
+ * match in this data model).
+ *
+ * Three badges - five-wicket haul, hat-trick, golden duck - need per-innings/
+ * per-ball sequencing that getCareerStats' return value doesn't expose (it only
+ * returns career-aggregated totals, not per-innings breakdowns), so this function
+ * does one additional match-iteration pass, shaped the same way as getCareerStats'
+ * own query/loop, to compute those. Kept separate rather than threading extra
+ * state through getCareerStats itself, so that function's existing return shape
+ * and behavior are left completely untouched.
+ *
+ * @param {string} playerId
+ * @param {object} [precomputedCareerStats] - optional getCareerStats(playerId)
+ *   result, if the caller already has one on hand (e.g. the player-stats
+ *   endpoint fetches it anyway) - pass it through to avoid computing it twice.
+ */
+async function getAchievements(playerId, precomputedCareerStats) {
+  const careerStats = precomputedCareerStats || await getCareerStats(playerId);
+
+  const matches = await Match.find({
+    status: 'Completed',
+    $or: [
+      { 'innings.balls.batsmanId': oid(playerId) },
+      { 'innings.balls.bowlerId': oid(playerId) }
+    ]
+  }).select('innings');
+
+  let fiveWicketHauls = 0;
+  let hatTricks = 0;
+  let goldenDucks = 0;
+
+  for (const match of matches) {
+    for (const innings of match.innings) {
+      let sawFirstBattingBall = false;
+      const bowlerLegalWicketSeq = [];
+
+      for (const ball of innings.balls) {
+        const isBatsman = ball.batsmanId && ball.batsmanId.toString() === playerId.toString();
+        const isBowler = ball.bowlerId && ball.bowlerId.toString() === playerId.toString();
+
+        // Golden duck: only the very first ball on which this player appears as
+        // batsman in this innings matters. Checked fresh for every innings (the
+        // flag is innings-scoped, declared inside the innings loop) so a clean
+        // earlier innings can never suppress a golden duck in a later one.
+        if (isBatsman && !sawFirstBattingBall) {
+          sawFirstBattingBall = true;
+          if (ball.isWicket && (ball.runs || 0) === 0) {
+            goldenDucks += 1;
+          }
+        }
+
+        // Hat-trick: build this player's own subsequence of legal deliveries
+        // bowled in this innings, in original chronological order, then look for
+        // 3 consecutive wickets in that subsequence below. Documented
+        // simplification: "consecutive" means consecutive within this bowler's
+        // own legal-ball sequence (overs bowled by other players in between are
+        // simply not part of the subsequence), not literally back-to-back overall
+        // deliveries - reasonable since bowlers in this data model bowl their
+        // overs as unbroken spells.
+        if (isBowler) {
+          const isLegal = !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
+          if (isLegal) {
+            const credited = ball.isWicket && !NON_BOWLER_WICKET_TYPES.includes(ball.wicketType);
+            bowlerLegalWicketSeq.push(credited);
+          }
+        }
+      }
+
+      // Five-wicket haul: this player's credited wickets in this innings.
+      const inningsWickets = bowlerLegalWicketSeq.filter(Boolean).length;
+      if (inningsWickets >= 5) fiveWicketHauls += 1;
+
+      // Hat-trick scan: count once per unbroken streak of >= 3 consecutive
+      // wickets - a 4- or 5-wicket streak is still one hat-trick, matching
+      // real-world convention, not (streakLength - 2) overlapping hat-tricks.
+      let streak = 0;
+      let countedThisStreak = false;
+      for (const wasWicket of bowlerLegalWicketSeq) {
+        if (wasWicket) {
+          streak += 1;
+          if (streak >= 3 && !countedThisStreak) {
+            hatTricks += 1;
+            countedThisStreak = true;
+          }
+        } else {
+          streak = 0;
+          countedThisStreak = false;
+        }
+      }
+    }
+  }
+
+  const { batting, bowling, fielding } = careerStats;
+  const wkDismissals = (fielding.catches || 0) + (fielding.stumpings || 0);
+  const isAllRounder = batting.runs >= 500 && bowling.wickets >= 50;
+  const isCenturyOfWickets = bowling.wickets >= 50;
+  const isWkGreat = wkDismissals >= 50;
+
+  const counts = {
+    'century-maker': batting.centuries,
+    'half-century-hero': batting.halfCenturies,
+    'five-wicket-haul': fiveWicketHauls,
+    'hat-trick-hero': hatTricks,
+    'golden-duck': goldenDucks,
+    'century-of-wickets': isCenturyOfWickets ? 1 : 0,
+    'all-rounder': isAllRounder ? 1 : 0,
+    'wicketkeeper-great': isWkGreat ? 1 : 0
+  };
+
+  return ACHIEVEMENT_DEFS.map((def) => ({
+    ...def,
+    earned: counts[def.key] > 0,
+    count: counts[def.key]
+  }));
+}
+
 /**
  * Batting leaderboard across all players, ranked by average (min 1 dismissal-free
  * run to appear at all - players who've never batted don't show up).
@@ -458,6 +591,7 @@ module.exports = {
   getBowlerLineLengthEffectiveness,
   getFieldingStats,
   getCareerStats,
+  getAchievements,
   getBattingLeaderboard,
   getBowlingLeaderboard,
   getTournamentBattingLeaderboard,

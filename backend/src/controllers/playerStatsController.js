@@ -29,6 +29,9 @@ exports.getPlayerStats = async (req, res) => {
       tendencyAnalytics.getCareerStats(req.params.playerId),
       tendencyAnalytics.getZoneBreakdown(req.params.playerId)
     ]);
+    // Pass the already-computed careerStats through so getAchievements doesn't
+    // re-run the same career-stats match query a second time.
+    const achievements = await tendencyAnalytics.getAchievements(req.params.playerId, careerStats);
 
     res.status(200).json({
       success: true,
@@ -36,7 +39,8 @@ exports.getPlayerStats = async (req, res) => {
         player,
         ...careerStats,
         recentForm: [],
-        wagonWheel: wagonWheel.zones
+        wagonWheel: wagonWheel.zones,
+        achievements
       }
     });
   } catch (error) {

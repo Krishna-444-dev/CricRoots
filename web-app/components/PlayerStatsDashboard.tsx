@@ -44,6 +44,13 @@ interface PlayerStats {
     runs: number;
     runsPercent: number;
   }>;
+  achievements: Array<{
+    key: string;
+    label: string;
+    description: string;
+    earned: boolean;
+    count: number;
+  }>;
 }
 
 interface PlayerStatsDashboardProps {
@@ -218,6 +225,28 @@ export const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ play
                 </div>
               </div>
             </div>
+
+            {/* Achievements */}
+            {stats.achievements && stats.achievements.length > 0 && (
+              <div className={styles.card}>
+                <h3>🏅 Achievements</h3>
+                <div className={styles.badgeGrid}>
+                  {stats.achievements.map((badge) => (
+                    <div
+                      key={badge.key}
+                      className={`${styles.badge} ${badge.earned ? styles.badgeEarned : styles.badgeLocked}`}
+                      title={badge.description}
+                    >
+                      <span className={styles.badgeLabel}>{badge.label}</span>
+                      <span className={styles.badgeDescription}>{badge.description}</span>
+                      {badge.earned && badge.count > 1 && (
+                        <span className={styles.badgeCount}>×{badge.count}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Recent Form */}
             <div className={styles.card}>
