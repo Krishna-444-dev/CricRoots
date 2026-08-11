@@ -2,6 +2,7 @@ const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Tournament = require('../models/Tournament');
 const AIService = require('../utils/aiService');
+const { getMatchCharts } = require('../services/matchCharts');
 
 // @desc    Create a new match
 // @route   POST /api/matches
@@ -366,6 +367,40 @@ exports.getScorecard = async (req, res) => {
       success: true,
       scorecard,
       aiInsights: aiInsights.success ? aiInsights : null
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get Manhattan/Worm chart data (runs per over + cumulative total per over) for both innings
+// @route   GET /api/matches/:id/charts
+// @access  Public
+exports.getMatchCharts = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id)
+      .populate('team1')
+      .populate('team2');
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    const teamsByInningsIndex = [match.team1, match.team2];
+    const innings = getMatchCharts(match).map((entry, index) => ({
+      ...entry,
+      team: teamsByInningsIndex[index]
+    }));
+
+    res.status(200).json({
+      success: true,
+      innings
     });
   } catch (error) {
     res.status(500).json({

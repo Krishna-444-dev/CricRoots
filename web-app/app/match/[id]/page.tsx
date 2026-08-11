@@ -4,7 +4,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
+import ManhattanChart from '@/components/insights/ManhattanChart';
+import WormChart from '@/components/insights/WormChart';
 import styles from './page.module.css';
+
+interface ChartInnings {
+  team: { _id: string; name: string } | string | null;
+  overs: { over: number; runs: number; wickets: number }[];
+  cumulative: { over: number; total: number }[];
+}
 
 interface Match {
   _id: string;
@@ -27,13 +35,18 @@ export default function MatchPage() {
   const matchId = params.id as string;
 
   const [match, setMatch] = useState<Match | null>(null);
+  const [chartsInnings, setChartsInnings] = useState<ChartInnings[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'scorecard' | 'ai-insights'>('scorecard');
 
   useEffect(() => {
     fetchMatch();
-    const interval = setInterval(fetchMatch, 10000);
+    fetchCharts();
+    const interval = setInterval(() => {
+      fetchMatch();
+      fetchCharts();
+    }, 10000);
     return () => clearInterval(interval);
   }, [matchId]);
 
@@ -41,7 +54,7 @@ export default function MatchPage() {
     try {
       const response = await fetch(`/api/matches/${matchId}`);
       const data = await response.json();
-      
+
       if (data.success) {
         setMatch(data.match);
         setError(null);
@@ -53,6 +66,18 @@ export default function MatchPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCharts = async () => {
+    try {
+      const response = await fetch(`/api/matches/${matchId}/charts`);
+      const data = await response.json();
+      if (data.success) {
+        setChartsInnings(data.innings);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -166,6 +191,23 @@ export default function MatchPage() {
                 ))}
               </div>
             </div>
+
+            {/* Manhattan & Worm Charts */}
+            {chartsInnings.some((inn) => inn.overs.length > 0) && (
+              <div className="mt-6">
+                <h3 className="text-base font-bold text-ink mb-3">Match Analytics</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-surface border border-border rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-ink-secondary mb-2">Manhattan Chart</h4>
+                    <ManhattanChart innings={chartsInnings} />
+                  </div>
+                  <div className="bg-surface border border-border rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-ink-secondary mb-2">Worm Chart</h4>
+                    <WormChart innings={chartsInnings} />
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <AITacticalAdvisor matchId={matchId} isLive={match.status === 'Live'} />
