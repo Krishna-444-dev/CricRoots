@@ -9,6 +9,7 @@ import Card from '@/components/ui/Card';
 import PageHeader from '@/components/ui/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import Badge from '@/components/ui/Badge';
+import { buttonVariants } from '@/components/ui/buttonStyles';
 
 interface Conversation {
   user: { _id: string; name: string };
@@ -58,10 +59,19 @@ export default function MessagesInboxPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-8">
-      <PageHeader title="Messages" description="Your direct message conversations." />
+      <PageHeader
+        title="Messages"
+        description="Your direct message conversations."
+        action={<Link href="/messages/new" className={buttonVariants('primary')}>+ New Message</Link>}
+      />
 
       {conversations.length === 0 ? (
-        <EmptyState icon="✉️" title="No conversations yet" description="Message a player from their profile to start a conversation." />
+        <EmptyState
+          icon="✉️"
+          title="No conversations yet"
+          description="Start a conversation with any player."
+          action={<Link href="/messages/new" className={buttonVariants('primary')}>+ New Message</Link>}
+        />
       ) : (
         <div className="space-y-3">
           {conversations.map(c => (

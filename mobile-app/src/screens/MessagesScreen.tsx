@@ -58,51 +58,65 @@ export default function MessagesScreen({ navigation }: any) {
   }
 
   return (
-    <FlatList
-      style={styles.container}
-      data={conversations}
-      keyExtractor={(item) => item.user._id}
-      contentContainerStyle={conversations.length === 0 ? styles.emptyContent : styles.listContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.pitch400} />}
-      ListEmptyComponent={
-        <View style={styles.centered}>
-          <Ionicons name="chatbubbles-outline" size={32} color={colors.inkMuted} />
-          <Text style={styles.muted}>
-            {error || 'No conversations yet - message a player from their profile to start one.'}
-          </Text>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <TouchableOpacity style={styles.row} onPress={() => openThread(item)} activeOpacity={0.8}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{item.user.name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
-          </View>
-          <View style={styles.rowMain}>
-            <View style={styles.rowTop}>
-              <Text style={styles.rowName} numberOfLines={1}>{item.user.name}</Text>
-              <Text style={styles.rowTime}>{formatTimestamp(item.lastMessage.createdAt)}</Text>
-            </View>
-            <Text style={[styles.rowPreview, item.unreadCount > 0 && styles.rowPreviewUnread]} numberOfLines={1}>
-              {item.lastMessage.fromMe ? 'You: ' : ''}{item.lastMessage.text}
+    <View style={styles.container}>
+      <TouchableOpacity style={styles.newMessageBtn} onPress={() => navigation.navigate('NewMessage')}>
+        <Ionicons name="create-outline" size={20} color={colors.pitch400} />
+        <Text style={styles.newMessageBtnText}>New Message</Text>
+      </TouchableOpacity>
+
+      <FlatList
+        style={styles.list}
+        data={conversations}
+        keyExtractor={(item) => item.user._id}
+        contentContainerStyle={conversations.length === 0 ? styles.emptyContent : styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.pitch400} />}
+        ListEmptyComponent={
+          <View style={styles.centered}>
+            <Ionicons name="chatbubbles-outline" size={32} color={colors.inkMuted} />
+            <Text style={styles.muted}>
+              {error || 'No conversations yet - tap "New Message" to start one.'}
             </Text>
           </View>
-          {item.unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{item.unreadCount > 9 ? '9+' : item.unreadCount}</Text>
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.row} onPress={() => openThread(item)} activeOpacity={0.8}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{item.user.name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
             </View>
-          )}
-        </TouchableOpacity>
-      )}
-    />
+            <View style={styles.rowMain}>
+              <View style={styles.rowTop}>
+                <Text style={styles.rowName} numberOfLines={1}>{item.user.name}</Text>
+                <Text style={styles.rowTime}>{formatTimestamp(item.lastMessage.createdAt)}</Text>
+              </View>
+              <Text style={[styles.rowPreview, item.unreadCount > 0 && styles.rowPreviewUnread]} numberOfLines={1}>
+                {item.lastMessage.fromMe ? 'You: ' : ''}{item.lastMessage.text}
+              </Text>
+            </View>
+            {item.unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>{item.unreadCount > 9 ? '9+' : item.unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  list: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, padding: 24 },
   emptyContent: { flexGrow: 1 },
   listContent: { padding: 16 },
   muted: { color: colors.inkMuted, fontSize: 13, textAlign: 'center', marginTop: 10 },
+
+  newMessageBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface,
+    borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, margin: 16, marginBottom: 4,
+  },
+  newMessageBtnText: { color: colors.pitch400, fontSize: 14, fontWeight: '700' },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface,

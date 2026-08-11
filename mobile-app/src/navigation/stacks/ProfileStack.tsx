@@ -4,6 +4,7 @@ import ProfileScreen from '../../screens/ProfileScreen';
 import PlayerStatsScreen from '../../screens/PlayerStatsScreen';
 import LeaderboardScreen from '../../screens/LeaderboardScreen';
 import MessagesScreen from '../../screens/MessagesScreen';
+import NewMessageScreen from '../../screens/NewMessageScreen';
 import MessageThreadScreen from '../../screens/MessageThreadScreen';
 import GroupsScreen from '../../screens/GroupsScreen';
 import CreateGroupScreen from '../../screens/CreateGroupScreen';
@@ -15,6 +16,7 @@ export type ProfileStackParamList = {
   PlayerStats: { playerId: string };
   Leaderboard: undefined;
   Messages: undefined;
+  NewMessage: undefined;
   MessageThread: { userId: string; name: string };
   Groups: undefined;
   CreateGroup: undefined;
@@ -30,6 +32,7 @@ export default function ProfileStack() {
       <Stack.Screen name="PlayerStats" component={PlayerStatsScreen} options={{ title: 'My Stats' }} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <Stack.Screen name="Messages" component={MessagesScreen} options={{ title: 'Messages' }} />
+      <Stack.Screen name="NewMessage" component={NewMessageScreen} options={{ title: 'New Message' }} />
       <Stack.Screen name="MessageThread" component={MessageThreadScreen} options={{ title: 'Message' }} />
       <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Groups' }} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'New Group' }} />
