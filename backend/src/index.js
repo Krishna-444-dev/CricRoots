@@ -54,6 +54,7 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/players', require('./routes/playerRoutes'));
 app.use('/api/player-stats', require('./routes/playerStatsRoutes'));
 app.use('/api/teams', require('./routes/teamRoutes'));

@@ -8,6 +8,7 @@ const links = [
   { href: '/matches', label: 'Matches' },
   { href: '/tournaments', label: 'Tournaments' },
   { href: '/players', label: 'Player Stats' },
+  { href: '/network', label: 'Network' },
 ];
 
 export default function HomePage() {
