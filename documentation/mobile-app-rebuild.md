@@ -185,11 +185,39 @@ Retraining the model itself against Cricsheet-derived match-state sequences (rat
 current synthetic data) — which would improve accuracy on both the live tactical advisor and key
 moments — is still a good follow-up, just not a blocker anymore.
 
+## Points-based prediction game (not real-money betting)
+
+The user asked to explore a "betting angle" to drive engagement among local/amateur players.
+Real-money wagering was deliberately ruled out: gambling regulation varies enormously by
+jurisdiction (licensing, KYC/AML, potential criminal liability for unlicensed operation), which is
+legal exposure beyond ordinary product engineering judgment and needs the user's explicit sign-off,
+not a unilateral build decision. Built instead: a free, points-based match-prediction game that
+captures the same "who's going to win?" engagement hook with zero stake and zero payout.
+
+- **Backend** (`e49cff1`): new `Prediction` model (`user`, `match`, `predictedWinner`, optional
+  `predictedMotm` bonus guess, unique per user+match), `predictionSettler.js` service, and
+  `/api/predictions` routes (submit/upsert, per-match "mine + community split", personal history,
+  global leaderboard via aggregation - no denormalized point totals to keep in sync). Predictions
+  lock the moment a match leaves `Scheduled`, so a "prediction" can never be made with in-progress
+  match knowledge. Settlement runs automatically inside `updateMatch` when a match transitions to
+  `Completed` - the frontend never triggers it. Scoring is purely additive (+10 correct winner, +15
+  bonus for also nailing Man of the Match, 0 for wrong - never negative), which is itself part of
+  what keeps this clearly on the legal/fun side of the line rather than something resembling a
+  wager with a downside. Verified end-to-end via curl against a real match/team/prediction flow:
+  upsert-before-lock, lock-on-Live rejection, auto-settlement, and leaderboard aggregation all
+  confirmed working.
+- **Web + mobile UI** — 2 parallel background agents, foundation (backend) already stable so no
+  file overlap risk. Both added: a predict-the-winner widget on the match detail page/screen
+  (locked automatically once `Scheduled` ends, shows the community split to everyone, shows
+  settled results once a match completes), and a leaderboard page/screen with a "My Predictions"
+  tab. Both tracks independently hardcoded "0 points" whenever the winner guess was wrong, missing
+  that `wonOnWinner` and `wonOnMotm` are scored independently server-side - a wrong-winner-but-
+  right-MOTM prediction can still earn 15 points. Caught in review before merging (same bug, found
+  independently in both codebases since the two agents worked from the same task brief) and fixed
+  in both before merge. All UI copy avoids gambling language entirely ("predict"/"points"/
+  "leaderboard", never "bet"/"wager"/"odds"/"stake").
+
 ## What's next
 
 - Source and verify the D/L Standard resource table before implementing rain-revision for real.
-- A prediction/fantasy engagement layer was requested, explicitly **without real-money betting** —
-  gambling regulation varies too much by jurisdiction to safely build real-money wagering
-  infrastructure without explicit sign-off on the legal exposure that would create. Points-based
-  prediction/fantasy design is the safe, legal way to capture the same engagement hook.
 - An actual device/simulator smoke test of the mobile app (see "Result" above).
