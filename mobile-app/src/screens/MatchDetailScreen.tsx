@@ -4,7 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
-import { Match, BallEvent } from '../shared/types';
+import { Match, BallEvent, Prediction } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
@@ -63,6 +63,19 @@ interface ChartInnings {
   cumulative: { over: number; total: number }[];
 }
 
+interface PredictionSplit {
+  mine: Prediction | null;
+  totalPredictions: number;
+  communitySplit: Record<string, number>;
+}
+
+// predictedWinner arrives as a bare Team id string from GET /predictions/match/:matchId (the
+// endpoint this screen uses), but type it defensively in case a populated shape ever shows up.
+function predictedWinnerId(p: Prediction | null | undefined): string | null {
+  if (!p) return null;
+  return typeof p.predictedWinner === 'string' ? p.predictedWinner : p.predictedWinner._id;
+}
+
 interface KeyMoment {
   ballIndex: number;
   ballNumber: number;
@@ -84,6 +97,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [chartInnings, setChartInnings] = useState<ChartInnings[] | null>(null);
   const [keyMoments, setKeyMoments] = useState<KeyMoment[] | null>(null);
+  const [prediction, setPrediction] = useState<PredictionSplit | null>(null);
+  const [predicting, setPredicting] = useState(false);
 
   const load = useCallback(() => {
     api.matches
@@ -145,6 +160,43 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     };
   }, [match?._id, match?.status]);
 
+  // The predict-the-winner widget's data (community split + the logged-in user's own pick, if
+  // any) - a nice-to-have, non-blocking fetch that never blocks the match view if it fails.
+  useEffect(() => {
+    if (!match) {
+      setPrediction(null);
+      return;
+    }
+    let cancelled = false;
+    api.predictions
+      .getForMatch(match._id)
+      .then((data) => {
+        if (!cancelled) setPrediction(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPrediction(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [match?._id, match?.status]);
+
+  const handlePredict = async (teamId: string) => {
+    if (!match || !user || predicting) return;
+    setPredicting(true);
+    try {
+      await api.predictions.submit(match._id, teamId);
+      // Re-fetch rather than trust the submit response alone - it also refreshes the
+      // community split, which shifts as soon as this pick is counted.
+      const fresh = await api.predictions.getForMatch(match._id);
+      setPrediction(fresh);
+    } catch {
+      // Non-critical - the picker simply doesn't reflect the change; user can retry the tap.
+    } finally {
+      setPredicting(false);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     load();
@@ -170,6 +222,15 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const ownerId = resolveUserId(match.createdBy);
   const isOwner = !!user && !!ownerId && ownerId === user.id;
   const canScore = isOwner && (match.status === 'Live' || match.status === 'Scheduled');
+
+  const team1Id = teamIdOf(match.team1);
+  const team2Id = teamIdOf(match.team2);
+  const myPickId = predictedWinnerId(prediction?.mine);
+  const predictionTotal = prediction?.totalPredictions ?? 0;
+  const team1Picks = prediction?.communitySplit?.[team1Id] ?? 0;
+  const team2Picks = prediction?.communitySplit?.[team2Id] ?? 0;
+  const team1Pct = predictionTotal > 0 ? Math.round((team1Picks / predictionTotal) * 100) : 0;
+  const team2Pct = predictionTotal > 0 ? Math.round((team2Picks / predictionTotal) * 100) : 0;
 
   const activeIdx = activeInningsIndex(match);
   const activeBalls = match.innings[activeIdx]?.balls ?? [];
@@ -237,6 +298,92 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             {match.status === 'Live' ? 'Continue Scoring' : 'Score this match'}
           </Text>
         </TouchableOpacity>
+      )}
+
+      {match.status === 'Scheduled' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Predict the Winner</Text>
+          <View style={styles.predictCard}>
+            {!user && (
+              <Text style={styles.predictLoginPrompt}>Log in to predict this match and earn points.</Text>
+            )}
+
+            {user && (
+              <View style={styles.predictButtonRow}>
+                <TouchableOpacity
+                  style={[styles.predictButton, myPickId === team1Id && styles.predictButtonSelected]}
+                  onPress={() => handlePredict(team1Id)}
+                  disabled={predicting}
+                >
+                  <Text style={[styles.predictButtonText, myPickId === team1Id && styles.predictButtonTextSelected]}>
+                    {teamName(match.team1)}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.predictButton, myPickId === team2Id && styles.predictButtonSelected]}
+                  onPress={() => handlePredict(team2Id)}
+                  disabled={predicting}
+                >
+                  <Text style={[styles.predictButtonText, myPickId === team2Id && styles.predictButtonTextSelected]}>
+                    {teamName(match.team2)}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {myPickId && (
+              <Text style={styles.predictHint}>
+                Your pick: {myPickId === team1Id ? teamName(match.team1) : teamName(match.team2)} · tap the other team to change it
+              </Text>
+            )}
+
+            {predictionTotal > 0 && (
+              <View style={styles.predictSplit}>
+                <Text style={styles.predictSplitLabel}>
+                  {predictionTotal} prediction{predictionTotal === 1 ? '' : 's'} so far
+                </Text>
+                <View style={styles.predictSplitRow}>
+                  <Text style={styles.predictSplitTeamLabel} numberOfLines={1}>{teamName(match.team1)}</Text>
+                  <View style={styles.predictBarTrack}>
+                    <View style={[styles.predictBar, { flex: Math.max(team1Pct, 1) }]} />
+                    <View style={{ flex: Math.max(100 - team1Pct, 1) }} />
+                  </View>
+                  <Text style={styles.predictSplitPct}>{team1Pct}%</Text>
+                </View>
+                <View style={styles.predictSplitRow}>
+                  <Text style={styles.predictSplitTeamLabel} numberOfLines={1}>{teamName(match.team2)}</Text>
+                  <View style={styles.predictBarTrack}>
+                    <View style={[styles.predictBar, { flex: Math.max(team2Pct, 1) }]} />
+                    <View style={{ flex: Math.max(100 - team2Pct, 1) }} />
+                  </View>
+                  <Text style={styles.predictSplitPct}>{team2Pct}%</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {match.status !== 'Scheduled' && prediction?.mine && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Prediction</Text>
+          <View style={styles.predictCard}>
+            <Text style={styles.predictLockedPick}>
+              You predicted {myPickId === team1Id ? teamName(match.team1) : teamName(match.team2)} to win
+            </Text>
+            {prediction.mine.status === 'settled' ? (
+              <Text style={[styles.predictResult, prediction.mine.points > 0 ? styles.predictResultWin : styles.predictResultLoss]}>
+                {prediction.mine.wonOnWinner
+                  ? `Correct winner! +${prediction.mine.points} points`
+                  : prediction.mine.points > 0
+                  ? `+${prediction.mine.points} points`
+                  : 'Not this time - 0 points'}
+              </Text>
+            ) : (
+              <Text style={styles.predictHint}>Predictions are locked - result pending.</Text>
+            )}
+          </View>
+        </View>
       )}
 
       {recentBalls.length > 0 && (
@@ -398,6 +545,47 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   keyMomentDelta: { color: colors.gold400, fontSize: 11, fontWeight: '700', marginTop: 6 },
+
+  predictCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+  },
+  predictLoginPrompt: { color: colors.inkSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 4 },
+  predictButtonRow: { flexDirection: 'row', gap: 10 },
+  predictButton: {
+    flex: 1,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  predictButtonSelected: { backgroundColor: colors.pitch900, borderColor: colors.pitch500 },
+  predictButtonText: { color: colors.ink, fontSize: 14, fontWeight: '700' },
+  predictButtonTextSelected: { color: colors.pitch400 },
+  predictHint: { color: colors.inkMuted, fontSize: 12, marginTop: 10, textAlign: 'center' },
+  predictSplit: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  predictSplitLabel: { color: colors.inkMuted, fontSize: 11, fontWeight: '600', marginBottom: 8 },
+  predictSplitRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
+  predictSplitTeamLabel: { color: colors.inkSecondary, fontSize: 12, width: 84 },
+  predictBarTrack: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceAlt,
+  },
+  predictBar: { backgroundColor: colors.gold500, borderRadius: 4 },
+  predictSplitPct: { color: colors.inkSecondary, fontSize: 12, fontWeight: '700', width: 36, textAlign: 'right' },
+  predictLockedPick: { color: colors.ink, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  predictResult: { fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+  predictResultWin: { color: colors.pitch400 },
+  predictResultLoss: { color: colors.inkMuted },
 
   chartRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingBottom: 4 },
   chartBarWrap: { alignItems: 'center', width: 28 },

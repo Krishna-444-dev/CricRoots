@@ -183,3 +183,43 @@ export interface NewsPost {
   author: User | string;
   createdAt: string;
 }
+
+// Points-based match prediction game (backend/src/models/Prediction.js) - NOT real-money
+// betting, just a free predict-and-earn-points leaderboard. `match` and `predictedWinner`
+// arrive as bare id strings from most endpoints (e.g. GET /predictions/match/:matchId), but
+// GET /predictions/me populates both with a partial shape - typed loosely to match whichever
+// endpoint returned the doc, same convention as the rest of this file.
+export interface Prediction {
+  _id: string;
+  user: User | string;
+  match:
+    | string
+    | {
+        _id: string;
+        title: string;
+        matchType: Match['matchType'];
+        status: Match['status'];
+        venue: string;
+        scheduledDate: string;
+        team1: { name: string };
+        team2: { name: string };
+        result?: Match['result'];
+      };
+  predictedWinner: string | { _id: string; name: string };
+  predictedMotm: string | null;
+  status: 'pending' | 'settled';
+  points: number;
+  wonOnWinner: boolean;
+  wonOnMotm: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  totalPoints: number;
+  correctPredictions: number;
+  totalPredictions: number;
+}
