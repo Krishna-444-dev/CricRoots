@@ -162,6 +162,10 @@ export const lessonsAPI = {
   getLessons: () => apiFetch<{ success: true; lessons: any[] }>('/lessons'),
   getLessonById: (lessonId: string) => apiFetch<{ success: true; lesson: any }>(`/lessons/${lessonId}`),
   createLesson: (data: any) => apiFetch('/lessons', 'POST', data),
+  // Personalized recommendations matched against the logged-in player's own weak line/length
+  // buckets (falls back to a generic set - source distinguishes the two).
+  getForMe: () =>
+    apiFetch<{ success: true; source: 'own-data' | 'generic'; reason: string; lessons: any[] }>('/lessons/for-me'),
 };
 
 // --- News (backend/src/routes/newsRoutes.js) ---
@@ -169,6 +173,10 @@ export const newsAPI = {
   getPosts: () => apiFetch<{ success: true; posts: any[] }>('/news'),
   getPostById: (postId: string) => apiFetch<{ success: true; post: any }>(`/news/${postId}`),
   createPost: (data: any) => apiFetch('/news', 'POST', data),
+  // Personalized "for you" feed - general news plus match-report articles for every tournament
+  // the logged-in user's Player profile is registered in.
+  getFeed: () =>
+    apiFetch<{ success: true; count: number; posts: any[]; myTournaments: string[] }>('/news/feed'),
 };
 
 // --- Marketplace products (backend/src/routes/productRoutes.js) ---

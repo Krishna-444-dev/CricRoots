@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { Lesson } from '../shared/types';
+import { useAuth } from '../hooks/useAuth';
 
 const CATEGORIES = ['batting', 'bowling', 'fielding', 'fitness', 'rules', 'strategy'];
 
@@ -12,12 +13,17 @@ function authorName(author: Lesson['author']): string {
 }
 
 export default function LearnScreen() {
+  const { user } = useAuth();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const [recommended, setRecommended] = useState<Lesson[]>([]);
+  const [recReason, setRecReason] = useState('');
+  const [recLoading, setRecLoading] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -27,14 +33,58 @@ export default function LearnScreen() {
       .finally(() => { setLoading(false); setRefreshing(false); });
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const loadRecommended = useCallback(() => {
+    if (!user) return;
+    setRecLoading(true);
+    api.lessons.getForMe()
+      .then(({ reason, lessons }) => { setRecReason(reason); setRecommended(lessons); })
+      .catch(() => { setRecommended([]); setRecReason(''); })
+      .finally(() => setRecLoading(false));
+  }, [user]);
 
-  const onRefresh = () => { setRefreshing(true); load(); };
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadRecommended(); }, [loadRecommended]);
+
+  const onRefresh = () => { setRefreshing(true); load(); loadRecommended(); };
 
   const visibleLessons = category ? lessons.filter(l => l.category === category) : lessons;
 
   return (
     <View style={styles.container}>
+      {user && (recLoading || recommended.length > 0) ? (
+        <View style={styles.recommendedSection}>
+          <View style={styles.recommendedHeaderRow}>
+            <Ionicons name="sparkles" size={16} color={colors.gold400} />
+            <Text style={styles.recommendedHeading}>Recommended for You</Text>
+          </View>
+          {recLoading ? (
+            <Text style={styles.muted}>Loading recommendations...</Text>
+          ) : (
+            <>
+              {recReason ? <Text style={styles.recReason}>{recReason}</Text> : null}
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={recommended}
+                keyExtractor={(item) => `rec-${item._id}`}
+                contentContainerStyle={styles.recommendedListContent}
+                renderItem={({ item }) => (
+                  <View style={styles.recCard}>
+                    <View style={styles.recCardHeaderRow}>
+                      <Text style={styles.recCardTitle} numberOfLines={2}>{item.title}</Text>
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{item.difficulty}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.cardMeta}>{item.category} · by {authorName(item.author)}</Text>
+                  </View>
+                )}
+              />
+            </>
+          )}
+        </View>
+      ) : null}
+
       <View style={styles.chipsRow}>
         <FlatList
           horizontal
@@ -101,6 +151,20 @@ export default function LearnScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  recommendedSection: {
+    backgroundColor: colors.surfaceAlt, borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingTop: 14, paddingBottom: 12,
+  },
+  recommendedHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
+  recommendedHeading: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+  recReason: { color: colors.inkSecondary, fontSize: 12, lineHeight: 17, paddingHorizontal: 16, marginTop: 6 },
+  recommendedListContent: { paddingHorizontal: 16, paddingTop: 10, gap: 10 },
+  recCard: {
+    backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.gold600,
+    padding: 12, width: 220, marginRight: 10,
+  },
+  recCardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  recCardTitle: { color: colors.ink, fontSize: 14, fontWeight: '600', flex: 1 },
   chipsRow: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 10 },
   chipsContent: { paddingHorizontal: 16, gap: 8 },
   chip: {
