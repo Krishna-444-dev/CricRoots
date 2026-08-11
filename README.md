@@ -238,6 +238,7 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 - ✅ Full match lifecycle: real auth, team/roster creation, match creation, ball-by-ball scoring with delivery tagging, auto-derived results
 - ✅ Tournament management: fixture auto-generation, auto-computed points table with net run rate, MVP/awards computation, calendar view
 - ✅ Player stats computed live from match data: career batting/bowling averages, wicketkeeper stats (catches/run-outs/stumpings), wagon wheel visualization, global and per-tournament leaderboards
+- ✅ Manhattan and Worm charts on the match detail page, automatic algorithmic Man of the Match calculation, and 8 player achievement badges (Century Maker, Hat-trick Hero, Golden Duck, and more)
 - ✅ Data-driven tactical insights (shot advice, bowling plans, fielding placement, bowler scouting) blending a player's own tagged-ball history with a wider player-pool average when data is thin
 - ✅ Player network (follow/directory/profiles), community edtech lesson library, news posts, and a full marketplace (listings/cart/checkout/orders)
 - ✅ "Stadium Dark" UI redesign across the entire web app — a broadcast-graphics-style dark theme with a shared component/design-token system
