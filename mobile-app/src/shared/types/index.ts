@@ -46,6 +46,11 @@ export interface BallEvent {
   fielderId: string | null;
   fielderPosition: string | null;
   commentary?: string;
+  // Display names for auto-generated commentary - sourced from already-in-state player
+  // objects rather than a server-side lookup, see backend/src/services/commentaryGenerator.js.
+  batsmanName?: string;
+  bowlerName?: string;
+  fielderName?: string;
 }
 
 export interface Innings {
