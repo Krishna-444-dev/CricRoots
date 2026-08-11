@@ -38,7 +38,7 @@ This repository contains the complete CricSync ecosystem, including:
 - **Leaderboards**: top batsmen/bowlers globally or scoped to a single tournament.
 
 ### 🌐 Community: Network, Edtech, News, Marketplace, Predictions
-- **Player network**: follow/unfollow, a searchable player directory, public player profiles.
+- **Player network**: follow/unfollow, a searchable player directory, public player profiles, and direct 1:1 messaging (real-time via WebSocket, with an unread-count badge).
 - **Personalized Learn**: lesson recommendations matched against a player's own weak line/length batting or bowling data, with an honest "why you're seeing this" explanation and a generic fallback when there's not enough data yet.
 - **Auto-generated tournament news**: when a tournament match completes, an article is automatically written spotlighting the standout performance (century, five-wicket haul, hat-trick) or a plain result recap — visible to everyone, with a personalized "My Tournaments" feed for players actually registered in that tournament.
 - **Points-based prediction game**: predict a match winner (plus a Man of the Match bonus) before it starts, with a leaderboard — free points only, explicitly not real-money betting.
@@ -157,6 +157,12 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /:id` - public profile · `GET /:id/followers` · `GET /:id/following`
 - `POST /:id/follow` (protected) · `DELETE /:id/follow` (protected, unfollow)
 
+### Direct Messages (`/api/messages`) — all protected, private 1:1 messaging between players
+- `GET /conversations` - inbox, most-recent-first, per-conversation unread count
+- `GET /unread-count` - total unread across all conversations, for a badge
+- `GET /:userId` - full thread with that user; also marks their messages to you as read
+- `POST /:userId` - send a message; delivered in real time via a per-user WebSocket room
+
 ### Players (`/api/players`)
 - `GET /` - directory · `GET /:id` · `POST /register` (protected) · `PUT /:id` (protected) · `GET /me/profile` (protected)
 
@@ -216,14 +222,15 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `ai-insights` - AI tactical insights updated
 - `user-joined` / `user-left` - presence in a match room
 - `new-message` - a team chat message or tournament announcement was posted
+- `new-direct-message` - a private 1:1 message was sent to you (delivered to your personal `user-<id>` room, auto-joined on connect)
 
 ## Project Statistics
 
 | Metric | Value |
 | :--- | :--- |
-| **Total Commits** | 74+ |
-| **Backend Route Files** | 13 (auth, users, players, player-stats, teams, matches, tournaments, insights, lessons, news, predictions, products, orders) |
-| **Mongoose Models** | 13 |
+| **Total Commits** | 80+ |
+| **Backend Route Files** | 14 (auth, users, players, player-stats, teams, matches, tournaments, insights, lessons, news, predictions, messages, products, orders) |
+| **Mongoose Models** | 14 |
 | **WebSocket Events** | 15+ |
 | **Web App Pages** | 34+ (matches, tournaments, teams, players, network, edtech, news, predictions leaderboard, marketplace/cart/checkout/orders, calendar, terms/privacy, auth) |
 | **Mobile App Screens** | 22 (full parity with web) |
@@ -262,6 +269,8 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 *Developed with the assistance of Manus AI*
 
 ### Latest Updates
+- ✅ Direct 1:1 messaging between players (real-time via WebSocket, inbox with unread counts, "Message" button on profiles) and tournament announcements on mobile (organizer broadcasts to everyone registered)
+- ✅ First real on-device pilot test on iOS via Expo Go — found and fixed a genuinely missing `babel.config.js` (env vars were silently never inlined into any published build), an EAS Update environment-variable gap, several validation/keyboard UX bugs, and the wrong sport's icon on the Matches tab
 - ✅ Mobile app rebuilt to full feature parity with web (22 screens), upgraded to current Expo SDK 54, and distributed to pilot testers via EAS Update/Expo Go — no App Store review needed yet
 - ✅ Ball-by-ball auto-commentary and voice-driven delivery tagging; Key Moments (win-probability-swing highlights) on completed chases
 - ✅ Points-based match prediction game with a global leaderboard (explicitly not real-money betting)
