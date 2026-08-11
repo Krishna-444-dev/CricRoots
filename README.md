@@ -39,6 +39,7 @@ This repository contains the complete CricSync ecosystem, including:
 
 ### 🌐 Community: Network, Edtech, News, Marketplace, Predictions
 - **Player network**: follow/unfollow, a searchable player directory, public player profiles, and direct 1:1 messaging (real-time via WebSocket, with an unread-count badge).
+- **Group chat**: WhatsApp-style team/squad groups (member-only visibility, creator-as-admin), text messages, polls with live vote counts, and image/video attachments — all real-time.
 - **Personalized Learn**: lesson recommendations matched against a player's own weak line/length batting or bowling data, with an honest "why you're seeing this" explanation and a generic fallback when there's not enough data yet.
 - **Auto-generated tournament news**: when a tournament match completes, an article is automatically written spotlighting the standout performance (century, five-wicket haul, hat-trick) or a plain result recap — visible to everyone, with a personalized "My Tournaments" feed for players actually registered in that tournament.
 - **Points-based prediction game**: predict a match winner (plus a Man of the Match bonus) before it starts, with a leaderboard — free points only, explicitly not real-money betting.
@@ -163,6 +164,14 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /:userId` - full thread with that user; also marks their messages to you as read
 - `POST /:userId` - send a message; delivered in real time via a per-user WebSocket room
 
+### Group Chat (`/api/groups`) — all protected, WhatsApp-style member-only team/squad groups
+- `GET /` - groups you're in · `POST /` - create (optionally tagged to a team you're on)
+- `GET /:id` · `PUT /:id` (creator only - rename/add/remove members) · `DELETE /:id` (creator only)
+- `POST /:id/leave` (any member except the creator)
+- `GET /:id/messages` · `POST /:id/messages` - text messages
+- `POST /:id/polls` - create a poll · `POST /:id/polls/:messageId/vote` - vote (single-choice polls auto-clear a prior vote on switch)
+- `POST /:id/attachments` - multipart image/video upload (20MB cap), served back via `/uploads/`
+
 ### Players (`/api/players`)
 - `GET /` - directory · `GET /:id` · `POST /register` (protected) · `PUT /:id` (protected) · `GET /me/profile` (protected)
 
@@ -223,14 +232,16 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `user-joined` / `user-left` - presence in a match room
 - `new-message` - a team chat message or tournament announcement was posted
 - `new-direct-message` - a private 1:1 message was sent to you (delivered to your personal `user-<id>` room, auto-joined on connect)
+- `new-group-message` - a text/poll/attachment message was posted to a group you've joined the room for
+- `group-poll-update` - a poll's vote counts changed - patches the existing message, not a new one
 
 ## Project Statistics
 
 | Metric | Value |
 | :--- | :--- |
-| **Total Commits** | 80+ |
-| **Backend Route Files** | 14 (auth, users, players, player-stats, teams, matches, tournaments, insights, lessons, news, predictions, messages, products, orders) |
-| **Mongoose Models** | 14 |
+| **Total Commits** | 85+ |
+| **Backend Route Files** | 15 (auth, users, players, player-stats, teams, matches, tournaments, insights, lessons, news, predictions, messages, groups, products, orders) |
+| **Mongoose Models** | 16 |
 | **WebSocket Events** | 15+ |
 | **Web App Pages** | 34+ (matches, tournaments, teams, players, network, edtech, news, predictions leaderboard, marketplace/cart/checkout/orders, calendar, terms/privacy, auth) |
 | **Mobile App Screens** | 22 (full parity with web) |
@@ -269,6 +280,7 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 *Developed with the assistance of Manus AI*
 
 ### Latest Updates
+- ✅ WhatsApp-style group chat: member-only team/squad groups, polls, and image/video attachments, all real-time — verified with a from-scratch integration test covering every permission boundary and vote-toggling edge case, which caught and fixed a Docker file-permissions bug, a missing nginx proxy path, and a subtle membership-check bug before they ever shipped
 - ✅ Direct 1:1 messaging between players (real-time via WebSocket, inbox with unread counts, "Message" button on profiles) and tournament announcements on mobile (organizer broadcasts to everyone registered)
 - ✅ First real on-device pilot test on iOS via Expo Go — found and fixed a genuinely missing `babel.config.js` (env vars were silently never inlined into any published build), an EAS Update environment-variable gap, several validation/keyboard UX bugs, and the wrong sport's icon on the Matches tab
 - ✅ Mobile app rebuilt to full feature parity with web (22 screens), upgraded to current Expo SDK 54, and distributed to pilot testers via EAS Update/Expo Go — no App Store review needed yet
