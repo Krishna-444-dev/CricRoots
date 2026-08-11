@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import styles from './PlayerStatsDashboard.module.css';
+import WagonWheel from './insights/WagonWheel';
 
 interface PlayerStats {
   _id: string;
@@ -22,6 +23,11 @@ interface PlayerStats {
     wickets: number;
     economyRate: number;
   };
+  fielding: {
+    catches: number;
+    runOuts: number;
+    stumpings: number;
+  };
   overall: {
     matches: number;
     winPercentage: number;
@@ -31,6 +37,12 @@ interface PlayerStats {
     runs: number;
     wickets: number;
     rating: number;
+  }>;
+  wagonWheel: Array<{
+    zone: string;
+    balls: number;
+    runs: number;
+    runsPercent: number;
   }>;
 }
 
@@ -188,6 +200,25 @@ export const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ play
               </div>
             </div>
 
+            {/* Fielding Overview */}
+            <div className={styles.card}>
+              <h3>Fielding</h3>
+              <div className={styles.statsGrid}>
+                <div className={styles.statItem}>
+                  <span className={styles.label}>Catches</span>
+                  <span className={styles.value}>{stats.fielding.catches}</span>
+                </div>
+                <div className={styles.statItem}>
+                  <span className={styles.label}>Run Outs</span>
+                  <span className={styles.value}>{stats.fielding.runOuts}</span>
+                </div>
+                <div className={styles.statItem}>
+                  <span className={styles.label}>Stumpings</span>
+                  <span className={styles.value}>{stats.fielding.stumpings}</span>
+                </div>
+              </div>
+            </div>
+
             {/* Recent Form */}
             <div className={styles.card}>
               <h3>Recent Form</h3>
@@ -237,6 +268,13 @@ export const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ play
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'batting' && stats && stats.wagonWheel.length > 0 && (
+          <div className={styles.card}>
+            <h3>Wagon Wheel</h3>
+            <WagonWheel zones={stats.wagonWheel} />
           </div>
         )}
 

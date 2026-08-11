@@ -1,24 +1,43 @@
-const PlayerStats = require('../models/PlayerStats');
 const Player = require('../models/Player');
+const PlayerStats = require('../models/PlayerStats');
+const tendencyAnalytics = require('../services/tendencyAnalytics');
 
-// @desc    Get player statistics
+async function toPlayerSummary(playerId) {
+  const player = await Player.findById(playerId).populate('user', 'name');
+  if (!player) return null;
+  return {
+    _id: player._id,
+    name: player.user?.name ?? 'Unknown',
+    specialization: player.specialization
+  };
+}
+
+// @desc    Get a player's career statistics, computed live from completed matches
 // @route   GET /api/player-stats/:playerId
 // @access  Public
 exports.getPlayerStats = async (req, res) => {
   try {
-    const playerStats = await PlayerStats.findOne({ player: req.params.playerId })
-      .populate('player');
-
-    if (!playerStats) {
+    const player = await toPlayerSummary(req.params.playerId);
+    if (!player) {
       return res.status(404).json({
         success: false,
-        message: 'Player statistics not found'
+        message: 'Player not found'
       });
     }
 
+    const [careerStats, wagonWheel] = await Promise.all([
+      tendencyAnalytics.getCareerStats(req.params.playerId),
+      tendencyAnalytics.getZoneBreakdown(req.params.playerId)
+    ]);
+
     res.status(200).json({
       success: true,
-      stats: playerStats
+      stats: {
+        player,
+        ...careerStats,
+        recentForm: [],
+        wagonWheel: wagonWheel.zones
+      }
     });
   } catch (error) {
     res.status(500).json({
@@ -28,7 +47,7 @@ exports.getPlayerStats = async (req, res) => {
   }
 };
 
-// @desc    Get all player statistics with filters
+// @desc    Get all (legacy, manually-entered) player statistics with filters
 // @route   GET /api/player-stats
 // @access  Public
 exports.getAllPlayerStats = async (req, res) => {
@@ -57,22 +76,35 @@ exports.getAllPlayerStats = async (req, res) => {
   }
 };
 
-// @desc    Get top batsmen
+// @desc    Get top batsmen, ranked by career batting average
 // @route   GET /api/player-stats/rankings/batsmen
 // @access  Public
 exports.getTopBatsmen = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
+    const rows = await tendencyAnalytics.getBattingLeaderboard(parseInt(limit));
 
-    const topBatsmen = await PlayerStats.find()
-      .populate('player')
-      .sort({ 'batting.average': -1 })
-      .limit(parseInt(limit));
+    const batsmen = await Promise.all(rows.map(async (r) => {
+      const player = await toPlayerSummary(r._id);
+      if (!player) return null;
+      return {
+        player,
+        batting: {
+          matches: r.matches,
+          runs: r.runs,
+          highestScore: r.highestScore,
+          average: Math.round(r.average * 100) / 100,
+          strikeRate: Math.round(r.strikeRate * 100) / 100,
+          centuries: 0
+        }
+      };
+    }));
 
+    const filtered = batsmen.filter(Boolean);
     res.status(200).json({
       success: true,
-      count: topBatsmen.length,
-      batsmen: topBatsmen
+      count: filtered.length,
+      batsmen: filtered
     });
   } catch (error) {
     res.status(500).json({
@@ -82,22 +114,33 @@ exports.getTopBatsmen = async (req, res) => {
   }
 };
 
-// @desc    Get top bowlers
+// @desc    Get top bowlers, ranked by career bowling average
 // @route   GET /api/player-stats/rankings/bowlers
 // @access  Public
 exports.getTopBowlers = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
+    const rows = await tendencyAnalytics.getBowlingLeaderboard(parseInt(limit));
 
-    const topBowlers = await PlayerStats.find()
-      .populate('player')
-      .sort({ 'bowling.average': 1 })
-      .limit(parseInt(limit));
+    const bowlers = await Promise.all(rows.map(async (r) => {
+      const player = await toPlayerSummary(r._id);
+      if (!player) return null;
+      return {
+        player,
+        bowling: {
+          matches: r.matches,
+          wickets: r.wickets,
+          average: Math.round(r.average * 100) / 100,
+          economyRate: Math.round(r.economyRate * 100) / 100
+        }
+      };
+    }));
 
+    const filtered = bowlers.filter(Boolean);
     res.status(200).json({
       success: true,
-      count: topBowlers.length,
-      bowlers: topBowlers
+      count: filtered.length,
+      bowlers: filtered
     });
   } catch (error) {
     res.status(500).json({

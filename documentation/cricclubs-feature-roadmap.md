@@ -38,18 +38,25 @@ the broader AI/data strategy this feeds into.
   where `standings.team` was never populated (table always showed generic "Team"). Tournament
   Matches tab now lists real matches instead of just a count.
 
-### In progress
-
-- **Wagon wheel + wicketkeeper stats** — visualize the `shotZone` tagging already captured per
-  ball as an interactive wagon wheel on player profiles; add a keeper-specific stat line (catches,
-  stumpings) derived from `fielderId`/`fielderPosition`, directly answering the #1 complaint found
-  in CricClubs review research.
+- **Wagon wheel + player career stats** (`<pending commit>`): `GET /api/player-stats/:playerId`,
+  `.../rankings/batsmen`, `.../rankings/bowlers` were already called by
+  `PlayerStatsDashboard.tsx` but always returned empty/404 — they read from a `PlayerStats`
+  collection nothing ever wrote to. Rewrote all three to compute live from `Match` documents
+  (the same source-of-truth pattern as the standings feature): career batting/bowling averages,
+  strike rate/economy, and **wicketkeeper stats (catches/run-outs/stumpings)** derived from
+  `fielderId`/`wicketType` — directly answering the #1 CricClubs complaint. Added a wagon wheel
+  SVG (`components/insights/WagonWheel.tsx`) rendering the existing `shotZone` tagging as a polar
+  area chart, wired into the Batting tab. New aggregation functions live in
+  `backend/src/services/tendencyAnalytics.js` (`getFieldingStats`, `getCareerStats`,
+  `getBattingLeaderboard`, `getBowlingLeaderboard`).
+  - Left the old `PlayerStats` model, `getAllPlayerStats`, `getPlayerTrends`,
+    `updatePlayerStats`, and `comparePlayerStats` in place (unused by any frontend, harmless) —
+    didn't touch them, out of scope for this pass.
+  - `recentForm` and per-leaderboard-row `centuries` are hardcoded empty/0 for now — real
+    "recent form" needs a chronological per-match trend, not just a total, and wasn't built here.
 
 ### Backlog (not started, roughly in priority order)
 
-- **Player career stats page** — aggregate a player's batting/bowling/fielding across all their
-  matches (currently stats are per-match only via the scorecard; no cross-match aggregation
-  exists).
 - **Auto-generated fixtures** — given a tournament + registered teams, generate a full
   round-robin/knockout schedule instead of creating matches one at a time.
 - **MVP / awards tracking** — `Tournament.awards` schema fields already exist
