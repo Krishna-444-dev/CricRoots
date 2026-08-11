@@ -18,6 +18,7 @@ export default function NewLessonPage() {
   const [category, setCategory] = useState('batting');
   const [difficulty, setDifficulty] = useState('beginner');
   const [content, setContent] = useState('');
+  const [tags, setTags] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,9 +33,10 @@ export default function NewLessonPage() {
     setError(null);
     setIsSubmitting(true);
     try {
+      const tagList = tags.split(',').map((t) => t.trim()).filter(Boolean);
       const res = await apiFetch('/api/lessons', {
         method: 'POST',
-        body: JSON.stringify({ title, category, difficulty, content }),
+        body: JSON.stringify({ title, category, difficulty, content, tags: tagList }),
       });
       const data = await res.json();
       if (data.success) {
@@ -76,6 +78,10 @@ export default function NewLessonPage() {
           <div>
             <label className={labelClass}>Content</label>
             <textarea required rows={10} value={content} onChange={(e) => setContent(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Tags <span className="text-ink-muted font-normal">(optional, comma-separated)</span></label>
+            <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. off-stump, short-of-good-length" className={inputClass} />
           </div>
           <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Publishing...' : 'Publish Lesson'}
