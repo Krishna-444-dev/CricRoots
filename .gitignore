@@ -71,6 +71,10 @@ tmp/
 temp/
 *.tmp
 
+# User-uploaded content (group chat attachments) - lives in the backend_uploads Docker volume,
+# never committed
+backend/uploads/
+
 # OS specific
 .DS_Store
 Thumbs.db

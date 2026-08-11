@@ -27,6 +27,12 @@ COPY . .
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
+# Pre-create the uploads dir (group-chat attachments, see middleware/upload.js) and own it as
+# nodejs before switching users - the backend_uploads named volume mounts here empty on first
+# run, and Docker seeds a fresh named volume's ownership from whatever already exists in the
+# image at that path, so this is what lets the non-root process write into it.
+RUN mkdir -p /app/uploads/group-attachments && chown -R nodejs:nodejs /app/uploads
+
 USER nodejs
 
 # Expose port

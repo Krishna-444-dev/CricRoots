@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const http = require('http');
 const socketIo = require('socket.io');
+const path = require('path');
 const connectDB = require('./config/database');
 const SocketManager = require('./utils/socketManager');
 
@@ -42,6 +43,13 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Uploaded group-chat attachments (see middleware/upload.js). helmet's default
+// Cross-Origin-Resource-Policy header blocks a frontend on a different origin from loading
+// these as <img>/<video> sources, so it's relaxed specifically for this static route.
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
+  setHeaders: (res) => res.set('Cross-Origin-Resource-Policy', 'cross-origin')
+}));
+
 // Basic Route
 app.get('/', (req, res) => {
   res.json({
@@ -67,6 +75,7 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/insights', require('./routes/insightsRoutes'));
 app.use('/api/predictions', require('./routes/predictionRoutes'));
 app.use('/api/messages', require('./routes/directMessageRoutes'));
+app.use('/api/groups', require('./routes/groupRoutes'));
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

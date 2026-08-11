@@ -45,6 +45,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/src:/app/src
+      - backend_uploads:/app/uploads
     networks:
       - cricsync-network
     healthcheck:
@@ -110,6 +111,8 @@ volumes:
   mongodb_config:
     driver: local
   ai_models:
+    driver: local
+  backend_uploads:
     driver: local
 
 networks:

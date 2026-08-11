@@ -76,6 +76,17 @@ class SocketManager {
         socket.leave(`tournament-${tournamentId}`);
       });
 
+      // Join/leave a group chat room. Membership itself is enforced by the REST API (a
+      // non-member's join-group just puts them in a room nothing will ever emit group messages
+      // they're authorized to see into, since the emit only happens after a REST call that
+      // already checked membership) - this event is purely about live delivery, not authorization.
+      socket.on('join-group', (groupId) => {
+        socket.join(`group-${groupId}`);
+      });
+      socket.on('leave-group', (groupId) => {
+        socket.leave(`group-${groupId}`);
+      });
+
       // Handle disconnection
       socket.on('disconnect', () => {
         console.log(`User ${socket.userId} disconnected: ${socket.id}`);
@@ -195,6 +206,31 @@ class SocketManager {
    */
   emitDirectMessage(recipientId, message) {
     this.io.to(`user-${recipientId}`).emit('new-direct-message', {
+      message,
+      timestamp: new Date()
+    });
+  }
+
+  /**
+   * Broadcast a new group message (text, poll, or attachment) to everyone currently in that
+   * group's room.
+   */
+  emitNewGroupMessage(groupId, message) {
+    this.io.to(`group-${groupId}`).emit('new-group-message', {
+      groupId,
+      message,
+      timestamp: new Date()
+    });
+  }
+
+  /**
+   * Broadcast an updated vote count for a poll message - separate event from
+   * emitNewGroupMessage so clients can patch just that one message's poll state in place
+   * instead of re-fetching or re-appending it as if it were a brand-new message.
+   */
+  emitGroupPollUpdate(groupId, message) {
+    this.io.to(`group-${groupId}`).emit('group-poll-update', {
+      groupId,
       message,
       timestamp: new Date()
     });
