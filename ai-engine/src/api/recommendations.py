@@ -4,9 +4,16 @@ import os
 
 recommendations_bp = Blueprint('recommendations', __name__)
 
-# Initialize and load the recommendation model
+# Initialize and load the recommendation model. The ai-engine container has no volume mount
+# (unlike backend), so it only ever sees whatever .pkl files were baked into the image at build
+# time - if those fail to unpickle (e.g. a scikit-learn/numpy version bump since they were saved),
+# every recommendation endpoint would otherwise stay silently broken ("model not trained") until
+# someone notices and manually hits /train. Train fresh on the spot instead so the service is
+# self-healing on every startup regardless of pickle compatibility - training is a few seconds
+# against the small synthetic dataset in data/, not worth leaving the service degraded over.
 recommendation_model = RecommendationModel()
-recommendation_model.load_models()
+if not recommendation_model.load_models():
+    recommendation_model.train_all_models(data_dir='data')
 
 @recommendations_bp.route('/batsman', methods=['POST'])
 def recommend_batsman():

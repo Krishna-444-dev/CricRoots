@@ -174,5 +174,10 @@ class RecommendationModel:
             self.fielding_model = joblib.load(os.path.join(self.model_dir, 'fielding_model.pkl'))
             self.win_prob_model = joblib.load(os.path.join(self.model_dir, 'win_prob_model.pkl'))
             return True
-        except:
+        except Exception as e:
+            # Previously a bare `except: return False` - swallowed the actual reason (usually a
+            # scikit-learn/numpy version mismatch between when the .pkl was pickled and what's
+            # installed in the current image) with no log line, so "model not trained" showed up
+            # at request time with zero clue why. Log it so this is diagnosable next time.
+            print(f"Failed to load trained models ({e.__class__.__name__}: {e}) - training fresh instead.")
             return False
