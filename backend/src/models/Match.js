@@ -29,6 +29,11 @@ const matchSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  pitchType: {
+    type: String,
+    enum: ['dry', 'green', 'flat', 'dusty', 'unknown'],
+    default: 'unknown'
+  },
   scheduledDate: {
     type: Date,
     required: true

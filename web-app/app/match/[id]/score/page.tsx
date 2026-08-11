@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import BallByBallScoring, { BallEvent } from '@/components/scoring/BallByBallScoring';
+import BatsmanInsights from '@/components/insights/BatsmanInsights';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 
@@ -84,6 +85,7 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
   const [inningsData, setInningsData] = useState<InningsState | null>(null);
   const [inningsIndex, setInningsIndex] = useState<0 | 1>(0);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [showInsights, setShowInsights] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -220,6 +222,19 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
           </form>
         ) : (
           <>
+            <button
+              type="button"
+              onClick={() => setShowInsights(prev => !prev)}
+              className="w-full mb-4 bg-white rounded-lg shadow-sm p-3 text-left text-sm font-medium text-blue-600 hover:bg-blue-50 transition"
+            >
+              {showInsights ? '▼' : '▶'} AI Insights for {inningsData.currentBatsmen[0]?.name}
+            </button>
+            {showInsights && inningsData.currentBatsmen[0] && (
+              <div className="mb-4">
+                <BatsmanInsights batsmanId={inningsData.currentBatsmen[0].id} label={`Striker: ${inningsData.currentBatsmen[0].name}`} />
+              </div>
+            )}
+
             <BallByBallScoring
               matchId={match._id}
               inningsData={inningsData}

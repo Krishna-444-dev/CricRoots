@@ -18,6 +18,7 @@ export default function NewMatchPage() {
   const [team1Id, setTeam1Id] = useState('');
   const [team2Id, setTeam2Id] = useState('');
   const [matchType, setMatchType] = useState('T20');
+  const [pitchType, setPitchType] = useState('unknown');
   const [venue, setVenue] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export default function NewMatchPage() {
     try {
       const res = await apiFetch('/api/matches', {
         method: 'POST',
-        body: JSON.stringify({ title, team1Id, team2Id, matchType, venue, scheduledDate }),
+        body: JSON.stringify({ title, team1Id, team2Id, matchType, venue, pitchType, scheduledDate }),
       });
       const data = await res.json();
       if (data.success) {
@@ -125,6 +126,19 @@ export default function NewMatchPage() {
                 onChange={(e) => setVenue(e.target.value)}
                 className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
               />
+            </div>
+            <div>
+              <label htmlFor="pitchType" className="block text-sm font-medium text-gray-700 mb-1">Pitch Type (if known)</label>
+              <select
+                id="pitchType" value={pitchType} onChange={(e) => setPitchType(e.target.value)}
+                className="w-full px-3 py-3 border border-gray-300 rounded-md capitalize"
+              >
+                <option value="unknown">Unknown</option>
+                <option value="dry">Dry</option>
+                <option value="green">Green</option>
+                <option value="flat">Flat</option>
+                <option value="dusty">Dusty</option>
+              </select>
             </div>
             <div>
               <label htmlFor="scheduledDate" className="block text-sm font-medium text-gray-700 mb-1">Date</label>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
 import styles from './page.module.css';
 
@@ -91,6 +92,9 @@ export default function MatchPage() {
           <span className={`${styles.status} ${styles[match.status.toLowerCase()]}`}>
             {match.status}
           </span>
+          <Link href={`/match/${matchId}/scouting`} style={{ display: 'block', marginTop: '0.5rem', fontSize: '0.875rem' }}>
+            📋 Scouting Report
+          </Link>
         </div>
       </div>
 

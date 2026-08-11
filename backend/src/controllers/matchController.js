@@ -7,7 +7,7 @@ const AIService = require('../utils/aiService');
 // @access  Private
 exports.createMatch = async (req, res) => {
   try {
-    const { title, team1Id, team2Id, matchType, venue, scheduledDate } = req.body;
+    const { title, team1Id, team2Id, matchType, venue, scheduledDate, pitchType } = req.body;
 
     if (!title || !team1Id || !team2Id || !venue || !scheduledDate) {
       return res.status(400).json({
@@ -32,6 +32,7 @@ exports.createMatch = async (req, res) => {
       team2: team2Id,
       matchType: matchType || 'T20',
       venue,
+      pitchType: pitchType || 'unknown',
       scheduledDate,
       createdBy: req.user.id,
       innings: [
