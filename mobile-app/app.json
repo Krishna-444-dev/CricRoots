@@ -32,6 +32,18 @@
           "backgroundColor": "#0B1220"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c42d8897-9374-4b2c-8ceb-7282f6180e2b"
+      }
+    },
+    "owner": "krishnadev444",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c42d8897-9374-4b2c-8ceb-7282f6180e2b"
+    }
   }
 }
