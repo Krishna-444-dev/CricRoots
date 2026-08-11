@@ -13,7 +13,7 @@ const Stack = createNativeStackNavigator<TournamentsStackParamList>();
 
 export default function TournamentsStack() {
   return (
-    <Stack.Navigator screenOptions={navScreenOptions}>
+    <Stack.Navigator id={undefined} screenOptions={navScreenOptions}>
       <Stack.Screen name="TournamentsList" component={TournamentsListScreen} options={{ title: 'Tournaments' }} />
       <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} options={{ title: 'Tournament' }} />
     </Stack.Navigator>

@@ -15,7 +15,7 @@ const Stack = createNativeStackNavigator<ProfileStackParamList>();
 
 export default function ProfileStack() {
   return (
-    <Stack.Navigator screenOptions={navScreenOptions}>
+    <Stack.Navigator id={undefined} screenOptions={navScreenOptions}>
       <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: 'Profile' }} />
       <Stack.Screen name="PlayerStats" component={PlayerStatsScreen} options={{ title: 'My Stats' }} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />

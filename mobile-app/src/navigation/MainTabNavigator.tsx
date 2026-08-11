@@ -25,6 +25,7 @@ const TAB_ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Io
 const MainTabNavigator = () => {
   return (
     <Tab.Navigator
+      id={undefined}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {

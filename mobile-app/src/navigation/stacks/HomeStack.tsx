@@ -13,7 +13,7 @@ const Stack = createNativeStackNavigator();
 
 export default function HomeStack() {
   return (
-    <Stack.Navigator screenOptions={navScreenOptions}>
+    <Stack.Navigator id={undefined} screenOptions={navScreenOptions}>
       <Stack.Screen name="HomeMain" component={HomeScreen} options={{ title: 'CricSync' }} />
       <Stack.Screen name="Network" component={NetworkScreen} />
       <Stack.Screen name="Learn" component={LearnScreen} />

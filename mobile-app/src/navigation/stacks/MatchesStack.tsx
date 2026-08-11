@@ -15,7 +15,7 @@ const Stack = createNativeStackNavigator<MatchesStackParamList>();
 
 export default function MatchesStack() {
   return (
-    <Stack.Navigator screenOptions={navScreenOptions}>
+    <Stack.Navigator id={undefined} screenOptions={navScreenOptions}>
       <Stack.Screen name="MatchesList" component={MatchesListScreen} options={{ title: 'Matches' }} />
       <Stack.Screen name="MatchDetail" component={MatchDetailScreen} options={{ title: 'Match' }} />
       <Stack.Screen name="LiveScoring" component={LiveScoringScreen} options={{ title: 'Live Scoring' }} />

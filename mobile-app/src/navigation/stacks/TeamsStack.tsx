@@ -15,7 +15,7 @@ const Stack = createNativeStackNavigator<TeamsStackParamList>();
 
 export default function TeamsStack() {
   return (
-    <Stack.Navigator screenOptions={navScreenOptions}>
+    <Stack.Navigator id={undefined} screenOptions={navScreenOptions}>
       <Stack.Screen name="TeamsList" component={TeamsScreen} options={{ title: 'Teams' }} />
       <Stack.Screen name="TeamDetail" component={TeamDetailScreen} options={{ title: 'Team' }} />
       <Stack.Screen name="CreateTeam" component={CreateTeamScreen} options={{ title: 'New Team' }} />
