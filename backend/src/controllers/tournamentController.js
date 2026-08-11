@@ -284,6 +284,140 @@ exports.getTournamentMatches = async (req, res) => {
   }
 };
 
+// @desc    Auto-generate the match schedule for a tournament
+// @route   POST /api/tournaments/:id/generate-fixtures
+// @access  Private (organizer only)
+exports.generateFixtures = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id).populate('teams');
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    if (tournament.organizer.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to generate fixtures for this tournament'
+      });
+    }
+
+    if (tournament.teams.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least 2 teams must be registered before fixtures can be generated'
+      });
+    }
+
+    if (tournament.matches.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fixtures have already been generated for this tournament'
+      });
+    }
+
+    // Map the tournament's own format to a fixture-generation strategy,
+    // unless the caller explicitly overrides it in the request body.
+    const formatMap = {
+      'Round-Robin': 'round-robin',
+      'League': 'round-robin',
+      'Group': 'round-robin',
+      'Knockout': 'knockout'
+    };
+    const format = req.body.format || formatMap[tournament.format] || 'round-robin';
+
+    const teams = tournament.teams;
+    const pairings = [];
+
+    if (format === 'knockout') {
+      // NOTE: This only generates Round 1. A knockout bracket's later rounds
+      // depend on who wins each earlier match, which isn't known at
+      // generation time — so we deliberately stop after pairing up the
+      // registered teams once. Once Round 1 results are in, the organizer
+      // creates Round 2+ matches manually (or re-runs a future "next round"
+      // feature, which is out of scope here).
+      for (let i = 0; i + 1 < teams.length; i += 2) {
+        pairings.push([teams[i], teams[i + 1]]);
+      }
+      // If there's an odd number of teams, the last team gets a bye for
+      // this round — no match is created for them.
+    } else {
+      // Round-robin: every unique pair of registered teams plays exactly
+      // once. This is a flat list of pairings, not day-by-day scheduling.
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = i + 1; j < teams.length; j++) {
+          pairings.push([teams[i], teams[j]]);
+        }
+      }
+    }
+
+    if (pairings.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not enough teams to generate any fixtures'
+      });
+    }
+
+    // Spread scheduled dates evenly between the tournament's start and end
+    // dates. Simple even spacing — no attempt to avoid multiple matches
+    // landing on the same day.
+    const start = new Date(tournament.startDate).getTime();
+    const end = new Date(tournament.endDate).getTime();
+    const span = end - start;
+
+    const createdMatchIds = [];
+    for (let i = 0; i < pairings.length; i++) {
+      const [team1, team2] = pairings[i];
+      const scheduledDate = pairings.length === 1
+        ? new Date(start)
+        : new Date(start + (span * i) / (pairings.length - 1));
+
+      const match = await Match.create({
+        title: `${team1.name} vs ${team2.name}`,
+        team1: team1._id,
+        team2: team2._id,
+        matchType: tournament.matchType,
+        venue: tournament.venue,
+        pitchType: 'unknown',
+        scheduledDate,
+        createdBy: req.user.id,
+        tournament: tournament._id,
+        innings: [
+          { team: team1._id, runs: 0, wickets: 0, overs: 0, balls: [] },
+          { team: team2._id, runs: 0, wickets: 0, overs: 0, balls: [] }
+        ]
+      });
+
+      tournament.matches.push(match._id);
+      createdMatchIds.push(match._id);
+    }
+
+    await tournament.save();
+
+    const matches = await Match.find({ _id: { $in: createdMatchIds } })
+      .populate('team1')
+      .populate('team2');
+    // Preserve generation order (pairing order / scheduled date order)
+    // rather than whatever order Match.find happens to return.
+    const matchesById = new Map(matches.map((m) => [m._id.toString(), m]));
+    const orderedMatches = createdMatchIds.map((id) => matchesById.get(id.toString()));
+
+    res.status(201).json({
+      success: true,
+      count: orderedMatches.length,
+      matches: orderedMatches
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // @desc    Get tournament statistics
 // @route   GET /api/tournaments/:id/statistics
 // @access  Public

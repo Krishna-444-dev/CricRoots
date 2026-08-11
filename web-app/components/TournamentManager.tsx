@@ -56,6 +56,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [postingAnnouncement, setPostingAnnouncement] = useState(false);
   const [tournamentMatches, setTournamentMatches] = useState<TournamentMatch[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
+  const [generatingFixtures, setGeneratingFixtures] = useState(false);
 
   const isOrganizer = Boolean(user && selectedTournament && selectedTournament.organizer?._id === user.id);
 
@@ -67,15 +68,40 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     }
   }, [activeTab, selectedTournament]);
 
+  const fetchTournamentMatches = (id: string) => {
+    setMatchesLoading(true);
+    return fetch(`/api/tournaments/${id}/matches`)
+      .then(r => r.json())
+      .then(data => { if (data.success) setTournamentMatches(data.matches); })
+      .finally(() => setMatchesLoading(false));
+  };
+
   useEffect(() => {
     if (activeTab === 'matches' && selectedTournament) {
-      setMatchesLoading(true);
-      fetch(`/api/tournaments/${selectedTournament._id}/matches`)
-        .then(r => r.json())
-        .then(data => { if (data.success) setTournamentMatches(data.matches); })
-        .finally(() => setMatchesLoading(false));
+      fetchTournamentMatches(selectedTournament._id);
     }
   }, [activeTab, selectedTournament]);
+
+  const handleGenerateFixtures = async () => {
+    if (!selectedTournament || generatingFixtures) return;
+    setGeneratingFixtures(true);
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/generate-fixtures`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchTournamentMatches(selectedTournament._id);
+      } else {
+        alert(data.message || 'Failed to generate fixtures');
+      }
+    } catch (error) {
+      console.error('Error generating fixtures:', error);
+    } finally {
+      setGeneratingFixtures(false);
+    }
+  };
 
   useChatSocket({
     scope: 'tournament',
@@ -311,9 +337,20 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
             {matchesLoading ? (
               <p className={styles.infoText}>Loading matches...</p>
             ) : tournamentMatches.length === 0 ? (
-              <p className={styles.infoText}>
-                No matches linked to this tournament yet. Create one from the New Match page and select this tournament.
-              </p>
+              <>
+                <p className={styles.infoText}>
+                  No matches linked to this tournament yet. Create one from the New Match page and select this tournament.
+                </p>
+                {isOrganizer && (
+                  <button
+                    className={styles.createBtn}
+                    onClick={handleGenerateFixtures}
+                    disabled={generatingFixtures}
+                  >
+                    {generatingFixtures ? 'Generating Fixtures...' : '⚡ Generate Fixtures'}
+                  </button>
+                )}
+              </>
             ) : (
               <div className="flex flex-col gap-3 mt-4">
                 {tournamentMatches.map(m => (
