@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { getAllNews, getNewsPost, createNewsPost, deleteNewsPost } = require('../controllers/newsController');
+const { getAllNews, getMyFeed, getNewsPost, createNewsPost, deleteNewsPost } = require('../controllers/newsController');
 const { protect } = require('../middleware/auth');
+
+// /feed must be registered before /:id, or Express would match "feed" as an :id param.
+router.get('/feed', protect, getMyFeed);
 
 // Public routes
 router.get('/', getAllNews);

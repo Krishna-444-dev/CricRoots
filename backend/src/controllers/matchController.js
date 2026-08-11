@@ -7,6 +7,7 @@ const { computeMatchMVP } = require('../services/mvpCalculator');
 const { generateCommentary } = require('../services/commentaryGenerator');
 const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
+const { generateMatchArticle } = require('../services/matchArticleGenerator');
 
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
@@ -214,6 +215,20 @@ exports.updateMatch = async (req, res) => {
     // predictions never see a partially-committed match.result.
     if (match.status === 'Completed' && match.result) {
       await settlePredictions(match);
+    }
+
+    // Auto-generate a tournament news article spotlighting the match's standout performance
+    // (century, five-wicket haul, etc). Wrapped so a bug here can never fail match completion
+    // itself - this is a nice-to-have layered on top, not core to recording a result.
+    if (match.status === 'Completed' && match.tournament) {
+      try {
+        const tournament = await Tournament.findById(match.tournament);
+        if (tournament) {
+          await generateMatchArticle(match, tournament);
+        }
+      } catch (articleError) {
+        console.error('Match article generation failed:', articleError.message);
+      }
     }
 
     // Emit match status change event
