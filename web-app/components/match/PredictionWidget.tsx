@@ -174,9 +174,9 @@ export default function PredictionWidget({ matchId, matchStatus, team1, team2 }:
                 You predicted <span className="font-semibold">{mine.predictedWinner === team1._id ? team1.name : team2.name}</span>.
               </p>
               {mine.status === 'settled' ? (
-                <p className={`mt-1 text-sm font-medium ${mine.wonOnWinner ? 'text-pitch-400' : 'text-ink-muted'}`}>
-                  {mine.wonOnWinner ? `Correct! +${mine.points} points` : 'Not this time - 0 points'}
-                  {mine.wonOnMotm && ' (including the Man of the Match bonus)'}
+                <p className={`mt-1 text-sm font-medium ${mine.points > 0 ? 'text-pitch-400' : 'text-ink-muted'}`}>
+                  {mine.wonOnWinner ? `Correct winner! +${mine.points} points` : mine.points > 0 ? `+${mine.points} points` : 'Not this time - 0 points'}
+                  {mine.wonOnMotm && ' (includes the Man of the Match bonus)'}
                 </p>
               ) : (
                 <p className="mt-1 text-xs text-ink-muted">Match in progress - points settle once the match completes.</p>

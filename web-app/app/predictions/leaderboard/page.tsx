@@ -202,8 +202,8 @@ export default function LeaderboardPage() {
                       <div className="text-right shrink-0">
                         {p.status === 'settled' ? (
                           <>
-                            <p className={`text-sm font-semibold ${p.wonOnWinner ? 'text-pitch-400' : 'text-ink-muted'}`}>
-                              {p.wonOnWinner ? `+${p.points} pts` : '0 pts'}
+                            <p className={`text-sm font-semibold ${p.points > 0 ? 'text-pitch-400' : 'text-ink-muted'}`}>
+                              {p.points > 0 ? `+${p.points} pts` : '0 pts'}
                             </p>
                             {p.wonOnMotm && <p className="text-xs text-gold-500">MOTM bonus</p>}
                           </>
