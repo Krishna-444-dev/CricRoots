@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -236,6 +236,65 @@ export const messagesAPI = {
     apiFetch<{ success: true; message: DirectMessage }>(`/messages/${userId}`, 'POST', { text }),
 };
 
+// --- Team group chat (backend/src/routes/groupRoutes.js, mounted at /api/groups) - WhatsApp-
+//     style groups with text/poll/image/video messages. Separate from both direct messages
+//     (messagesAPI) and the simple Team/Tournament announcement chat (teamsAPI.getMessages /
+//     tournamentsAPI.getMessages) above. ---
+
+// Attachment URLs come back as a path relative to the backend's origin (e.g.
+// "/uploads/group-attachments/xyz.png"), not the /api-suffixed API_BASE_URL - strip the /api
+// suffix to get the real host to load images/videos from.
+export function resolveAttachmentUrl(relativeUrl: string): string {
+  return `${API_BASE_URL.replace(/\/api$/, '')}${relativeUrl}`;
+}
+
+// Multipart upload can't reuse apiFetch's JSON-only body handling - FormData needs its own
+// auto-generated multipart boundary Content-Type, which fetch sets itself as long as we don't
+// override it by hand.
+async function apiUpload<T = any>(path: string, file: { uri: string; name: string; type: string }): Promise<T> {
+  const formData = new FormData();
+  // React Native's fetch accepts this {uri,name,type} shape as a Blob-like value for FormData,
+  // even though it doesn't match the DOM File type - hence the `any` cast.
+  formData.append('file', { uri: file.uri, name: file.name, type: file.type } as any);
+
+  const headers: Record<string, string> = {};
+  if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+
+  const url = `${API_BASE_URL}${path}`;
+  const response = await fetch(url, { method: 'POST', headers, body: formData });
+
+  const data = await response.json().catch(() => ({
+    success: false,
+    message: `Invalid server response from ${url} (status ${response.status})`
+  }));
+
+  if (!response.ok || data.success === false) {
+    throw new Error(data.message || `Request failed: ${response.status}`);
+  }
+
+  return data as T;
+}
+
+export const groupsAPI = {
+  getGroups: () => apiFetch<{ success: true; groups: Group[] }>('/groups'),
+  createGroup: (data: { name: string; teamId?: string; memberIds?: string[] }) =>
+    apiFetch<{ success: true; group: Group }>('/groups', 'POST', data),
+  getGroup: (groupId: string) => apiFetch<{ success: true; group: Group }>(`/groups/${groupId}`),
+  updateGroup: (groupId: string, data: { name?: string; addMemberIds?: string[]; removeMemberIds?: string[] }) =>
+    apiFetch<{ success: true; group: Group }>(`/groups/${groupId}`, 'PUT', data),
+  leaveGroup: (groupId: string) => apiFetch<{ success: true; message: string }>(`/groups/${groupId}/leave`, 'POST'),
+  deleteGroup: (groupId: string) => apiFetch<{ success: true; message: string }>(`/groups/${groupId}`, 'DELETE'),
+  getMessages: (groupId: string) => apiFetch<{ success: true; messages: GroupMessage[] }>(`/groups/${groupId}/messages`),
+  postMessage: (groupId: string, text: string) =>
+    apiFetch<{ success: true; message: GroupMessage }>(`/groups/${groupId}/messages`, 'POST', { text }),
+  createPoll: (groupId: string, data: { question: string; options: string[]; allowMultiple?: boolean }) =>
+    apiFetch<{ success: true; message: GroupMessage }>(`/groups/${groupId}/polls`, 'POST', data),
+  vote: (groupId: string, messageId: string, optionId: string) =>
+    apiFetch<{ success: true; message: GroupMessage }>(`/groups/${groupId}/polls/${messageId}/vote`, 'POST', { optionId }),
+  postAttachment: (groupId: string, file: { uri: string; name: string; type: string }) =>
+    apiUpload<{ success: true; message: GroupMessage }>(`/groups/${groupId}/attachments`, file),
+};
+
 export const api = {
   auth: authAPI,
   users: usersAPI,
@@ -251,6 +310,7 @@ export const api = {
   orders: ordersAPI,
   predictions: predictionsAPI,
   messages: messagesAPI,
+  groups: groupsAPI,
 };
 
 export default api;
