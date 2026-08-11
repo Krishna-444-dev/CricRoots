@@ -197,6 +197,13 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
                 </TouchableOpacity>
               )}
             </View>
+
+            <TouchableOpacity
+              style={styles.groupBtn}
+              onPress={() => navigation.navigate('Profile', { screen: 'CreateGroup', params: { teamId } })}
+            >
+              <Text style={styles.groupBtnText}>Create a Group Chat for this team</Text>
+            </TouchableOpacity>
           </View>
         }
         renderItem={({ item }) => {
@@ -322,6 +329,11 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: 'bold' },
   addBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
   addBtnText: { color: colors.background, fontWeight: '700', fontSize: 12 },
+  groupBtn: {
+    marginHorizontal: 16, marginTop: 12, backgroundColor: colors.surface, borderWidth: 1,
+    borderColor: colors.pitch500, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+  },
+  groupBtnText: { color: colors.pitch400, fontWeight: '700', fontSize: 13 },
   muted: { color: colors.inkMuted, paddingHorizontal: 16, paddingVertical: 12 },
   playerRow: {
     flexDirection: 'row',

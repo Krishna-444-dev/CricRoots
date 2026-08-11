@@ -260,3 +260,53 @@ export interface Conversation {
   lastMessage: { text: string; createdAt: string; fromMe: boolean };
   unreadCount: number;
 }
+
+// WhatsApp-style team group chat (backend/src/models/Group.js via
+// backend/src/controllers/groupController.js, mounted at /api/groups). `members` arrives as
+// bare id strings from GET /groups (the list endpoint) but populated {_id,name} from
+// GET /groups/:id (the detail endpoint) - same for `createdBy` - typed loosely to match
+// whichever endpoint returned the doc, same convention as Prediction/DirectMessage above.
+export interface Group {
+  _id: string;
+  name: string;
+  team: { _id: string; name: string } | null;
+  members: (string | { _id: string; name: string })[];
+  createdBy: string | { _id: string; name: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GroupPollOption {
+  _id: string;
+  text: string;
+  // Votes ARE populated with names on every endpoint that returns poll messages.
+  votes: { _id: string; name: string }[];
+}
+
+// One message in a group's feed, discriminated by `type`. All three variants share the base
+// fields; the type-specific payload (`text` / `poll` / `attachment`) is only present for its
+// matching type.
+export interface GroupMessage {
+  _id: string;
+  group: string;
+  sender: { _id: string; name: string };
+  type: 'text' | 'poll' | 'image' | 'video';
+  createdAt: string;
+  // type: 'text'
+  text?: string;
+  // type: 'poll'
+  poll?: {
+    question: string;
+    allowMultiple: boolean;
+    options: GroupPollOption[];
+  };
+  // type: 'image' | 'video' - url is a RELATIVE path (e.g. /uploads/group-attachments/xyz.png);
+  // must be resolved against the backend's origin (not the /api-suffixed API_BASE_URL) before
+  // it can be loaded - see apiClient.ts's resolveAttachmentUrl.
+  attachment?: {
+    url: string;
+    mimeType: string;
+    fileName: string;
+    sizeBytes: number;
+  };
+}
