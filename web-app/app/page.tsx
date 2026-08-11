@@ -10,6 +10,7 @@ const links = [
   { href: '/players', label: 'Player Stats' },
   { href: '/network', label: 'Network' },
   { href: '/edtech', label: 'Learn Cricket' },
+  { href: '/news', label: 'News' },
 ];
 
 export default function HomePage() {
