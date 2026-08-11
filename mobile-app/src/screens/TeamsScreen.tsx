@@ -1,301 +1,62 @@
-// iOS-styled TeamsScreen for the CricSync mobile application
-import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
-import { Text, Searchbar, Divider, Avatar, FAB } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { colors } from '../theme';
-import { PlatformCard, PlatformButton, PlatformSlideIn, PlatformSegmentedControl } from '../IntegratedApp';
+import { api } from '../shared/api/apiClient';
+import { Team } from '../shared/types';
 
-const TeamsScreen = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTab, setSelectedTab] = useState(0);
-  
-  // Mock data for teams
-  const myTeams = [
-    {
-      id: '1',
-      name: 'Royal Challengers',
-      role: 'Captain',
-      members: 16,
-      matches: 24,
-      wins: 18,
-      logo: null
-    },
-    {
-      id: '2',
-      name: 'Super Kings',
-      role: 'Player',
-      members: 14,
-      matches: 22,
-      wins: 14,
-      logo: null
-    },
-    {
-      id: '3',
-      name: 'Mumbai Indians',
-      role: 'Manager',
-      members: 15,
-      matches: 20,
-      wins: 12,
-      logo: null
-    }
-  ];
-  
-  const allTeams = [
-    ...myTeams,
-    {
-      id: '4',
-      name: 'Delhi Capitals',
-      role: null,
-      members: 15,
-      matches: 23,
-      wins: 15,
-      logo: null
-    },
-    {
-      id: '5',
-      name: 'Knight Riders',
-      role: null,
-      members: 14,
-      matches: 21,
-      wins: 13,
-      logo: null
-    },
-    {
-      id: '6',
-      name: 'Sunrisers',
-      role: null,
-      members: 16,
-      matches: 22,
-      wins: 14,
-      logo: null
-    }
-  ];
-  
-  const onChangeSearch = query => setSearchQuery(query);
-  
-  const renderTeamItem = ({ item, index }) => (
-    <PlatformSlideIn direction="right" duration={400} delay={200 + index * 100}>
-      <PlatformCard style={styles.teamCard}>
-        <TouchableOpacity 
-          style={styles.teamCardContent}
-          onPress={() => navigation.navigate('TeamDetails', { teamId: item.id })}
-        >
-          <View style={styles.teamHeader}>
-            <View style={styles.teamLogoContainer}>
-              {item.logo ? (
-                <Image source={{ uri: item.logo }} style={styles.teamLogo} />
-              ) : (
-                <Avatar.Text 
-                  size={50} 
-                  label={item.name.substring(0, 2)} 
-                  backgroundColor={colors.primary}
-                  color="white"
-                />
-              )}
-            </View>
-            <View style={styles.teamInfo}>
-              <Text style={styles.teamName}>{item.name}</Text>
-              {item.role && (
-                <View style={styles.roleContainer}>
-                  <Text style={styles.roleText}>{item.role}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-          
-          <Divider style={styles.divider} />
-          
-          <View style={styles.teamStats}>
-            <View style={styles.teamStat}>
-              <Text style={styles.teamStatValue}>{item.members}</Text>
-              <Text style={styles.teamStatLabel}>Members</Text>
-            </View>
-            <View style={styles.teamStat}>
-              <Text style={styles.teamStatValue}>{item.matches}</Text>
-              <Text style={styles.teamStatLabel}>Matches</Text>
-            </View>
-            <View style={styles.teamStat}>
-              <Text style={styles.teamStatValue}>{item.wins}</Text>
-              <Text style={styles.teamStatLabel}>Wins</Text>
-            </View>
-            <View style={styles.teamStat}>
-              <Text style={styles.teamStatValue}>
-                {Math.round((item.wins / item.matches) * 100)}%
-              </Text>
-              <Text style={styles.teamStatLabel}>Win Rate</Text>
-            </View>
-          </View>
-          
-          <View style={styles.teamActions}>
-            {item.role ? (
-              <PlatformButton
-                title="Manage Team"
-                mode="outlined"
-                onPress={() => navigation.navigate('ManageTeam', { teamId: item.id })}
-                style={styles.teamButton}
-              />
-            ) : (
-              <PlatformButton
-                title="Join Team"
-                mode="contained"
-                onPress={() => {}}
-                style={styles.teamButton}
-              />
-            )}
-          </View>
-        </TouchableOpacity>
-      </PlatformCard>
-    </PlatformSlideIn>
-  );
-  
+export default function TeamsScreen({ navigation }: any) {
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(() => {
+    api.teams.getTeams()
+      .then(({ teams }) => setTeams(teams))
+      .catch(() => setTeams([]))
+      .finally(() => { setLoading(false); setRefreshing(false); });
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top > 0 ? 0 : 16 }]}>
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Searchbar
-          placeholder="Search teams"
-          onChangeText={onChangeSearch}
-          value={searchQuery}
-          style={styles.searchBar}
-          iconColor={colors.primary}
-        />
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Teams</Text>
+        <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateTeam')}>
+          <Text style={styles.createBtnText}>+ New Team</Text>
+        </TouchableOpacity>
       </View>
-      
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <PlatformSegmentedControl
-          values={['My Teams', 'All Teams']}
-          selectedIndex={selectedTab}
-          onChange={setSelectedTab}
-          style={styles.tabs}
+
+      {loading ? (
+        <Text style={styles.muted}>Loading...</Text>
+      ) : (
+        <FlatList
+          data={teams}
+          keyExtractor={item => item._id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.pitch400} />}
+          ListEmptyComponent={<Text style={styles.muted}>No teams yet. Create the first one.</Text>}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('TeamDetail', { teamId: item._id })}>
+              <Text style={styles.cardTitle}>{item.name}</Text>
+              <Text style={styles.cardSub}>{item.city} · {item.players?.length ?? 0} players</Text>
+            </TouchableOpacity>
+          )}
         />
-      </View>
-      
-      {/* Team List */}
-      <FlatList
-        data={selectedTab === 0 ? myTeams : allTeams}
-        renderItem={renderTeamItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
-      
-      {/* Create Team FAB */}
-      <FAB
-        style={[styles.fab, { bottom: insets.bottom + 16 }]}
-        icon="plus"
-        color="white"
-        onPress={() => navigation.navigate('CreateTeam')}
-      />
+      )}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9f9f9',
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  searchBar: {
-    elevation: 0,
-    borderRadius: 10,
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  tabsContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  tabs: {
-    marginBottom: 8,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 80,
-  },
-  teamCard: {
-    marginBottom: 16,
-    borderRadius: 12,
-  },
-  teamCardContent: {
-    padding: 16,
-  },
-  teamHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  teamLogoContainer: {
-    marginRight: 16,
-  },
-  teamLogo: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  teamInfo: {
-    flex: 1,
-  },
-  teamName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  roleContainer: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  roleText: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  divider: {
-    marginVertical: 12,
-  },
-  teamStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  teamStat: {
-    alignItems: 'center',
-  },
-  teamStatValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  teamStatLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  teamActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  teamButton: {
-    minWidth: 120,
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    backgroundColor: colors.primary,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
+  title: { color: colors.ink, fontSize: 22, fontWeight: 'bold' },
+  createBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  createBtnText: { color: colors.background, fontWeight: '700', fontSize: 13 },
+  muted: { color: colors.inkMuted, padding: 16 },
+  list: { paddingHorizontal: 16, paddingBottom: 24 },
+  card: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
+  cardTitle: { color: colors.ink, fontSize: 15, fontWeight: '600' },
+  cardSub: { color: colors.inkMuted, fontSize: 12, marginTop: 4 },
 });
-
-export default TeamsScreen;

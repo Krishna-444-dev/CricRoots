@@ -1,12 +1,19 @@
 // shared/hooks/useAuth.ts
-// Shared authentication hook for both web and mobile applications
+// Shared authentication hook, storage-injected so web and mobile can each provide their own
+// persistence (localStorage vs SecureStore) while sharing this logic.
 
-import { useState, useEffect } from 'react';
-import { User } from '../types';
-import { api } from '../api/apiClient';
+import { useState, useEffect, useCallback } from 'react';
+import { api, setAuthToken } from '../api/apiClient';
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -14,20 +21,29 @@ interface AuthState {
 }
 
 interface UseAuthReturn extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
-  register: (userData: Partial<User>, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string, role?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
 
-// Storage key for auth token - implementation will differ between web and mobile
 const TOKEN_STORAGE_KEY = 'cricsync_auth_token';
 
-// Platform-specific storage implementation will be injected
 interface StorageInterface {
   getItem: (key: string) => Promise<string | null>;
   setItem: (key: string, value: string) => Promise<void>;
   removeItem: (key: string) => Promise<void>;
+}
+
+// Normalizes the two shapes the backend returns a user in: {id,...} from
+// register/login, vs {_id,...} from a raw Mongoose doc (GET /auth/me).
+function normalizeUser(raw: any): AuthUser {
+  return {
+    id: raw.id || raw._id,
+    name: raw.name,
+    email: raw.email,
+    role: raw.role,
+  };
 }
 
 export function createUseAuth(storage: StorageInterface): () => UseAuthReturn {
@@ -37,146 +53,92 @@ export function createUseAuth(storage: StorageInterface): () => UseAuthReturn {
       token: null,
       isAuthenticated: false,
       isLoading: true,
-      error: null
+      error: null,
     });
 
-    // Initialize auth state from storage
     useEffect(() => {
       const initializeAuth = async () => {
         try {
           const storedToken = await storage.getItem(TOKEN_STORAGE_KEY);
-          
-          if (storedToken) {
-            const user = await api.auth.getCurrentUser(storedToken);
-            setState({
-              user,
-              token: storedToken,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null
-            });
-          } else {
+          if (!storedToken) {
             setState(prev => ({ ...prev, isLoading: false }));
+            return;
           }
+
+          setAuthToken(storedToken);
+          const { user } = await api.auth.getCurrentUser();
+          setState({
+            user: normalizeUser(user),
+            token: storedToken,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
         } catch (error) {
           console.error('Failed to initialize auth:', error);
+          setAuthToken(null);
+          await storage.removeItem(TOKEN_STORAGE_KEY);
           setState({
             user: null,
             token: null,
             isAuthenticated: false,
             isLoading: false,
-            error: 'Session expired. Please log in again.'
+            error: null,
           });
-          await storage.removeItem(TOKEN_STORAGE_KEY);
         }
       };
 
       initializeAuth();
     }, []);
 
-    const login = async (email: string, password: string) => {
+    const login = useCallback(async (email: string, password: string): Promise<boolean> => {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
       try {
-        const { user, token } = await api.auth.login(email, password);
-        
+        const { token, user } = await api.auth.login(email, password);
+        setAuthToken(token);
         await storage.setItem(TOKEN_STORAGE_KEY, token);
-        
-        setState({
-          user,
-          token,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null
-        });
+        setState({ user: normalizeUser(user), token, isAuthenticated: true, isLoading: false, error: null });
+        return true;
       } catch (error) {
-        console.error('Login failed:', error);
         setState(prev => ({
           ...prev,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'Login failed. Please try again.'
+          error: error instanceof Error ? error.message : 'Login failed. Please try again.',
         }));
+        return false;
       }
-    };
+    }, []);
 
-    const register = async (userData: Partial<User>, password: string) => {
+    const register = useCallback(async (name: string, email: string, password: string, role = 'player'): Promise<boolean> => {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
       try {
-        const { user, token } = await api.auth.register(userData, password);
-        
+        const { token, user } = await api.auth.register(name, email, password, role);
+        setAuthToken(token);
         await storage.setItem(TOKEN_STORAGE_KEY, token);
-        
-        setState({
-          user,
-          token,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null
-        });
+        setState({ user: normalizeUser(user), token, isAuthenticated: true, isLoading: false, error: null });
+        return true;
       } catch (error) {
-        console.error('Registration failed:', error);
         setState(prev => ({
           ...prev,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'Registration failed. Please try again.'
+          error: error instanceof Error ? error.message : 'Registration failed. Please try again.',
         }));
+        return false;
       }
-    };
+    }, []);
 
-    const logout = async () => {
-      setState(prev => ({ ...prev, isLoading: true }));
-      
-      try {
-        if (state.token) {
-          await api.auth.logout();
-        }
-      } catch (error) {
-        console.error('Logout API call failed:', error);
-        // Continue with local logout even if API call fails
-      }
-      
+    // No /auth/logout endpoint exists on the backend - logging out is purely local:
+    // clear the token from memory and storage.
+    const logout = useCallback(async () => {
+      setAuthToken(null);
       await storage.removeItem(TOKEN_STORAGE_KEY);
-      
-      setState({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null
-      });
-    };
+      setState({ user: null, token: null, isAuthenticated: false, isLoading: false, error: null });
+    }, []);
 
-    const clearError = () => {
+    const clearError = useCallback(() => {
       setState(prev => ({ ...prev, error: null }));
-    };
+    }, []);
 
-    return {
-      ...state,
-      login,
-      register,
-      logout,
-      clearError
-    };
+    return { ...state, login, register, logout, clearError };
   };
 }
-
-// This will be implemented differently for web and mobile
-// For web:
-// import { createUseAuth } from '../shared/hooks/useAuth';
-// const webStorage = {
-//   getItem: async (key) => localStorage.getItem(key),
-//   setItem: async (key, value) => localStorage.setItem(key, value),
-//   removeItem: async (key) => localStorage.removeItem(key)
-// };
-// export const useAuth = createUseAuth(webStorage);
-
-// For mobile:
-// import { createUseAuth } from '../shared/hooks/useAuth';
-// import * as SecureStore from 'expo-secure-store';
-// const mobileStorage = {
-//   getItem: async (key) => SecureStore.getItemAsync(key),
-//   setItem: async (key, value) => SecureStore.setItemAsync(key, value),
-//   removeItem: async (key) => SecureStore.deleteItemAsync(key)
-// };
-// export const useAuth = createUseAuth(mobileStorage);

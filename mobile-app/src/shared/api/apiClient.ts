@@ -1,231 +1,203 @@
 // shared/api/apiClient.ts
-// Shared API client for both web and mobile applications
+// Fetch wrapper + typed route groups matching the REAL CricSync backend (backend/src/routes/*),
+// not an imagined API surface - every path here corresponds to an actual mounted route as of
+// this pass. See backend/src/index.js for the full mount list.
 
-import { User, Team, Match, Player, Product, Tournament, Message, ChatGroup } from '../types';
+import { Platform } from 'react-native';
 
-// Base API URL - would be different in production vs development
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://api.cricsync.com/v1'
-  : 'http://localhost:3000/api';
+// Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
+// Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
+// Set EXPO_PUBLIC_API_URL when testing on a physical device (it needs the host machine's real
+// LAN IP; localhost/10.0.2.2 only work for simulators/emulators running on the same machine).
+function resolveBaseUrl(): string {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
+  if (fromEnv) return fromEnv;
 
-// Generic fetch wrapper with error handling
-async function fetchAPI<T>(
-  endpoint: string, 
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-  body?: any,
-  headers?: HeadersInit
-): Promise<T> {
-  try {
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      ...(body && { body: JSON.stringify(body) }),
-    };
-
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `API error: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error(`API request failed: ${endpoint}`, error);
-    throw error;
+  if (__DEV__) {
+    // The Android emulator cannot reach the host machine via `localhost` - 10.0.2.2 is the
+    // documented alias for the host loopback interface. The iOS simulator can use localhost
+    // directly since it shares the host's network namespace.
+    return Platform.OS === 'android' ? 'http://10.0.2.2:5000/api' : 'http://localhost:5000/api';
   }
+
+  return 'https://api.cricsync.com/api';
 }
 
-// Auth API
+export const API_BASE_URL = resolveBaseUrl();
+
+// In-memory auth token, kept in sync by useAuth after it hydrates from SecureStore (SecureStore
+// access is async, so unlike web's synchronous localStorage read, the token can't be looked up
+// fresh on every single request the way web-app's apiFetch does).
+let currentToken: string | null = null;
+export function setAuthToken(token: string | null) {
+  currentToken = token;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  [key: string]: any;
+}
+
+async function apiFetch<T = any>(
+  path: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+  body?: any
+): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers,
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+
+  const data = await response.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+
+  if (!response.ok || data.success === false) {
+    throw new Error(data.message || `Request failed: ${response.status}`);
+  }
+
+  return data as T;
+}
+
+// --- Auth (backend/src/routes/authRoutes.js) ---
 export const authAPI = {
-  login: (email: string, password: string) => 
-    fetchAPI<{ user: User; token: string }>('/auth/login', 'POST', { email, password }),
-  
-  register: (userData: Partial<User>, password: string) => 
-    fetchAPI<{ user: User; token: string }>('/auth/register', 'POST', { ...userData, password }),
-  
-  logout: () => 
-    fetchAPI<{ success: boolean }>('/auth/logout', 'POST'),
-  
-  getCurrentUser: (token: string) => 
-    fetchAPI<User>('/auth/me', 'GET', undefined, { 'Authorization': `Bearer ${token}` }),
+  register: (name: string, email: string, password: string, role = 'player') =>
+    apiFetch<{ success: true; token: string; user: { id: string; name: string; email: string; role: string } }>(
+      '/auth/register', 'POST', { name, email, password, role }
+    ),
+  login: (email: string, password: string) =>
+    apiFetch<{ success: true; token: string; user: { id: string; name: string; email: string; role: string } }>(
+      '/auth/login', 'POST', { email, password }
+    ),
+  // There is no /auth/logout on the backend - logging out is purely a client-side token clear.
+  getCurrentUser: () => apiFetch<{ success: true; user: any }>('/auth/me'),
 };
 
-// Teams API
-export const teamsAPI = {
-  getTeams: () => 
-    fetchAPI<Team[]>('/teams'),
-  
-  getTeamById: (teamId: string) => 
-    fetchAPI<Team>(`/teams/${teamId}`),
-  
-  createTeam: (teamData: Partial<Team>) => 
-    fetchAPI<Team>('/teams', 'POST', teamData),
-  
-  updateTeam: (teamId: string, teamData: Partial<Team>) => 
-    fetchAPI<Team>(`/teams/${teamId}`, 'PUT', teamData),
-  
-  deleteTeam: (teamId: string) => 
-    fetchAPI<{ success: boolean }>(`/teams/${teamId}`, 'DELETE'),
-  
-  getTeamMembers: (teamId: string) => 
-    fetchAPI<Player[]>(`/teams/${teamId}/members`),
-  
-  addTeamMember: (teamId: string, playerId: string) => 
-    fetchAPI<{ success: boolean }>(`/teams/${teamId}/members`, 'POST', { playerId }),
-  
-  removeTeamMember: (teamId: string, playerId: string) => 
-    fetchAPI<{ success: boolean }>(`/teams/${teamId}/members/${playerId}`, 'DELETE'),
+// --- Users / network (backend/src/routes/userRoutes.js) ---
+export const usersAPI = {
+  getProfile: (userId: string) => apiFetch<{ success: true; user: any }>(`/users/${userId}`),
+  getFollowers: (userId: string) => apiFetch<{ success: true; followers: any[] }>(`/users/${userId}/followers`),
+  getFollowing: (userId: string) => apiFetch<{ success: true; following: any[] }>(`/users/${userId}/following`),
+  follow: (userId: string) => apiFetch(`/users/${userId}/follow`, 'POST'),
+  unfollow: (userId: string) => apiFetch(`/users/${userId}/follow`, 'DELETE'),
 };
 
-// Matches API
-export const matchesAPI = {
-  getMatches: () => 
-    fetchAPI<Match[]>('/matches'),
-  
-  getMatchById: (matchId: string) => 
-    fetchAPI<Match>(`/matches/${matchId}`),
-  
-  createMatch: (matchData: Partial<Match>) => 
-    fetchAPI<Match>('/matches', 'POST', matchData),
-  
-  updateMatch: (matchId: string, matchData: Partial<Match>) => 
-    fetchAPI<Match>(`/matches/${matchId}`, 'PUT', matchData),
-  
-  deleteMatch: (matchId: string) => 
-    fetchAPI<{ success: boolean }>(`/matches/${matchId}`, 'DELETE'),
-  
-  getMatchScoring: (matchId: string) => 
-    fetchAPI<any>(`/matches/${matchId}/scoring`),
-  
-  updateMatchScoring: (matchId: string, scoringData: any) => 
-    fetchAPI<any>(`/matches/${matchId}/scoring`, 'PUT', scoringData),
-};
-
-// Players API
+// --- Players (backend/src/routes/playerRoutes.js) ---
 export const playersAPI = {
-  getPlayers: () => 
-    fetchAPI<Player[]>('/players'),
-  
-  getPlayerById: (playerId: string) => 
-    fetchAPI<Player>(`/players/${playerId}`),
-  
-  createPlayer: (playerData: Partial<Player>) => 
-    fetchAPI<Player>('/players', 'POST', playerData),
-  
-  updatePlayer: (playerId: string, playerData: Partial<Player>) => 
-    fetchAPI<Player>(`/players/${playerId}`, 'PUT', playerData),
-  
-  deletePlayer: (playerId: string) => 
-    fetchAPI<{ success: boolean }>(`/players/${playerId}`, 'DELETE'),
-  
-  getPlayerStats: (playerId: string) => 
-    fetchAPI<any>(`/players/${playerId}/stats`),
+  getPlayers: () => apiFetch<{ success: true; players: any[] }>('/players'),
+  getPlayerById: (playerId: string) => apiFetch<{ success: true; player: any }>(`/players/${playerId}`),
+  register: (data: { user: string; specialization: string; battingStyle: string; bowlingStyle?: string }) =>
+    apiFetch<{ success: true; player: any }>('/players/register', 'POST', data),
+  update: (playerId: string, data: any) => apiFetch(`/players/${playerId}`, 'PUT', data),
+  getMyProfile: () => apiFetch<{ success: true; player: any }>('/players/me/profile'),
 };
 
-// Products API
-export const productsAPI = {
-  getProducts: () => 
-    fetchAPI<Product[]>('/products'),
-  
-  getProductById: (productId: string) => 
-    fetchAPI<Product>(`/products/${productId}`),
-  
-  getProductsByCategory: (category: string) => 
-    fetchAPI<Product[]>(`/products/category/${category}`),
-  
-  searchProducts: (query: string) => 
-    fetchAPI<Product[]>(`/products/search?q=${encodeURIComponent(query)}`),
+// --- Player stats (backend/src/routes/playerStatsRoutes.js) - career stats, wagon wheel,
+//     wicketkeeper stats, and achievement badges, all computed live from match data ---
+export const playerStatsAPI = {
+  getStats: (playerId: string) => apiFetch<{ success: true; stats: any }>(`/player-stats/${playerId}`),
+  getTopBatsmen: (limit = 10) => apiFetch<{ success: true; batsmen: any[] }>(`/player-stats/rankings/batsmen?limit=${limit}`),
+  getTopBowlers: (limit = 10) => apiFetch<{ success: true; bowlers: any[] }>(`/player-stats/rankings/bowlers?limit=${limit}`),
 };
 
-// Cart API
-export const cartAPI = {
-  getCart: () => 
-    fetchAPI<any>('/cart'),
-  
-  addToCart: (productId: string, quantity: number) => 
-    fetchAPI<any>('/cart/items', 'POST', { productId, quantity }),
-  
-  updateCartItem: (itemId: string, quantity: number) => 
-    fetchAPI<any>(`/cart/items/${itemId}`, 'PUT', { quantity }),
-  
-  removeFromCart: (itemId: string) => 
-    fetchAPI<{ success: boolean }>(`/cart/items/${itemId}`, 'DELETE'),
-  
-  clearCart: () => 
-    fetchAPI<{ success: boolean }>('/cart', 'DELETE'),
-  
-  checkout: (paymentInfo: any) => 
-    fetchAPI<any>('/cart/checkout', 'POST', paymentInfo),
+// --- Teams (backend/src/routes/teamRoutes.js) ---
+export const teamsAPI = {
+  getTeams: () => apiFetch<{ success: true; teams: any[] }>('/teams'),
+  getTeamById: (teamId: string) => apiFetch<{ success: true; team: any }>(`/teams/${teamId}`),
+  createTeam: (data: { name: string; description?: string; city: string }) =>
+    apiFetch<{ success: true; team: any }>('/teams', 'POST', data),
+  updateTeam: (teamId: string, data: any) => apiFetch(`/teams/${teamId}`, 'PUT', data),
+  deleteTeam: (teamId: string) => apiFetch(`/teams/${teamId}`, 'DELETE'),
+  addPlayer: (teamId: string, playerId: string) => apiFetch(`/teams/${teamId}/add-player`, 'POST', { playerId }),
+  removePlayer: (teamId: string, playerId: string) => apiFetch(`/teams/${teamId}/remove-player/${playerId}`, 'DELETE'),
+  getMessages: (teamId: string) => apiFetch<{ success: true; messages: any[] }>(`/teams/${teamId}/messages`),
+  postMessage: (teamId: string, text: string) => apiFetch(`/teams/${teamId}/messages`, 'POST', { text }),
 };
 
-// Tournaments API
+// --- Matches (backend/src/routes/matchRoutes.js) ---
+export const matchesAPI = {
+  getMatches: () => apiFetch<{ success: true; matches: any[] }>('/matches'),
+  getMatchById: (matchId: string) => apiFetch<{ success: true; match: any }>(`/matches/${matchId}`),
+  createMatch: (data: { title: string; team1Id: string; team2Id: string; matchType?: string; venue: string; scheduledDate: string; pitchType?: string; tournamentId?: string }) =>
+    apiFetch<{ success: true; match: any }>('/matches', 'POST', data),
+  updateMatch: (matchId: string, data: any) => apiFetch<{ success: true; match: any }>(`/matches/${matchId}`, 'PUT', data),
+  recordBall: (matchId: string, ballEvent: any) => apiFetch(`/matches/${matchId}/record-ball`, 'POST', ballEvent),
+  getScorecard: (matchId: string) => apiFetch<{ success: true; scorecard: any; aiInsights: any }>(`/matches/${matchId}/scorecard`),
+  getAIInsights: (matchId: string) => apiFetch(`/matches/${matchId}/ai-insights`),
+  getCharts: (matchId: string) => apiFetch<{ success: true; innings: any[] }>(`/matches/${matchId}/charts`),
+};
+
+// --- Tournaments (backend/src/routes/tournamentRoutes.js) ---
 export const tournamentsAPI = {
-  getTournaments: () => 
-    fetchAPI<Tournament[]>('/tournaments'),
-  
-  getTournamentById: (tournamentId: string) => 
-    fetchAPI<Tournament>(`/tournaments/${tournamentId}`),
-  
-  createTournament: (tournamentData: Partial<Tournament>) => 
-    fetchAPI<Tournament>('/tournaments', 'POST', tournamentData),
-  
-  updateTournament: (tournamentId: string, tournamentData: Partial<Tournament>) => 
-    fetchAPI<Tournament>(`/tournaments/${tournamentId}`, 'PUT', tournamentData),
-  
-  deleteTournament: (tournamentId: string) => 
-    fetchAPI<{ success: boolean }>(`/tournaments/${tournamentId}`, 'DELETE'),
-  
-  getTournamentMatches: (tournamentId: string) => 
-    fetchAPI<Match[]>(`/tournaments/${tournamentId}/matches`),
-  
-  getTournamentTeams: (tournamentId: string) => 
-    fetchAPI<Team[]>(`/tournaments/${tournamentId}/teams`),
+  getTournaments: () => apiFetch<{ success: true; tournaments: any[] }>('/tournaments'),
+  getTournamentById: (tournamentId: string) => apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}`),
+  createTournament: (data: any) => apiFetch<{ success: true; tournament: any }>('/tournaments', 'POST', data),
+  updateTournament: (tournamentId: string, data: any) => apiFetch(`/tournaments/${tournamentId}`, 'PUT', data),
+  registerTeam: (tournamentId: string, teamId: string) => apiFetch(`/tournaments/${tournamentId}/register-team`, 'POST', { teamId }),
+  getStandings: (tournamentId: string) => apiFetch<{ success: true; standings: any[] }>(`/tournaments/${tournamentId}/standings`),
+  getTournamentMatches: (tournamentId: string) => apiFetch<{ success: true; matches: any[] }>(`/tournaments/${tournamentId}/matches`),
+  getStatistics: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/statistics`),
+  generateFixtures: (tournamentId: string, format?: 'round-robin' | 'knockout') =>
+    apiFetch(`/tournaments/${tournamentId}/generate-fixtures`, 'POST', format ? { format } : {}),
+  computeAwards: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/compute-awards`, 'POST'),
+  getMessages: (tournamentId: string) => apiFetch<{ success: true; messages: any[] }>(`/tournaments/${tournamentId}/messages`),
+  postMessage: (tournamentId: string, text: string) => apiFetch(`/tournaments/${tournamentId}/messages`, 'POST', { text }),
 };
 
-// Messaging API
-export const messagingAPI = {
-  getMessages: (userId: string) => 
-    fetchAPI<Message[]>(`/messages/user/${userId}`),
-  
-  getMessagesBetweenUsers: (userId1: string, userId2: string) => 
-    fetchAPI<Message[]>(`/messages/between/${userId1}/${userId2}`),
-  
-  sendMessage: (message: Partial<Message>) => 
-    fetchAPI<Message>('/messages', 'POST', message),
-  
-  markMessageAsRead: (messageId: string) => 
-    fetchAPI<{ success: boolean }>(`/messages/${messageId}/read`, 'PUT'),
-  
-  getChatGroups: (userId: string) => 
-    fetchAPI<ChatGroup[]>(`/chat-groups/user/${userId}`),
-  
-  getChatGroupMessages: (groupId: string) => 
-    fetchAPI<Message[]>(`/chat-groups/${groupId}/messages`),
-  
-  createChatGroup: (groupData: Partial<ChatGroup>) => 
-    fetchAPI<ChatGroup>('/chat-groups', 'POST', groupData),
-  
-  addUserToChatGroup: (groupId: string, userId: string) => 
-    fetchAPI<{ success: boolean }>(`/chat-groups/${groupId}/members`, 'POST', { userId }),
-  
-  removeUserFromChatGroup: (groupId: string, userId: string) => 
-    fetchAPI<{ success: boolean }>(`/chat-groups/${groupId}/members/${userId}`, 'DELETE'),
+// --- Tactical insights (backend/src/routes/insightsRoutes.js) ---
+export const insightsAPI = {
+  getShotAdvice: (playerId: string) => apiFetch(`/insights/batsman/${playerId}/shot-advice`),
+  getBowlingPlan: (playerId: string) => apiFetch(`/insights/batsman/${playerId}/bowling-plan`),
+  getFieldingPlan: (playerId: string) => apiFetch(`/insights/batsman/${playerId}/fielding-plan`),
+  getBowlerScouting: (teamId: string) => apiFetch(`/insights/teams/${teamId}/bowler-scouting`),
 };
 
-// Export all APIs as a single object
+// --- Edtech lessons (backend/src/routes/lessonRoutes.js) ---
+export const lessonsAPI = {
+  getLessons: () => apiFetch<{ success: true; lessons: any[] }>('/lessons'),
+  getLessonById: (lessonId: string) => apiFetch<{ success: true; lesson: any }>(`/lessons/${lessonId}`),
+  createLesson: (data: any) => apiFetch('/lessons', 'POST', data),
+};
+
+// --- News (backend/src/routes/newsRoutes.js) ---
+export const newsAPI = {
+  getPosts: () => apiFetch<{ success: true; posts: any[] }>('/news'),
+  getPostById: (postId: string) => apiFetch<{ success: true; post: any }>(`/news/${postId}`),
+  createPost: (data: any) => apiFetch('/news', 'POST', data),
+};
+
+// --- Marketplace products (backend/src/routes/productRoutes.js) ---
+export const productsAPI = {
+  getProducts: (category?: string) => apiFetch<{ success: true; products: any[] }>(`/products${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  getProductById: (productId: string) => apiFetch<{ success: true; product: any }>(`/products/${productId}`),
+  createProduct: (data: any) => apiFetch('/products', 'POST', data),
+};
+
+// --- Orders (backend/src/routes/orderRoutes.js) - there is no server-side "cart" resource;
+//     the cart is client-side state (see CartContext) and only submitted as an order at checkout ---
+export const ordersAPI = {
+  createOrder: (data: { items: any[]; totalAmount: number; paymentMethod: string }) => apiFetch('/orders', 'POST', data),
+  getMyOrders: () => apiFetch<{ success: true; orders: any[] }>('/orders/my'),
+  getSellingOrders: () => apiFetch<{ success: true; orders: any[] }>('/orders/selling'),
+  updateOrderStatus: (orderId: string, status: string) => apiFetch(`/orders/${orderId}/status`, 'PUT', { status }),
+};
+
 export const api = {
   auth: authAPI,
+  users: usersAPI,
+  players: playersAPI,
+  playerStats: playerStatsAPI,
   teams: teamsAPI,
   matches: matchesAPI,
-  players: playersAPI,
-  products: productsAPI,
-  cart: cartAPI,
   tournaments: tournamentsAPI,
-  messaging: messagingAPI,
+  insights: insightsAPI,
+  lessons: lessonsAPI,
+  news: newsAPI,
+  products: productsAPI,
+  orders: ordersAPI,
 };
 
 export default api;

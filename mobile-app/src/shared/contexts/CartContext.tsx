@@ -24,7 +24,7 @@ function cartReducer(state: Cart, action: CartAction): Cart {
   switch (action.type) {
     case 'ADD_ITEM': {
       const { product, quantity } = action.payload;
-      const existingItemIndex = state.items.findIndex(item => item.productId === product.id);
+      const existingItemIndex = state.items.findIndex(item => item.productId === product._id);
       
       if (existingItemIndex >= 0) {
         // Item already exists, update quantity
@@ -41,11 +41,11 @@ function cartReducer(state: Cart, action: CartAction): Cart {
       } else {
         // Add new item
         const newItem: CartItem = {
-          productId: product.id,
+          productId: product._id,
           name: product.name,
           price: product.price,
           quantity,
-          image: product.image
+          sellerId: typeof product.seller === 'string' ? product.seller : product.seller.id
         };
         
         return {

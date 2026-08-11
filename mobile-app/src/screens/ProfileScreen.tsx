@@ -1,242 +1,62 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { Card, Avatar, Button } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../theme';
+import { useAuth } from '../hooks/useAuth';
 
-const ProfileScreen = () => {
-  // Mock user data
-  const user = {
-    id: '1',
-    name: 'John Smith',
-    email: 'john.smith@example.com',
-    phone: '+1 (555) 123-4567',
-    role: 'Player & Captain',
-    teams: ['Royal Challengers', 'City Club'],
-    profileImage: null,
-    stats: {
-      matches: 42,
-      runs: 1250,
-      wickets: 15,
-      highestScore: 87,
-      bestBowling: '3/24'
-    }
+export default function ProfileScreen({ navigation }: any) {
+  const { user, logout } = useAuth();
+
+  const confirmLogout = () => {
+    Alert.alert('Log out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log out', style: 'destructive', onPress: () => logout() },
+    ]);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView>
-        <View style={styles.header}>
-          <View style={styles.profileImageContainer}>
-            {user.profileImage ? (
-              <Avatar.Image size={100} source={{ uri: user.profileImage }} />
-            ) : (
-              <Avatar.Text size={100} label={user.name.charAt(0)} style={styles.avatar} />
-            )}
-          </View>
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userRole}>{user.role}</Text>
-          <View style={styles.teamsContainer}>
-            {user.teams.map((team, index) => (
-              <View key={index} style={styles.teamBadge}>
-                <Text style={styles.teamBadgeText}>{team}</Text>
-              </View>
-            ))}
-          </View>
+    <View style={styles.container}>
+      <View style={styles.card}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{user?.name?.charAt(0) ?? '?'}</Text>
         </View>
+        <Text style={styles.name}>{user?.name ?? 'Player'}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+      </View>
 
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.sectionTitle}>Contact Information</Text>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email:</Text>
-              <Text style={styles.infoValue}>{user.email}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Phone:</Text>
-              <Text style={styles.infoValue}>{user.phone}</Text>
-            </View>
-          </Card.Content>
-        </Card>
+      <TouchableOpacity
+        style={styles.row}
+        onPress={() => navigation.navigate('PlayerStats', { playerId: user?.id })}
+      >
+        <Ionicons name="stats-chart-outline" size={20} color={colors.pitch400} />
+        <Text style={styles.rowText}>My Stats & Achievements</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </TouchableOpacity>
 
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.sectionTitle}>Player Statistics</Text>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{user.stats.matches}</Text>
-                <Text style={styles.statLabel}>Matches</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{user.stats.runs}</Text>
-                <Text style={styles.statLabel}>Runs</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{user.stats.wickets}</Text>
-                <Text style={styles.statLabel}>Wickets</Text>
-              </View>
-            </View>
-            <View style={styles.statsDetails}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Highest Score:</Text>
-                <Text style={styles.infoValue}>{user.stats.highestScore}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Best Bowling:</Text>
-                <Text style={styles.infoValue}>{user.stats.bestBowling}</Text>
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.sectionTitle}>Account Settings</Text>
-            <Button 
-              mode="outlined" 
-              icon="account-edit" 
-              style={styles.settingsButton}
-            >
-              Edit Profile
-            </Button>
-            <Button 
-              mode="outlined" 
-              icon="lock-reset" 
-              style={styles.settingsButton}
-            >
-              Change Password
-            </Button>
-            <Button 
-              mode="outlined" 
-              icon="bell-outline" 
-              style={styles.settingsButton}
-            >
-              Notification Settings
-            </Button>
-            <Button 
-              mode="outlined" 
-              icon="credit-card-outline" 
-              style={styles.settingsButton}
-            >
-              Payment Methods
-            </Button>
-          </Card.Content>
-        </Card>
-
-        <Button 
-          mode="contained" 
-          icon="logout" 
-          style={styles.logoutButton}
-          contentStyle={styles.logoutButtonContent}
-        >
-          Log Out
-        </Button>
-      </ScrollView>
-    </SafeAreaView>
+      <TouchableOpacity style={styles.row} onPress={confirmLogout}>
+        <Ionicons name="log-out-outline" size={20} color={colors.wicket400} />
+        <Text style={[styles.rowText, { color: colors.wicket400 }]}>Log out</Text>
+      </TouchableOpacity>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#1e88e5',
-  },
-  profileImageContainer: {
-    marginBottom: 16,
+  container: { flex: 1, backgroundColor: colors.background, padding: 16 },
+  card: {
+    backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', padding: 24, marginBottom: 16,
   },
   avatar: {
-    backgroundColor: '#0d47a1',
+    width: 64, height: 64, borderRadius: 32, backgroundColor: colors.pitch900,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
+  avatarText: { color: colors.pitch400, fontSize: 28, fontWeight: 'bold' },
+  name: { color: colors.ink, fontSize: 18, fontWeight: 'bold' },
+  email: { color: colors.inkSecondary, fontSize: 13, marginTop: 2 },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface,
+    borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10,
   },
-  userRole: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 12,
-  },
-  teamsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  teamBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    margin: 4,
-  },
-  teamBadgeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  card: {
-    margin: 16,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  infoLabel: {
-    width: 100,
-    fontSize: 14,
-    color: '#666',
-  },
-  infoValue: {
-    flex: 1,
-    fontSize: 14,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1e88e5',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-  },
-  statsDetails: {
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingTop: 16,
-  },
-  settingsButton: {
-    marginBottom: 8,
-    borderColor: '#1e88e5',
-  },
-  logoutButton: {
-    margin: 16,
-    marginTop: 8,
-    marginBottom: 24,
-    backgroundColor: '#f44336',
-  },
-  logoutButtonContent: {
-    height: 48,
-  },
+  rowText: { color: colors.ink, fontSize: 14, fontWeight: '600', flex: 1 },
 });
-
-export default ProfileScreen;

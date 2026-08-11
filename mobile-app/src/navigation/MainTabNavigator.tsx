@@ -1,61 +1,46 @@
-// Main tab navigator for authenticated users
+// Main tab navigator for authenticated users. Each tab hosts its own stack navigator (see
+// ./stacks/) so feature areas can push detail screens without leaving their tab.
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
-// Import screens
-import HomeScreen from '../screens/HomeScreen';
-import TeamsScreen from '../screens/TeamsScreen';
-import ScoringScreen from '../screens/ScoringScreen';
-import ShopScreen from '../screens/ShopScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import HomeStack from './stacks/HomeStack';
+import MatchesStack from './stacks/MatchesStack';
+import TeamsStack from './stacks/TeamsStack';
+import TournamentsStack from './stacks/TournamentsStack';
+import ProfileStack from './stacks/ProfileStack';
 
-// Import theme
 import { colors } from '../theme';
 
 const Tab = createBottomTabNavigator();
+
+const TAB_ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
+  Home: ['home', 'home-outline'],
+  Matches: ['baseball', 'baseball-outline'],
+  Teams: ['people', 'people-outline'],
+  Tournaments: ['trophy', 'trophy-outline'],
+  Profile: ['person', 'person-outline'],
+};
 
 const MainTabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Teams') {
-            iconName = focused ? 'people' : 'people-outline';
-          } else if (route.name === 'Scoring') {
-            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
-          } else if (route.name === 'Shop') {
-            iconName = focused ? 'cart' : 'cart-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
+          const [filled, outline] = TAB_ICONS[route.name] || ['ellipse', 'ellipse-outline'];
+          return <Ionicons name={focused ? filled : outline} size={size} color={color} />;
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        headerStyle: {
-          backgroundColor: colors.primary,
-        },
-        headerTintColor: 'white',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        tabBarActiveTintColor: colors.pitch400,
+        tabBarInactiveTintColor: colors.inkMuted,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
       })}
     >
-      <Tab.Screen 
-        name="Home" 
-        component={HomeScreen} 
-        options={{ title: 'CricSync' }}
-      />
-      <Tab.Screen name="Teams" component={TeamsScreen} />
-      <Tab.Screen name="Scoring" component={ScoringScreen} />
-      <Tab.Screen name="Shop" component={ShopScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Matches" component={MatchesStack} />
+      <Tab.Screen name="Teams" component={TeamsStack} />
+      <Tab.Screen name="Tournaments" component={TournamentsStack} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
 };

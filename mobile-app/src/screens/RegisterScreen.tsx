@@ -75,15 +75,7 @@ const RegisterScreen = ({ navigation }) => {
     
     if (isValid) {
       try {
-        const userData = {
-          name,
-          email,
-          phone: phone || undefined,
-          role: 'Player',
-          teams: []
-        };
-        
-        await register(userData, password);
+        await register(name, email, password, 'player');
         // Navigation will be handled by the auth state change
       } catch (error) {
         console.error('Registration error:', error);
