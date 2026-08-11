@@ -152,7 +152,11 @@ const RegisterScreen = ({ navigation }) => {
             {confirmPasswordError ? <HelperText type="error">{confirmPasswordError}</HelperText> : null}
             
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            
+
+            <Text style={styles.termsText}>
+              By registering, you agree to CricSync's Terms of Service and Privacy Policy.
+            </Text>
+
             <Button
               mode="contained"
               onPress={handleRegister}
@@ -208,6 +212,12 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
+  },
+  termsText: {
+    marginTop: 12,
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   registerButton: {
     marginTop: 16,

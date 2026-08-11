@@ -766,7 +766,9 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   aria-invalid={errors.termsAccepted ? 'true' : 'false'}
                 />
                 <label htmlFor="termsAccepted" className="ml-2 text-sm text-ink-secondary">
-                  I accept the terms and conditions <span className="text-wicket-500">*</span>
+                  I accept the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:text-gold-400 underline">Terms of Service</a> and{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:text-gold-400 underline">Privacy Policy</a>{' '}
+                  <span className="text-wicket-500">*</span>
                 </label>
               </div>
               {errors.termsAccepted && (
