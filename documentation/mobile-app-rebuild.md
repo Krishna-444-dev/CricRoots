@@ -158,21 +158,35 @@ CricSync already has a comparable purpose-built solution): CricViz Expected Wick
 ESPNcricinfo Forecaster, Impact Index, ICC Rankings' exact formula, video-based commentary
 generation research, ELO team ratings (trivial to add but low priority).
 
-### Immediate finding: the win-probability model needs retraining
+### Fixed: the win-probability model wasn't loading, and WPA key moments is now live
 
 `docker exec` into a live win-probability request during this investigation returned
 `{"success": false, "message": "Win probability model not trained"}` — the model artifact
-(`ai-engine/src/models/trained_models/win_prob_model.pkl`) exists on disk but isn't currently
-loadable/valid for that endpoint. This blocks not just the existing live-match win-probability
-feature (already used by `AITacticalAdvisor`) but also the new WPA key-moments idea. **Fixing this
-is a prerequisite**, not optional — retraining against Cricsheet-derived match-state sequences
-(per #3 above) rather than synthetic data would fix both the immediate "not trained" bug and the
-longer-standing synthetic-data-quality concern in one pass. Not yet done as of this note.
+(`ai-engine/src/models/trained_models/win_prob_model.pkl`) existed on disk but wasn't loadable for
+that endpoint, and the failure was silent (a bare `except: return False`). Root cause: `ai-engine`
+has no dev volume mount (unlike `backend`), so it only ever sees whatever `.pkl` was baked into the
+image, with no way to self-correct. Fixed in `02fd7b9` — `load_models()` now logs the real
+unpickling error, and `recommendations.py` auto-retrains on load failure so the service is
+self-healing regardless of pickle compatibility. Verified via a genuine `docker compose build` +
+cold restart, not just an in-memory patch.
+
+With the model fixed, WPA-style **key moments** (finding #2 above) is now built: a new
+`backend/src/services/keyMoments.js` replays the chasing innings (`innings[1]`) ball-by-ball,
+calls the AI engine's win-probability endpoint at each checkpoint, ranks deliveries by
+`|Δwin-probability|`, and returns the top 5 with their existing `commentary` text. New endpoint
+`GET /api/matches/:id/key-moments` (Test matches explicitly excluded — no single limited-overs
+chase concept applies). Displayed as a "🔑 Key Moments" panel on both the web-app match page and the
+mobile `MatchDetailScreen`, reusing the same ball-commentary field already stored per delivery.
+Verified end-to-end through the real backend→ai-engine pipeline (both a direct in-container call and
+a full HTTP round-trip via nginx, with real match/team/ball data created through the actual API) and
+via `tsc --noEmit` on both web-app (isolated) and mobile-app (whole-project).
+
+Retraining the model itself against Cricsheet-derived match-state sequences (rather than the
+current synthetic data) — which would improve accuracy on both the live tactical advisor and key
+moments — is still a good follow-up, just not a blocker anymore.
 
 ## What's next
 
-- Retrain/fix the win-probability model (blocks WPA key moments and improves the existing live
-  tactical advisor).
 - Source and verify the D/L Standard resource table before implementing rain-revision for real.
 - A prediction/fantasy engagement layer was requested, explicitly **without real-money betting** —
   gambling regulation varies too much by jurisdiction to safely build real-money wagering

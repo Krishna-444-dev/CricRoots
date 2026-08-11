@@ -63,6 +63,17 @@ interface ChartInnings {
   cumulative: { over: number; total: number }[];
 }
 
+interface KeyMoment {
+  ballIndex: number;
+  ballNumber: number;
+  commentary: string;
+  isWicket: boolean;
+  runs: number;
+  winProbabilityBefore: number;
+  winProbabilityAfter: number;
+  delta: number;
+}
+
 export default function MatchDetailScreen({ route, navigation }: Props) {
   const { matchId } = route.params;
   const { user } = useAuth();
@@ -72,6 +83,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartInnings, setChartInnings] = useState<ChartInnings[] | null>(null);
+  const [keyMoments, setKeyMoments] = useState<KeyMoment[] | null>(null);
 
   const load = useCallback(() => {
     api.matches
@@ -106,6 +118,27 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
       })
       .catch(() => {
         if (!cancelled) setChartInnings(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [match?._id, match?.status]);
+
+  // Key moments (WPA-style win-probability swings) is also a nice-to-have, non-blocking fetch -
+  // it 400s for Test matches or chases with no deliveries yet, which just means nothing to show.
+  useEffect(() => {
+    if (!match || match.status === 'Scheduled' || match.matchType === 'Test') {
+      setKeyMoments(null);
+      return;
+    }
+    let cancelled = false;
+    api.matches
+      .getKeyMoments(match._id)
+      .then(({ keyMoments }) => {
+        if (!cancelled) setKeyMoments(keyMoments as KeyMoment[]);
+      })
+      .catch(() => {
+        if (!cancelled) setKeyMoments(null);
       });
     return () => {
       cancelled = true;
@@ -235,6 +268,26 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {keyMoments && keyMoments.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🔑 Key Moments</Text>
+          {keyMoments.map((moment) => {
+            const swungTowardsChasers = moment.winProbabilityAfter > moment.winProbabilityBefore;
+            return (
+              <View key={moment.ballIndex} style={styles.keyMomentRow}>
+                <Text style={styles.commentaryText}>
+                  {moment.commentary || `${moment.runs} run(s).`}
+                </Text>
+                <Text style={styles.keyMomentDelta}>
+                  Win probability {swungTowardsChasers ? '+' : '-'}{(moment.delta * 100).toFixed(1)}%
+                  {'  '}({(moment.winProbabilityBefore * 100).toFixed(0)}% → {(moment.winProbabilityAfter * 100).toFixed(0)}%)
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       {activeChart && activeChart.overs.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Over-by-over</Text>
@@ -335,6 +388,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   commentaryText: { color: colors.inkSecondary, fontSize: 13, lineHeight: 18 },
+
+  keyMomentRow: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.gold600,
+    padding: 10,
+    marginBottom: 8,
+  },
+  keyMomentDelta: { color: colors.gold400, fontSize: 11, fontWeight: '700', marginTop: 6 },
 
   chartRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingBottom: 4 },
   chartBarWrap: { alignItems: 'center', width: 28 },

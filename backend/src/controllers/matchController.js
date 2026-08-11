@@ -5,6 +5,7 @@ const AIService = require('../utils/aiService');
 const { getMatchCharts } = require('../services/matchCharts');
 const { computeMatchMVP } = require('../services/mvpCalculator');
 const { generateCommentary } = require('../services/commentaryGenerator');
+const { getKeyMoments } = require('../services/keyMoments');
 
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
@@ -423,6 +424,36 @@ exports.getMatchCharts = async (req, res) => {
       success: true,
       innings
     });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get the deliveries with the biggest win-probability swings in the chase (WPA-style
+//          "key moments"), auto-highlighting a completed or in-progress run chase.
+// @route   GET /api/matches/:id/key-moments
+// @access  Public
+exports.getKeyMomentsForMatch = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    const result = await getKeyMoments(match);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({
       success: false,

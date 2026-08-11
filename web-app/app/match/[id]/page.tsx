@@ -14,6 +14,17 @@ interface ChartInnings {
   cumulative: { over: number; total: number }[];
 }
 
+interface KeyMoment {
+  ballIndex: number;
+  ballNumber: number;
+  commentary: string;
+  isWicket: boolean;
+  runs: number;
+  winProbabilityBefore: number;
+  winProbabilityAfter: number;
+  delta: number;
+}
+
 interface Ball {
   ballNumber: number;
   runs: number;
@@ -65,6 +76,7 @@ export default function MatchPage() {
 
   const [match, setMatch] = useState<Match | null>(null);
   const [chartsInnings, setChartsInnings] = useState<ChartInnings[]>([]);
+  const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'scorecard' | 'ai-insights'>('scorecard');
@@ -72,9 +84,11 @@ export default function MatchPage() {
   useEffect(() => {
     fetchMatch();
     fetchCharts();
+    fetchKeyMoments();
     const interval = setInterval(() => {
       fetchMatch();
       fetchCharts();
+      fetchKeyMoments();
     }, 10000);
     return () => clearInterval(interval);
   }, [matchId]);
@@ -105,6 +119,18 @@ export default function MatchPage() {
       if (data.success) {
         setChartsInnings(data.innings);
       }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchKeyMoments = async () => {
+    try {
+      const response = await fetch(`/api/matches/${matchId}/key-moments`);
+      const data = await response.json();
+      // Not every match has enough of a chase yet (or is a Test match) - a failure response
+      // here just means "nothing to show", not an error worth surfacing to the user.
+      setKeyMoments(data.success ? data.keyMoments : []);
     } catch (err) {
       console.error(err);
     }
@@ -241,6 +267,37 @@ export default function MatchPage() {
                         <p className={`text-sm ${ball.isWicket ? 'text-wicket-400 font-medium' : ball.runs === 4 || ball.runs === 6 ? 'text-pitch-400 font-medium' : 'text-ink-secondary'}`}>
                           {ball.commentary || `${ball.runs} run${ball.runs === 1 ? '' : 's'}.`}
                         </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Key Moments */}
+            {keyMoments.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-base font-bold text-ink mb-3">🔑 Key Moments</h3>
+                <p className="text-xs text-ink-muted mb-3">
+                  The deliveries that swung the win probability the most, biggest swing first.
+                </p>
+                <div className="bg-surface border border-border rounded-xl divide-y divide-border">
+                  {keyMoments.map((moment) => {
+                    const swungTowardsChasers = moment.winProbabilityAfter > moment.winProbabilityBefore;
+                    return (
+                      <div key={moment.ballIndex} className="p-3 flex gap-3 items-start">
+                        <span className="text-xs font-mono text-ink-muted mt-0.5 shrink-0 w-10">
+                          {overBallLabel(match.innings[1].balls, moment.ballIndex)}
+                        </span>
+                        <div className="flex-1">
+                          <p className={`text-sm ${moment.isWicket ? 'text-wicket-400 font-medium' : moment.runs === 4 || moment.runs === 6 ? 'text-pitch-400 font-medium' : 'text-ink-secondary'}`}>
+                            {moment.commentary || `${moment.runs} run${moment.runs === 1 ? '' : 's'}.`}
+                          </p>
+                          <p className="text-xs text-ink-muted mt-1">
+                            Win probability {swungTowardsChasers ? '+' : '-'}{(moment.delta * 100).toFixed(1)}%
+                            {' '}({(moment.winProbabilityBefore * 100).toFixed(0)}% → {(moment.winProbabilityAfter * 100).toFixed(0)}%)
+                          </p>
+                        </div>
                       </div>
                     );
                   })}

@@ -128,6 +128,7 @@ export const matchesAPI = {
   getScorecard: (matchId: string) => apiFetch<{ success: true; scorecard: any; aiInsights: any }>(`/matches/${matchId}/scorecard`),
   getAIInsights: (matchId: string) => apiFetch(`/matches/${matchId}/ai-insights`),
   getCharts: (matchId: string) => apiFetch<{ success: true; innings: any[] }>(`/matches/${matchId}/charts`),
+  getKeyMoments: (matchId: string) => apiFetch<{ success: true; keyMoments: any[] }>(`/matches/${matchId}/key-moments`),
 };
 
 // --- Tournaments (backend/src/routes/tournamentRoutes.js) ---
