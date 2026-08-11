@@ -8,8 +8,8 @@ The product direction: a world-class, one-stop app for cricket, starting with lo
 
 This repository contains the complete CricSync ecosystem, including:
 
-- **Web Application** (`web-app/`): Next.js 14 (App Router) + TypeScript + Tailwind frontend — the primary, actively developed client. Covers auth, live scoring, tournament management, a player network, edtech, news, and a marketplace with cart/checkout, all under a shared "Stadium Dark" design system.
-- **Mobile Application** (`mobile-app/`): React Native (Expo) with platform-specific optimizations for iOS and Android.
+- **Web Application** (`web-app/`): Next.js 14 (App Router) + TypeScript + Tailwind frontend. Covers auth, live scoring, tournament management, a player network, edtech, news, and a marketplace with cart/checkout, all under a shared "Stadium Dark" design system.
+- **Mobile Application** (`mobile-app/`): React Native (Expo SDK 54) with full feature parity to the web app across 22 screens — live scoring, tournaments, teams, marketplace, news, learn, and the prediction game. Distributed for pilot testing via Expo Go (no App Store review needed yet — see `documentation/going-legal-and-live.md`).
 - **Backend API** (`backend/`): Node.js/Express server with MongoDB, JWT auth, and Socket.io for real-time match/chat events.
 - **AI Engine** (`ai-engine/`): Python/Flask service providing win-probability and tactical-advisor predictions during a live match.
 - **Statistical insights service** (`backend/src/services/tendencyAnalytics.js`): a complementary Node-side aggregation layer over real ball-by-ball data (line, length, shot zone, fielder) captured during scoring — powers shot advice, bowling plans, fielding placement, bowler scouting, wagon wheels, wicketkeeper stats, and career/tournament leaderboards, all computed live from match documents rather than a separately-maintained stats table.
@@ -20,8 +20,11 @@ This repository contains the complete CricSync ecosystem, including:
 
 ### 🏏 Live Scoring & Match Management
 - **Ball-by-ball scoring UI**: runs, extras, wickets, with progressive-disclosure delivery tagging (line, length, shot zone, shot type, fielder) — auto-expands on boundaries and wickets, otherwise stays out of the way for fast scoring.
+- **Voice-driven scoring**: speak a phrase like "yorker, off stump, driven for four" and it auto-fills the delivery-tagging form (never auto-submits — the scorer still confirms every ball).
+- **Auto-generated ball-by-ball commentary**: a phrase-bank generator turns the structured data captured on every delivery into readable commentary, shown live on the match page.
 - **Real match lifecycle**: create teams/rosters, create a match (optionally linked to a tournament), start an innings, score it live, finish the match — result and margin are auto-derived from the innings totals.
-- **AI tactical insights**: win-probability and aggressive/balanced/defensive tactical advice during a live match (Python AI engine), plus shot advice / bowling plans / fielding placement derived from the batsman's or bowler's own tagged-ball history where enough data exists, falling back to a wider player-pool average otherwise.
+- **AI tactical insights**: win-probability and aggressive/balanced/defensive tactical advice during a live match (Python AI engine, self-healing on load failure), plus shot advice / bowling plans / fielding placement derived from the batsman's or bowler's own tagged-ball history where enough data exists, falling back to a wider player-pool average otherwise.
+- **Key Moments**: ranks a completed chase's deliveries by win-probability swing (the same idea as baseball's Win Probability Added) to auto-surface the match's biggest turning points.
 
 ### 🏆 Tournament Management
 - **Full lifecycle**: create a tournament, register teams, auto-generate a round-robin or knockout fixture list, score the matches, get an auto-computed points table (W/L/T/NR, points, net run rate) after every completed match.
@@ -34,15 +37,16 @@ This repository contains the complete CricSync ecosystem, including:
 - **Wagon wheel**: an SVG polar-area chart of a batsman's scoring zones, built from the same delivery tagging captured during live scoring.
 - **Leaderboards**: top batsmen/bowlers globally or scoped to a single tournament.
 
-### 🌐 Community: Network, Edtech, News, Marketplace
+### 🌐 Community: Network, Edtech, News, Marketplace, Predictions
 - **Player network**: follow/unfollow, a searchable player directory, public player profiles.
-- **Edtech**: a community-written lesson library (batting/bowling/fielding/fitness/rules/strategy).
-- **News**: organizer/admin-authored posts and announcements.
-- **Marketplace**: real listings, shopping cart, checkout, and buyer/seller order tracking for cricket gear.
+- **Personalized Learn**: lesson recommendations matched against a player's own weak line/length batting or bowling data, with an honest "why you're seeing this" explanation and a generic fallback when there's not enough data yet.
+- **Auto-generated tournament news**: when a tournament match completes, an article is automatically written spotlighting the standout performance (century, five-wicket haul, hat-trick) or a plain result recap — visible to everyone, with a personalized "My Tournaments" feed for players actually registered in that tournament.
+- **Points-based prediction game**: predict a match winner (plus a Man of the Match bonus) before it starts, with a leaderboard — free points only, explicitly not real-money betting.
+- **Marketplace**: real listings, shopping cart, checkout, and buyer/seller order tracking for cricket gear (cash/bank-transfer/in-person payment only — CricSync isn't a party to the sale).
 
 ### 📱 Cross-platform Support
-- **Web app**: the primary client — responsive, real-time, actively developed.
-- **Mobile app**: native iOS and Android experiences with platform-specific UI (currently behind the web app in feature parity).
+- **Web app**: responsive, real-time, actively developed.
+- **Mobile app**: React Native/Expo, full feature parity with web across 22 screens, distributed to pilot testers via Expo Go (EAS Update) ahead of an eventual App Store/Play Store release.
 - **Seamless sync**: same backend API and MongoDB data store across all clients.
 
 ### 🔐 Secure & Scalable
@@ -50,6 +54,7 @@ This repository contains the complete CricSync ecosystem, including:
 - **MongoDB**: Reliable data persistence
 - **Docker Deployment**: Easy containerization and scaling
 - **Nginx Proxy**: Load balancing and SSL/TLS support
+- **Terms of Service & Privacy Policy**: real, published legal pages (`/terms`, `/privacy`) covering data handling, age/consent rules, and the prediction game's "not gambling" framing.
 
 ## Technology Stack
 
@@ -123,6 +128,10 @@ cd mobile-app
 npm install
 npx expo start
 ```
+Set `EXPO_PUBLIC_API_URL` in `mobile-app/.env` to point at a reachable backend when testing on a
+physical device (your machine's LAN IP, not `localhost`). To share a build with real testers with
+zero setup on their end, see the Expo Go / EAS Update workflow in
+`documentation/going-legal-and-live.md`.
 
 ## Documentation
 
@@ -133,6 +142,9 @@ npx expo start
 - **[AI Integration Guide](AI_INTEGRATION_GUIDE.md)** - Backend-AI integration details
 - **[WebSocket Guide](WEBSOCKET_GUIDE.md)** - Real-time communication architecture
 - **[Feature Roadmap & Progress Log](documentation/cricclubs-feature-roadmap.md)** - What's shipped, what's next, and the design decisions behind the tournament/stats/AI features
+- **[Mobile Rebuild & Analytics Research](documentation/mobile-app-rebuild.md)** - the mobile app rebuild, ball commentary/voice input, Key Moments, and the prediction game
+- **[News & Learn Features](documentation/news-and-learn-features.md)** - auto-generated tournament news and personalized lesson recommendations
+- **[Going Legal and Going Live](documentation/going-legal-and-live.md)** - practical checklist for LLC formation, production deployment, and pilot distribution via Expo Go
 
 ## API Endpoints
 
@@ -159,9 +171,16 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 
 ### Matches (`/api/matches`)
 - `GET /` · `POST /` (protected, optionally linked to a tournament) · `GET /:id`
-- `PUT /:id` (protected) - update status/result; auto-derives the result from innings totals when marked Completed
-- `POST /:id/record-ball` (protected) - records a ball, emits WebSocket events
-- `GET /:id/scorecard` · `GET /:id/ai-insights`
+- `PUT /:id` (protected) - update status/result; auto-derives the result from innings totals when marked Completed, settles predictions, and auto-generates a tournament news article
+- `POST /:id/record-ball` (protected) - records a ball, generates commentary, emits WebSocket events
+- `GET /:id/scorecard` · `GET /:id/ai-insights` · `GET /:id/charts` - Manhattan/Worm chart data
+- `GET /:id/key-moments` - deliveries ranked by win-probability swing (chasing innings only)
+
+### Predictions (`/api/predictions`) — free points-based prediction game, not real-money betting
+- `POST /` (protected) - submit/update a winner (+ optional Man of the Match) prediction; locks once the match leaves Scheduled
+- `GET /match/:matchId` - the community split, plus your own pick if authenticated
+- `GET /me` (protected) - your prediction history and total points
+- `GET /leaderboard` - global points leaderboard
 
 ### Tournaments (`/api/tournaments`)
 - `GET /` · `POST /` (protected) · `GET /:id` · `PUT /:id` (protected)
@@ -174,7 +193,15 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /batsman/:playerId/shot-advice` · `GET /batsman/:playerId/bowling-plan` · `GET /batsman/:playerId/fielding-plan`
 - `GET /teams/:teamId/bowler-scouting`
 
-### Edtech (`/api/lessons`), News (`/api/news`), Marketplace (`/api/products`, `/api/orders`)
+### Edtech (`/api/lessons`)
+- Standard `GET /` / `GET /:id` / `POST /` (protected, accepts an optional `tags` array) / `DELETE /:id` (protected) CRUD
+- `GET /for-me` (protected) - lessons recommended from your own weak line/length data, with a plain-English reason and a generic fallback
+
+### News (`/api/news`)
+- Standard `GET /` / `GET /:id` / `POST /` (protected, organizer/admin) / `DELETE /:id` (protected) CRUD, `?tournament=` filter
+- `GET /feed` (protected) - general news plus articles for every tournament you're registered in
+
+### Marketplace (`/api/products`, `/api/orders`)
 - Standard `GET /` / `GET /:id` / `POST /` (protected) / `DELETE /:id` (protected) CRUD, plus `GET /api/orders/my` and `GET /api/orders/selling` for buyer/seller order views and `PUT /api/orders/:id/status` for fulfillment tracking.
 
 ## WebSocket Events
@@ -194,12 +221,13 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 
 | Metric | Value |
 | :--- | :--- |
-| **Total Commits** | 38+ |
-| **Backend Route Files** | 12 (auth, users, players, player-stats, teams, matches, tournaments, insights, lessons, news, products, orders) |
-| **Mongoose Models** | 12 |
+| **Total Commits** | 74+ |
+| **Backend Route Files** | 13 (auth, users, players, player-stats, teams, matches, tournaments, insights, lessons, news, predictions, products, orders) |
+| **Mongoose Models** | 13 |
 | **WebSocket Events** | 15+ |
-| **Web App Pages** | 30+ (matches, tournaments, teams, players, network, edtech, news, marketplace/cart/checkout/orders, calendar, auth) |
-| **Documentation Pages** | 18+ |
+| **Web App Pages** | 34+ (matches, tournaments, teams, players, network, edtech, news, predictions leaderboard, marketplace/cart/checkout/orders, calendar, terms/privacy, auth) |
+| **Mobile App Screens** | 22 (full parity with web) |
+| **Documentation Pages** | 16+ |
 
 ## Performance Metrics
 
@@ -234,18 +262,25 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 *Developed with the assistance of Manus AI*
 
 ### Latest Updates
+- ✅ Mobile app rebuilt to full feature parity with web (22 screens), upgraded to current Expo SDK 54, and distributed to pilot testers via EAS Update/Expo Go — no App Store review needed yet
+- ✅ Ball-by-ball auto-commentary and voice-driven delivery tagging; Key Moments (win-probability-swing highlights) on completed chases
+- ✅ Points-based match prediction game with a global leaderboard (explicitly not real-money betting)
+- ✅ Auto-generated tournament news articles on match completion, plus a personalized "My Tournaments" feed
+- ✅ Personalized lesson recommendations matched against a player's own weak line/length data
+- ✅ Win-probability AI model made self-healing (auto-retrains on load failure instead of silently staying untrained)
+- ✅ Real Terms of Service and Privacy Policy pages, and a practical LLC-formation + go-live checklist
 - ✅ Real-time WebSocket support for instant AI insights, team chat, and tournament announcements
 - ✅ Full match lifecycle: real auth, team/roster creation, match creation, ball-by-ball scoring with delivery tagging, auto-derived results
 - ✅ Tournament management: fixture auto-generation, auto-computed points table with net run rate, MVP/awards computation, calendar view
-- ✅ Player stats computed live from match data: career batting/bowling averages, wicketkeeper stats (catches/run-outs/stumpings), wagon wheel visualization, global and per-tournament leaderboards
-- ✅ Manhattan and Worm charts on the match detail page, automatic algorithmic Man of the Match calculation, and 8 player achievement badges (Century Maker, Hat-trick Hero, Golden Duck, and more)
+- ✅ Player stats computed live from match data: career batting/bowling averages, wicketkeeper stats, wagon wheel visualization, global and per-tournament leaderboards
+- ✅ Manhattan and Worm charts, automatic algorithmic Man of the Match calculation, and 8 player achievement badges
 - ✅ Data-driven tactical insights (shot advice, bowling plans, fielding placement, bowler scouting) blending a player's own tagged-ball history with a wider player-pool average when data is thin
-- ✅ Player network (follow/directory/profiles), community edtech lesson library, news posts, and a full marketplace (listings/cart/checkout/orders)
-- ✅ "Stadium Dark" UI redesign across the entire web app — a broadcast-graphics-style dark theme with a shared component/design-token system
-- ✅ Docker deployment configuration and comprehensive documentation, including a running feature-progress log
+- ✅ Player network, community edtech lesson library, news posts, and a full marketplace (listings/cart/checkout/orders)
+- ✅ "Stadium Dark" UI redesign across web and mobile — a shared broadcast-graphics-style design system
 
 ### Coming Soon
+- 🔄 A real deployed production backend (currently pilot-testing over a local network) and full App Store/Play Store submission
+- 🔄 D/L Standard rain-revision rules, once the published resource-table values are verified against original sources
 - 🔄 Match/tournament notifications (push/email when a followed team's match goes live or a tournament posts an announcement)
-- 🔄 Event calendar deep-linking and richer tournament schedule views (day-by-day round scheduling, knockout bracket rounds beyond round 1)
-- 🔄 Mobile app feature parity with the web app, and app store deployment
+- 🔄 Global/international cricket news, once local tournament news is well established
 - 🔄 Advanced/chronological "recent form" trend tracking per player
