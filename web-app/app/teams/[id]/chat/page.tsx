@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import { useChatSocket, ChatMessage } from '@/hooks/useChatSocket';
+import Button from '@/components/ui/Button';
 
 export default function TeamChatPage({ params }: { params: { id: string } }) {
   const { user, token, isLoading } = useAuth();
@@ -44,22 +45,22 @@ export default function TeamChatPage({ params }: { params: { id: string } }) {
   }, [messages]);
 
   if (isLoading || loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8 text-center">
+      <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
         <div>
-          <p className="text-gray-600 mb-4">You need to be logged in to view team chat.</p>
-          <Link href="/login" className="text-blue-600 hover:underline">Log in</Link>
+          <p className="text-ink-secondary mb-4">You need to be logged in to view team chat.</p>
+          <Link href="/login" className="text-pitch-400 hover:underline">Log in</Link>
         </div>
       </main>
     );
   }
 
   if (error) {
-    return <main className="min-h-screen flex items-center justify-center p-8"><p className="text-gray-600">{error}</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8"><p className="text-ink-secondary">{error}</p></main>;
   }
 
   const handleSend = async (e: React.FormEvent) => {
@@ -85,23 +86,23 @@ export default function TeamChatPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b border-gray-200 p-4">
-        <h1 className="text-lg font-bold text-gray-900">{teamName} · Team Chat</h1>
+    <main className="flex flex-col min-h-[calc(100vh-4rem)]">
+      <div className="bg-surface border-b border-border p-4">
+        <h1 className="text-lg font-bold text-ink max-w-2xl mx-auto">{teamName} <span className="text-ink-muted font-normal">· Team Chat</span></h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-2xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-2xl mx-auto w-full scrollbar-thin">
         {messages.length === 0 ? (
-          <p className="text-gray-400 text-center mt-8">No messages yet. Say hello to your team.</p>
+          <p className="text-ink-muted text-center mt-8">No messages yet. Say hello to your team.</p>
         ) : (
           messages.map(m => (
             <div key={m._id} className={`flex ${m.sender._id === user.id ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-xs rounded-lg px-3 py-2 ${m.sender._id === user.id ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200'}`}>
+              <div className={`max-w-xs rounded-xl px-3 py-2 ${m.sender._id === user.id ? 'bg-pitch-500 text-[#06170D]' : 'bg-surface border border-border text-ink'}`}>
                 {m.sender._id !== user.id && (
-                  <p className="text-xs font-medium text-gray-500 mb-0.5">{m.sender.name}</p>
+                  <p className="text-xs font-semibold text-ink-secondary mb-0.5">{m.sender.name}</p>
                 )}
                 <p className="text-sm">{m.text}</p>
-                <p className={`text-[10px] mt-1 ${m.sender._id === user.id ? 'text-blue-100' : 'text-gray-400'}`}>
+                <p className={`text-[10px] mt-1 ${m.sender._id === user.id ? 'text-[#06170D]/60' : 'text-ink-muted'}`}>
                   {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
@@ -111,21 +112,15 @@ export default function TeamChatPage({ params }: { params: { id: string } }) {
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={handleSend} className="bg-white border-t border-gray-200 p-4 flex gap-2 max-w-2xl mx-auto w-full">
+      <form onSubmit={handleSend} className="bg-surface border-t border-border p-4 flex gap-2 max-w-2xl mx-auto w-full">
         <input
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Message your team..."
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="flex-1 px-3 py-2 bg-surface-alt border border-border-strong rounded-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500"
         />
-        <button
-          type="submit"
-          disabled={sending || !text.trim()}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
-        >
-          Send
-        </button>
+        <Button type="submit" disabled={sending || !text.trim()}>Send</Button>
       </form>
     </main>
   );

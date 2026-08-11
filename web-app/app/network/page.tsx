@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Card from '@/components/ui/Card';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
+import { buttonVariants } from '@/components/ui/buttonStyles';
 
 interface PlayerDoc {
   _id: string;
@@ -12,7 +16,7 @@ interface PlayerDoc {
 }
 
 export default function NetworkPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [players, setPlayers] = useState<PlayerDoc[]>([]);
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -51,46 +55,42 @@ export default function NetworkPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Network</h1>
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <PageHeader title="Network" description="Find and follow players in your local cricket scene." />
 
-        {loading ? (
-          <p className="text-gray-500">Loading...</p>
-        ) : players.length === 0 ? (
-          <p className="text-gray-500">No registered players yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {players.map(p => {
-              const uid = typeof p.user === 'string' ? p.user : p.user._id;
-              const name = typeof p.user === 'string' ? p._id : p.user.name;
-              const isSelf = user?.id === uid;
-              const isFollowing = followingIds.has(uid);
-              return (
-                <div key={p._id} className="bg-white rounded-lg shadow-sm p-4 flex justify-between items-center">
-                  <div>
-                    <Link href={`/network/${uid}`} className="font-medium text-gray-900 hover:underline">
-                      {name}
-                    </Link>
-                    <p className="text-sm text-gray-500">{p.specialization}</p>
-                  </div>
-                  {!isSelf && user && (
-                    <button
-                      onClick={() => toggleFollow(uid)}
-                      disabled={busyId === uid}
-                      className={`text-sm px-3 py-1.5 rounded-md transition disabled:opacity-50 ${
-                        isFollowing ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                    >
-                      {isFollowing ? 'Following' : 'Follow'}
-                    </button>
-                  )}
+      {loading ? (
+        <p className="text-ink-secondary">Loading...</p>
+      ) : players.length === 0 ? (
+        <EmptyState icon="🤝" title="No registered players yet" />
+      ) : (
+        <div className="space-y-3">
+          {players.map(p => {
+            const uid = typeof p.user === 'string' ? p.user : p.user._id;
+            const name = typeof p.user === 'string' ? p._id : p.user.name;
+            const isSelf = user?.id === uid;
+            const isFollowing = followingIds.has(uid);
+            return (
+              <Card key={p._id} className="flex justify-between items-center">
+                <div>
+                  <Link href={`/network/${uid}`} className="font-semibold text-ink hover:text-pitch-400 transition-colors">
+                    {name}
+                  </Link>
+                  <p className="text-sm text-ink-secondary">{p.specialization}</p>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                {!isSelf && user && (
+                  <button
+                    onClick={() => toggleFollow(uid)}
+                    disabled={busyId === uid}
+                    className={buttonVariants(isFollowing ? 'outline' : 'primary', 'sm')}
+                  >
+                    {isFollowing ? 'Following' : 'Follow'}
+                  </button>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }

@@ -6,6 +6,8 @@ import BallByBallScoring, { BallEvent } from '@/components/scoring/BallByBallSco
 import BatsmanInsights from '@/components/insights/BatsmanInsights';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Button from '@/components/ui/Button';
+import { inputClass, labelClass } from '@/components/ui/formStyles';
 
 interface PlayerDoc {
   _id: string;
@@ -101,19 +103,19 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
   const playersById = useMemo(() => new Map(players.map(p => [p._id, p])), [players]);
 
   if (loading || authLoading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
   }
 
   if (!match) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Match not found.</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Match not found.</p></main>;
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8 text-center">
+      <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
         <div>
-          <p className="text-gray-600 mb-4">You need to be logged in to score this match.</p>
-          <Link href="/login" className="text-blue-600 hover:underline">Log in</Link>
+          <p className="text-ink-secondary mb-4">You need to be logged in to score this match.</p>
+          <Link href="/login" className="text-pitch-400 hover:underline">Log in</Link>
         </div>
       </main>
     );
@@ -121,8 +123,8 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
 
   if (user.id !== match.createdBy._id) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8 text-center">
-        <p className="text-gray-600">Only {match.createdBy.name}, who created this match, can score it.</p>
+      <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
+        <p className="text-ink-secondary">Only {match.createdBy.name}, who created this match, can score it.</p>
       </main>
     );
   }
@@ -157,98 +159,96 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-6 px-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 mb-1">{match.title}</h1>
-        <p className="text-sm text-gray-500 mb-4">
-          {match.team1.name} vs {match.team2.name}
-        </p>
+    <main className="max-w-2xl mx-auto px-4 py-6">
+      <h1 className="text-xl font-bold text-ink mb-1">{match.title}</h1>
+      <p className="text-sm text-ink-secondary mb-4">
+        {match.team1.name} <span className="text-ink-muted">vs</span> {match.team2.name}
+      </p>
 
-        {syncError && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md text-sm">
-            {syncError}
+      {syncError && (
+        <div className="mb-4 p-3 bg-gold-500/10 border border-gold-500/30 text-gold-400 rounded-lg text-sm">
+          {syncError}
+        </div>
+      )}
+
+      {!inningsData ? (
+        <form onSubmit={handleStartInnings} className="bg-surface border border-border rounded-xl shadow-card p-4 sm:p-5 space-y-4">
+          <h2 className="text-lg font-semibold text-ink">Start Innings</h2>
+          <div>
+            <label className={labelClass}>Batting first</label>
+            <select
+              value={battingTeamId}
+              onChange={(e) => { setBattingTeamId(e.target.value); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }}
+              className={inputClass}
+            >
+              <option value="">Select team</option>
+              <option value={match.team1._id}>{match.team1.name}</option>
+              <option value={match.team2._id}>{match.team2.name}</option>
+            </select>
           </div>
-        )}
 
-        {!inningsData ? (
-          <form onSubmit={handleStartInnings} className="bg-white rounded-lg shadow-sm p-4 space-y-4">
-            <h2 className="text-lg font-medium text-gray-900">Start Innings</h2>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Batting first</label>
-              <select
-                value={battingTeamId}
-                onChange={(e) => { setBattingTeamId(e.target.value); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
-              >
-                <option value="">Select team</option>
-                <option value={match.team1._id}>{match.team1.name}</option>
-                <option value={match.team2._id}>{match.team2.name}</option>
-              </select>
-            </div>
-
-            {battingTeamId && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Striker</label>
-                  <select value={strikerId} onChange={(e) => setStrikerId(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2">
-                    <option value="">Select batsman</option>
-                    {battingRoster.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Non-striker</label>
-                  <select value={nonStrikerId} onChange={(e) => setNonStrikerId(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2">
-                    <option value="">Select batsman</option>
-                    {battingRoster.filter(p => p.id !== strikerId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Opening bowler</label>
-                  <select value={bowlerId} onChange={(e) => setBowlerId(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2">
-                    <option value="">Select bowler</option>
-                    {bowlingRoster.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-              </>
-            )}
-
-            <button
-              type="submit"
-              disabled={!battingTeamId || !strikerId || !nonStrikerId || !bowlerId || strikerId === nonStrikerId}
-              className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
-            >
-              Start Scoring
-            </button>
-          </form>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => setShowInsights(prev => !prev)}
-              className="w-full mb-4 bg-white rounded-lg shadow-sm p-3 text-left text-sm font-medium text-blue-600 hover:bg-blue-50 transition"
-            >
-              {showInsights ? '▼' : '▶'} AI Insights for {inningsData.currentBatsmen[0]?.name}
-            </button>
-            {showInsights && inningsData.currentBatsmen[0] && (
-              <div className="mb-4">
-                <BatsmanInsights batsmanId={inningsData.currentBatsmen[0].id} label={`Striker: ${inningsData.currentBatsmen[0].name}`} />
+          {battingTeamId && (
+            <>
+              <div>
+                <label className={labelClass}>Striker</label>
+                <select value={strikerId} onChange={(e) => setStrikerId(e.target.value)} className={inputClass}>
+                  <option value="">Select batsman</option>
+                  {battingRoster.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
-            )}
+              <div>
+                <label className={labelClass}>Non-striker</label>
+                <select value={nonStrikerId} onChange={(e) => setNonStrikerId(e.target.value)} className={inputClass}>
+                  <option value="">Select batsman</option>
+                  {battingRoster.filter(p => p.id !== strikerId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Opening bowler</label>
+                <select value={bowlerId} onChange={(e) => setBowlerId(e.target.value)} className={inputClass}>
+                  <option value="">Select bowler</option>
+                  {bowlingRoster.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            </>
+          )}
 
-            <BallByBallScoring
-              matchId={match._id}
-              inningsData={inningsData}
-              onBallRecorded={handleBallRecorded}
-            />
-            <button
-              onClick={() => { setInningsData(null); setBattingTeamId(''); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }}
-              className="w-full mt-4 py-2 text-sm text-gray-600 hover:underline"
-            >
-              End Innings / Start Next Innings
-            </button>
-          </>
-        )}
-      </div>
+          <Button
+            type="submit"
+            disabled={!battingTeamId || !strikerId || !nonStrikerId || !bowlerId || strikerId === nonStrikerId}
+            className="w-full"
+          >
+            Start Scoring
+          </Button>
+        </form>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowInsights(prev => !prev)}
+            className="w-full mb-4 bg-surface border border-border rounded-xl p-3 text-left text-sm font-medium text-pitch-400 hover:bg-surface-hover transition-colors"
+          >
+            {showInsights ? '▼' : '▶'} AI Insights for {inningsData.currentBatsmen[0]?.name}
+          </button>
+          {showInsights && inningsData.currentBatsmen[0] && (
+            <div className="mb-4">
+              <BatsmanInsights batsmanId={inningsData.currentBatsmen[0].id} label={`Striker: ${inningsData.currentBatsmen[0].name}`} />
+            </div>
+          )}
+
+          <BallByBallScoring
+            matchId={match._id}
+            inningsData={inningsData}
+            onBallRecorded={handleBallRecorded}
+          />
+          <button
+            onClick={() => { setInningsData(null); setBattingTeamId(''); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }}
+            className="w-full mt-4 py-2 text-sm text-ink-secondary hover:text-ink transition-colors"
+          >
+            End Innings / Start Next Innings
+          </button>
+        </>
+      )}
     </main>
   );
 }

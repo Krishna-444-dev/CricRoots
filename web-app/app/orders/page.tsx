@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Card from '@/components/ui/Card';
+import Badge, { BadgeVariant } from '@/components/ui/Badge';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
 
 interface Order {
   _id: string;
@@ -14,12 +18,12 @@ interface Order {
   createdAt: string;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  paid: 'bg-blue-100 text-blue-800',
-  shipped: 'bg-purple-100 text-purple-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
+  pending: 'warning',
+  paid: 'info',
+  shipped: 'gold',
+  completed: 'success',
+  cancelled: 'danger',
 };
 
 export default function OrdersPage() {
@@ -37,44 +41,39 @@ export default function OrdersPage() {
 
   if (!isLoading && !user) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8 text-center">
-        <div><Link href="/login" className="text-blue-600 hover:underline">Log in</Link> to see your orders.</div>
+      <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
+        <div><Link href="/login" className="text-pitch-400 hover:underline">Log in</Link> to see your orders.</div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Your Orders</h1>
-          <Link href="/orders/selling" className="text-sm text-blue-600 hover:underline">Selling &rarr;</Link>
-        </div>
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <PageHeader title="Your Orders" action={<Link href="/orders/selling" className="text-sm text-pitch-400 hover:underline">Selling &rarr;</Link>} />
 
-        {loading ? (
-          <p className="text-gray-500">Loading...</p>
-        ) : orders.length === 0 ? (
-          <p className="text-gray-500">No orders yet. <Link href="/marketplace" className="text-blue-600 hover:underline">Browse the marketplace</Link></p>
-        ) : (
-          <div className="space-y-3">
-            {orders.map(o => (
-              <div key={o._id} className="bg-white rounded-lg shadow-sm p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <p className="text-sm text-gray-500">{new Date(o.createdAt).toLocaleDateString()}</p>
-                  <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[o.status]}`}>{o.status}</span>
-                </div>
-                <ul className="text-sm text-gray-700 mb-2">
-                  {o.items.map((i, idx) => (
-                    <li key={idx}>{i.quantity}x {i.name} - ${(i.price * i.quantity).toFixed(2)}</li>
-                  ))}
-                </ul>
-                <p className="font-bold text-gray-900">Total: ${o.totalAmount.toFixed(2)}</p>
-                <p className="text-xs text-gray-500 capitalize">Payment: {o.paymentMethod}</p>
+      {loading ? (
+        <p className="text-ink-secondary">Loading...</p>
+      ) : orders.length === 0 ? (
+        <EmptyState icon="📦" title="No orders yet" action={<Link href="/marketplace" className="text-pitch-400 hover:underline text-sm">Browse the marketplace</Link>} />
+      ) : (
+        <div className="space-y-3">
+          {orders.map(o => (
+            <Card key={o._id}>
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-sm text-ink-muted">{new Date(o.createdAt).toLocaleDateString()}</p>
+                <Badge variant={STATUS_VARIANT[o.status] ?? 'neutral'} className="capitalize">{o.status}</Badge>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <ul className="text-sm text-ink-secondary mb-2">
+                {o.items.map((i, idx) => (
+                  <li key={idx}>{i.quantity}x {i.name} — ${(i.price * i.quantity).toFixed(2)}</li>
+                ))}
+              </ul>
+              <p className="font-bold text-ink">Total: ${o.totalAmount.toFixed(2)}</p>
+              <p className="text-xs text-ink-muted capitalize">Payment: {o.paymentMethod}</p>
+            </Card>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

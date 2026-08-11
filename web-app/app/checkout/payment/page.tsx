@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { useCart } from '@/CartContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { errorBoxClass } from '@/components/ui/formStyles';
 
 const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash on pickup/delivery' },
@@ -28,10 +31,10 @@ export default function CheckoutPaymentPage() {
 
   if (items.length === 0) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8 text-center">
+      <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
         <div>
-          <p className="text-gray-600 mb-4">Your cart is empty.</p>
-          <Link href="/marketplace" className="text-blue-600 hover:underline">Browse the marketplace</Link>
+          <p className="text-ink-secondary mb-4">Your cart is empty.</p>
+          <Link href="/marketplace" className="text-pitch-400 hover:underline">Browse the marketplace</Link>
         </div>
       </main>
     );
@@ -63,26 +66,26 @@ export default function CheckoutPaymentPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Checkout</h1>
-        <p className="text-sm text-gray-500 mb-6">
-          There's no online payment processing yet - you'll pay the seller directly using the method
-          you choose below, and they'll confirm receipt on their end once payment is settled.
+    <main className="flex items-center justify-center px-4 py-12 min-h-[calc(100vh-4rem)]">
+      <Card padding="lg" className="w-full max-w-md">
+        <h1 className="text-2xl font-bold text-ink mb-2">Checkout</h1>
+        <p className="text-sm text-ink-secondary mb-6">
+          There&apos;s no online payment processing yet — you&apos;ll pay the seller directly using the method
+          you choose below, and they&apos;ll confirm receipt on their end once payment is settled.
         </p>
 
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">{error}</div>}
+        {error && <div className={`${errorBoxClass} mb-4`}>{error}</div>}
 
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Payment method</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-2">Payment method</label>
           <div className="space-y-2">
             {PAYMENT_METHODS.map(m => (
-              <label key={m.value} className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+              <label key={m.value} className="flex items-center p-3 bg-surface-alt border border-border-strong rounded-lg cursor-pointer hover:bg-surface-hover transition-colors text-ink">
                 <input
                   type="radio" name="paymentMethod" value={m.value}
                   checked={paymentMethod === m.value}
                   onChange={() => setPaymentMethod(m.value)}
-                  className="mr-3"
+                  className="mr-3 accent-pitch-500"
                 />
                 {m.label}
               </label>
@@ -90,19 +93,15 @@ export default function CheckoutPaymentPage() {
           </div>
         </div>
 
-        <div className="flex justify-between text-lg font-bold text-gray-900 mb-6 border-t pt-4">
+        <div className="flex justify-between text-lg font-bold text-ink mb-6 border-t border-border pt-4">
           <span>Total</span>
-          <span>${total.toFixed(2)}</span>
+          <span className="text-pitch-400">${total.toFixed(2)}</span>
         </div>
 
-        <button
-          onClick={handlePlaceOrder}
-          disabled={isSubmitting}
-          className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
-        >
+        <Button onClick={handlePlaceOrder} disabled={isSubmitting} className="w-full">
           {isSubmitting ? 'Placing order...' : 'Place Order'}
-        </button>
-      </div>
+        </Button>
+      </Card>
     </main>
   );
 }

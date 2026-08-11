@@ -81,7 +81,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
+    <main className="py-8 px-4">
       <div className="max-w-lg mx-auto">
         <PlayerRegistrationForm onSubmit={handleSubmit} />
       </div>

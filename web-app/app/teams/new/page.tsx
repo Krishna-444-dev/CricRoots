@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { inputClass, labelClass, errorBoxClass } from '@/components/ui/formStyles';
 
 export default function NewTeamPage() {
   const router = useRouter();
@@ -42,63 +45,29 @@ export default function NewTeamPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="w-full max-w-sm bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">New Team</h1>
-        <p className="text-sm text-gray-500 mb-6">You'll automatically be set as captain.</p>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
-          </div>
-        )}
+    <main className="flex items-center justify-center px-4 py-12 min-h-[calc(100vh-4rem)]">
+      <Card padding="lg" className="w-full max-w-sm">
+        <h1 className="text-2xl font-bold text-ink mb-2">New Team</h1>
+        <p className="text-sm text-ink-secondary mb-6">You&apos;ll automatically be set as captain.</p>
+        {error && <div className={`${errorBoxClass} mb-4`}>{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Team Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
-            />
+            <label htmlFor="name" className={labelClass}>Team Name</label>
+            <input type="text" id="name" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
-              City
-            </label>
-            <input
-              type="text"
-              id="city"
-              required
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
-            />
+            <label htmlFor="city" className={labelClass}>City</label>
+            <input type="text" id="city" required value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
-            />
+            <label htmlFor="description" className={labelClass}>Description</label>
+            <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputClass} />
           </div>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Creating...' : 'Create Team'}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </main>
   );
 }

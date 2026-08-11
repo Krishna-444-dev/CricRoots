@@ -5,6 +5,8 @@ import styles from './TournamentManager.module.css';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import { useChatSocket, ChatMessage } from '@/hooks/useChatSocket';
+import { inputClass } from '@/components/ui/formStyles';
+import { buttonVariants } from '@/components/ui/buttonStyles';
 
 interface Tournament {
   _id: string;
@@ -310,15 +312,15 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
           <div className={styles.card}>
             <h2>{selectedTournament.name} - Announcements</h2>
             {isOrganizer && (
-              <form onSubmit={handlePostAnnouncement} style={{ display: 'flex', gap: '0.5rem', margin: '1rem 0' }}>
+              <form onSubmit={handlePostAnnouncement} className="flex gap-2 my-4">
                 <input
                   type="text"
                   value={announcementText}
                   onChange={(e) => setAnnouncementText(e.target.value)}
                   placeholder="Post an announcement to everyone following this tournament..."
-                  style={{ flex: 1, padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                  className={`flex-1 ${inputClass}`}
                 />
-                <button type="submit" disabled={postingAnnouncement || !announcementText.trim()} className={styles.createBtn}>
+                <button type="submit" disabled={postingAnnouncement || !announcementText.trim()} className={buttonVariants('primary')}>
                   Post
                 </button>
               </form>
@@ -326,13 +328,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
             {announcements.length === 0 ? (
               <p className={styles.infoText}>No announcements yet.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="flex flex-col gap-3">
                 {announcements.map(a => (
-                  <div key={a._id} style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>
-                    <p style={{ fontSize: '0.75rem', color: '#888' }}>
+                  <div key={a._id} className="border-b border-border pb-2">
+                    <p className="text-xs text-ink-muted">
                       {a.sender.name} · {new Date(a.createdAt).toLocaleString()}
                     </p>
-                    <p>{a.text}</p>
+                    <p className="text-ink">{a.text}</p>
                   </div>
                 ))}
               </div>

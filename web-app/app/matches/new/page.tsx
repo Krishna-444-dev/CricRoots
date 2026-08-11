@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { inputClass, labelClass, errorBoxClass } from '@/components/ui/formStyles';
 
 interface Team {
   _id: string;
@@ -64,55 +68,38 @@ export default function NewMatchPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="w-full max-w-sm bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">New Match</h1>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-            {error}
-          </div>
-        )}
+    <main className="flex items-center justify-center px-4 py-12 min-h-[calc(100vh-4rem)]">
+      <Card padding="lg" className="w-full max-w-sm">
+        <h1 className="text-2xl font-bold text-ink mb-6">New Match</h1>
+        {error && <div className={`${errorBoxClass} mb-4`}>{error}</div>}
         {teams.length < 2 ? (
-          <p className="text-sm text-gray-600">
-            You need at least two teams before creating a match. Create one at{' '}
-            <a href="/teams/new" className="text-blue-600 hover:underline">/teams/new</a>.
+          <p className="text-sm text-ink-secondary">
+            You need at least two teams before creating a match.{' '}
+            <Link href="/teams/new" className="text-pitch-400 hover:underline">Create one here</Link>.
           </p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-              <input
-                type="text" id="title" required value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
-              />
+              <label htmlFor="title" className={labelClass}>Title</label>
+              <input type="text" id="title" required value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label htmlFor="team1" className="block text-sm font-medium text-gray-700 mb-1">Team 1</label>
-              <select
-                id="team1" required value={team1Id} onChange={(e) => setTeam1Id(e.target.value)}
-                className="w-full px-3 py-3 border border-gray-300 rounded-md"
-              >
+              <label htmlFor="team1" className={labelClass}>Team 1</label>
+              <select id="team1" required value={team1Id} onChange={(e) => setTeam1Id(e.target.value)} className={inputClass}>
                 <option value="">Select team</option>
                 {teams.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="team2" className="block text-sm font-medium text-gray-700 mb-1">Team 2</label>
-              <select
-                id="team2" required value={team2Id} onChange={(e) => setTeam2Id(e.target.value)}
-                className="w-full px-3 py-3 border border-gray-300 rounded-md"
-              >
+              <label htmlFor="team2" className={labelClass}>Team 2</label>
+              <select id="team2" required value={team2Id} onChange={(e) => setTeam2Id(e.target.value)} className={inputClass}>
                 <option value="">Select team</option>
                 {teams.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="matchType" className="block text-sm font-medium text-gray-700 mb-1">Match Type</label>
-              <select
-                id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)}
-                className="w-full px-3 py-3 border border-gray-300 rounded-md"
-              >
+              <label htmlFor="matchType" className={labelClass}>Match Type</label>
+              <select id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)} className={inputClass}>
                 <option value="T20">T20</option>
                 <option value="ODI">ODI</option>
                 <option value="Test">Test</option>
@@ -120,19 +107,12 @@ export default function NewMatchPage() {
               </select>
             </div>
             <div>
-              <label htmlFor="venue" className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-              <input
-                type="text" id="venue" required value={venue}
-                onChange={(e) => setVenue(e.target.value)}
-                className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
-              />
+              <label htmlFor="venue" className={labelClass}>Venue</label>
+              <input type="text" id="venue" required value={venue} onChange={(e) => setVenue(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label htmlFor="pitchType" className="block text-sm font-medium text-gray-700 mb-1">Pitch Type (if known)</label>
-              <select
-                id="pitchType" value={pitchType} onChange={(e) => setPitchType(e.target.value)}
-                className="w-full px-3 py-3 border border-gray-300 rounded-md capitalize"
-              >
+              <label htmlFor="pitchType" className={labelClass}>Pitch Type (if known)</label>
+              <select id="pitchType" value={pitchType} onChange={(e) => setPitchType(e.target.value)} className={`${inputClass} capitalize`}>
                 <option value="unknown">Unknown</option>
                 <option value="dry">Dry</option>
                 <option value="green">Green</option>
@@ -141,22 +121,15 @@ export default function NewMatchPage() {
               </select>
             </div>
             <div>
-              <label htmlFor="scheduledDate" className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <input
-                type="datetime-local" id="scheduledDate" required value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
-              />
+              <label htmlFor="scheduledDate" className={labelClass}>Date</label>
+              <input type="datetime-local" id="scheduledDate" required value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className={inputClass} />
             </div>
-            <button
-              type="submit" disabled={isSubmitting}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
-            >
+            <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? 'Creating...' : 'Create Match'}
-            </button>
+            </Button>
           </form>
         )}
-      </div>
+      </Card>
     </main>
   );
 }

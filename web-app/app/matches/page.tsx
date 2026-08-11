@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Card from '@/components/ui/Card';
+import Badge, { BadgeVariant } from '@/components/ui/Badge';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
+import { buttonVariants } from '@/components/ui/buttonStyles';
 
 interface Match {
   _id: string;
@@ -12,6 +17,13 @@ interface Match {
   venue: string;
   scheduledDate: string;
 }
+
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
+  Live: 'live',
+  Scheduled: 'info',
+  Completed: 'neutral',
+  Cancelled: 'danger',
+};
 
 export default function MatchesPage() {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -27,47 +39,55 @@ export default function MatchesPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
-          <Link href="/matches/new" className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition">
-            + New Match
-          </Link>
-        </div>
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <PageHeader
+        title="Matches"
+        description="Live and upcoming matches across all tournaments."
+        action={<Link href="/matches/new" className={buttonVariants('primary')}>+ New Match</Link>}
+      />
 
-        {loading ? (
-          <p className="text-gray-500">Loading...</p>
-        ) : matches.length === 0 ? (
-          <p className="text-gray-500">No matches yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {matches.map(match => (
-              <div key={match._id} className="bg-white rounded-lg shadow-sm p-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h2 className="text-lg font-medium text-gray-900">{match.title}</h2>
-                    <p className="text-sm text-gray-500">
-                      {match.team1?.name} vs {match.team2?.name} · {match.venue}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {new Date(match.scheduledDate).toLocaleDateString()} · {match.status}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1 items-end">
-                    <Link href={`/match/${match._id}`} className="text-sm text-blue-600 hover:underline">
-                      View
-                    </Link>
-                    <Link href={`/match/${match._id}/score`} className="text-sm text-blue-600 hover:underline">
-                      Score
-                    </Link>
-                  </div>
+      {loading ? (
+        <p className="text-ink-secondary">Loading...</p>
+      ) : matches.length === 0 ? (
+        <EmptyState
+          icon="🏏"
+          title="No matches yet"
+          description="Create the first match to get scoring."
+          action={<Link href="/matches/new" className={buttonVariants('primary')}>+ New Match</Link>}
+        />
+      ) : (
+        <div className="space-y-3">
+          {matches.map(match => (
+            <Card key={match._id} hover>
+              <div className="flex justify-between items-start gap-3">
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-ink truncate">{match.title}</h2>
+                  <p className="text-sm text-ink-secondary mt-0.5">
+                    {match.team1?.name} <span className="text-ink-muted">vs</span> {match.team2?.name}
+                  </p>
+                  <p className="text-xs text-ink-muted mt-1">
+                    {match.venue} · {new Date(match.scheduledDate).toLocaleDateString()}
+                  </p>
                 </div>
+                <Badge variant={STATUS_VARIANT[match.status] ?? 'neutral'} pulse={match.status === 'Live'}>
+                  {match.status}
+                </Badge>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="flex gap-4 mt-4 pt-3 border-t border-border">
+                <Link href={`/match/${match._id}`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
+                  View Scorecard
+                </Link>
+                <Link href={`/match/${match._id}/score`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
+                  Score
+                </Link>
+                <Link href={`/match/${match._id}/scouting`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
+                  Scouting
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

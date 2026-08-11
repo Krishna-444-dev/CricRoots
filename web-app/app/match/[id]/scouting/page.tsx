@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
 
 interface MatchDoc {
   _id: string;
@@ -24,20 +26,20 @@ interface BowlerReport {
 
 function BowlerCard({ bowler, rank }: { bowler: BowlerReport; rank: number }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-medium text-gray-900">#{rank} {bowler.name}</p>
-          <p className="text-sm text-gray-500">{bowler.specialization} · {bowler.bowlingStyle}</p>
+    <Card>
+      <div className="flex justify-between items-start gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-ink">
+            <span className="text-ink-muted font-normal">#{rank}</span> {bowler.name}
+          </p>
+          <p className="text-sm text-ink-secondary">{bowler.specialization} · {bowler.bowlingStyle}</p>
         </div>
         {bowler.hasData && (
-          <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
-            Economy {bowler.stats?.economy}
-          </span>
+          <Badge variant="danger">Econ {bowler.stats?.economy}</Badge>
         )}
       </div>
-      <p className="text-sm text-gray-700 mt-2">{bowler.note}</p>
-    </div>
+      <p className="text-sm text-ink-secondary mt-2">{bowler.note}</p>
+    </Card>
   );
 }
 
@@ -64,42 +66,40 @@ export default function ScoutingReportPage({ params }: { params: { id: string } 
   }, [params.id]);
 
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
   }
 
   if (!match) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Match not found.</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Match not found.</p></main>;
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <Link href={`/match/${params.id}`} className="text-sm text-blue-600 hover:underline">&larr; Back to match</Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-4">{match.title} · Scouting Report</h1>
-        <p className="text-sm text-gray-500 mb-6 capitalize">
-          {match.venue} · {match.pitchType !== 'unknown' ? `${match.pitchType} pitch` : 'pitch type unknown'}
-        </p>
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <Link href={`/match/${params.id}`} className="text-sm text-pitch-400 hover:underline">&larr; Back to match</Link>
+      <h1 className="text-2xl font-bold text-ink mt-4">{match.title} <span className="text-ink-muted font-normal">· Scouting Report</span></h1>
+      <p className="text-sm text-ink-secondary mb-6 capitalize">
+        {match.venue} · {match.pitchType !== 'unknown' ? `${match.pitchType} pitch` : 'pitch type unknown'}
+      </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-3">{match.team1.name} bowlers</h2>
-            <div className="space-y-3">
-              {team1Bowlers.length === 0 ? (
-                <p className="text-sm text-gray-500">No roster data yet.</p>
-              ) : (
-                team1Bowlers.map((b, i) => <BowlerCard key={b.playerId} bowler={b} rank={i + 1} />)
-              )}
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-lg font-semibold text-ink mb-3">{match.team1.name} bowlers</h2>
+          <div className="space-y-3">
+            {team1Bowlers.length === 0 ? (
+              <p className="text-sm text-ink-secondary">No roster data yet.</p>
+            ) : (
+              team1Bowlers.map((b, i) => <BowlerCard key={b.playerId} bowler={b} rank={i + 1} />)
+            )}
           </div>
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-3">{match.team2.name} bowlers</h2>
-            <div className="space-y-3">
-              {team2Bowlers.length === 0 ? (
-                <p className="text-sm text-gray-500">No roster data yet.</p>
-              ) : (
-                team2Bowlers.map((b, i) => <BowlerCard key={b.playerId} bowler={b} rank={i + 1} />)
-              )}
-            </div>
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-ink mb-3">{match.team2.name} bowlers</h2>
+          <div className="space-y-3">
+            {team2Bowlers.length === 0 ? (
+              <p className="text-sm text-ink-secondary">No roster data yet.</p>
+            ) : (
+              team2Bowlers.map((b, i) => <BowlerCard key={b.playerId} bowler={b} rank={i + 1} />)
+            )}
           </div>
         </div>
       </div>

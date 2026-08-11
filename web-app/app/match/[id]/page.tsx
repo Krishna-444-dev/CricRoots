@@ -92,8 +92,8 @@ export default function MatchPage() {
           <span className={`${styles.status} ${styles[match.status.toLowerCase()]}`}>
             {match.status}
           </span>
-          <Link href={`/match/${matchId}/scouting`} style={{ display: 'block', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-            📋 Scouting Report
+          <Link href={`/match/${matchId}/scouting`} className="block mt-3 text-sm font-medium text-gold-500 hover:text-gold-400 transition-colors">
+            📋 Scouting Report &rarr;
           </Link>
         </div>
       </div>

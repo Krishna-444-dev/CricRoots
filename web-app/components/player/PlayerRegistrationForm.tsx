@@ -295,23 +295,23 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
             }}
             className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium touch-manipulation
               ${i + 1 < currentSection 
-                ? 'bg-green-500 text-white' 
+                ? 'bg-pitch-500 text-[#06170D]' 
                 : i + 1 === currentSection 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-600'}`}
+                  ? 'bg-pitch-600 text-white' 
+                  : 'bg-surface-alt text-ink-muted'}`}
             disabled={i + 1 > currentSection}
           >
             {i + 1}
           </button>
         ))}
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2.5">
+      <div className="w-full bg-surface-alt rounded-full h-2.5">
         <div 
-          className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+          className="bg-pitch-500 h-2.5 rounded-full transition-all duration-300" 
           style={{ width: `${(currentSection / totalSections) * 100}%` }}
         ></div>
       </div>
-      <div className="flex justify-between mt-2 text-xs text-gray-500">
+      <div className="flex justify-between mt-2 text-xs text-ink-muted">
         <span>Personal Info</span>
         <span>Address</span>
         <span>Cricket Info</span>
@@ -321,11 +321,11 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
   );
   
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Player Registration</h2>
+    <div className="bg-surface border border-border rounded-xl shadow-card p-4 sm:p-6">
+      <h2 className="text-2xl font-bold text-ink mb-6">Player Registration</h2>
       
       {errors.form && (
-        <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+        <div className="mb-6 p-4 bg-wicket-500/10 border-l-4 border-wicket-500 text-wicket-400">
           <p>{errors.form}</p>
         </div>
       )}
@@ -336,11 +336,11 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
         {/* Section 1: Personal Information */}
         {currentSection === 1 && (
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
+            <h3 className="text-lg font-semibold text-ink mb-4">Personal Information</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name <span className="text-red-500">*</span>
+                <label htmlFor="firstName" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  First Name <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -348,17 +348,17 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors.firstName ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors.firstName ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors.firstName ? 'true' : 'false'}
                 />
                 {errors.firstName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors.firstName}</p>
                 )}
               </div>
               
               <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name <span className="text-red-500">*</span>
+                <label htmlFor="lastName" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Last Name <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -366,17 +366,17 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors.lastName ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors.lastName ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors.lastName ? 'true' : 'false'}
                 />
                 {errors.lastName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors.lastName}</p>
                 )}
               </div>
               
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email <span className="text-red-500">*</span>
+                <label htmlFor="email" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Email <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -384,17 +384,17 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors.email ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors.email ? 'true' : 'false'}
                 />
                 {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors.email}</p>
                 )}
               </div>
               
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number <span className="text-red-500">*</span>
+                <label htmlFor="phone" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Phone Number <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="tel"
@@ -403,17 +403,17 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   placeholder="1234567890"
                   value={formData.phone}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors.phone ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors.phone ? 'true' : 'false'}
                 />
                 {errors.phone && (
-                  <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors.phone}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700 mb-1">
-                  Date of Birth <span className="text-red-500">*</span>
+                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Date of Birth <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -421,24 +421,24 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="dateOfBirth"
                   value={formData.dateOfBirth}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors.dateOfBirth ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors.dateOfBirth ? 'true' : 'false'}
                 />
                 {errors.dateOfBirth && (
-                  <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors.dateOfBirth}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-1">
-                  Gender <span className="text-red-500">*</span>
+                <label htmlFor="gender" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Gender <span className="text-wicket-500">*</span>
                 </label>
                 <select
                   id="gender"
                   name="gender"
                   value={formData.gender}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors.gender ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors.gender ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors.gender ? 'true' : 'false'}
                 >
                   <option value="">Select gender</option>
@@ -447,7 +447,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   <option value="Other">Other</option>
                 </select>
                 {errors.gender && (
-                  <p className="mt-1 text-sm text-red-600">{errors.gender}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors.gender}</p>
                 )}
               </div>
 
@@ -455,7 +455,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                 <button
                   type="button"
                   onClick={handleNextSection}
-                  className="w-full bg-blue-600 text-white text-center py-3 px-4 rounded-md hover:bg-blue-700 transition touch-manipulation"
+                  className="w-full bg-pitch-500 text-[#06170D] font-semibold text-center py-3 px-4 rounded-lg hover:bg-pitch-400 transition touch-manipulation"
                 >
                   Continue to Address
                 </button>
@@ -467,11 +467,11 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
         {/* Section 2: Address */}
         {currentSection === 2 && (
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Address</h3>
+            <h3 className="text-lg font-semibold text-ink mb-4">Address</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="address.street" className="block text-sm font-medium text-gray-700 mb-1">
-                  Street Address <span className="text-red-500">*</span>
+                <label htmlFor="address.street" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Street Address <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -479,17 +479,17 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="address.street"
                   value={formData.address.street}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors['address.street'] ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors['address.street'] ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors['address.street'] ? 'true' : 'false'}
                 />
                 {errors['address.street'] && (
-                  <p className="mt-1 text-sm text-red-600">{errors['address.street']}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors['address.street']}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="address.city" className="block text-sm font-medium text-gray-700 mb-1">
-                  City <span className="text-red-500">*</span>
+                <label htmlFor="address.city" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  City <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -497,18 +497,18 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="address.city"
                   value={formData.address.city}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors['address.city'] ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors['address.city'] ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors['address.city'] ? 'true' : 'false'}
                 />
                 {errors['address.city'] && (
-                  <p className="mt-1 text-sm text-red-600">{errors['address.city']}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors['address.city']}</p>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="address.state" className="block text-sm font-medium text-gray-700 mb-1">
-                    State <span className="text-red-500">*</span>
+                  <label htmlFor="address.state" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                    State <span className="text-wicket-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -516,16 +516,16 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                     name="address.state"
                     value={formData.address.state}
                     onChange={handleChange}
-                    className={`w-full px-3 py-3 border ${errors['address.state'] ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                    className={`w-full px-3 py-3 border ${errors['address.state'] ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                     aria-invalid={errors['address.state'] ? 'true' : 'false'}
                   />
                   {errors['address.state'] && (
-                    <p className="mt-1 text-sm text-red-600">{errors['address.state']}</p>
+                    <p className="mt-1 text-sm text-wicket-400">{errors['address.state']}</p>
                   )}
                 </div>
                 <div>
-                  <label htmlFor="address.zipCode" className="block text-sm font-medium text-gray-700 mb-1">
-                    ZIP Code <span className="text-red-500">*</span>
+                  <label htmlFor="address.zipCode" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                    ZIP Code <span className="text-wicket-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -533,17 +533,17 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                     name="address.zipCode"
                     value={formData.address.zipCode}
                     onChange={handleChange}
-                    className={`w-full px-3 py-3 border ${errors['address.zipCode'] ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                    className={`w-full px-3 py-3 border ${errors['address.zipCode'] ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                     aria-invalid={errors['address.zipCode'] ? 'true' : 'false'}
                   />
                   {errors['address.zipCode'] && (
-                    <p className="mt-1 text-sm text-red-600">{errors['address.zipCode']}</p>
+                    <p className="mt-1 text-sm text-wicket-400">{errors['address.zipCode']}</p>
                   )}
                 </div>
               </div>
 
               <div>
-                <label htmlFor="address.country" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="address.country" className="block text-sm font-medium text-ink-secondary mb-1.5">
                   Country
                 </label>
                 <input
@@ -552,7 +552,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="address.country"
                   value={formData.address.country}
                   onChange={handleChange}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                  className="w-full px-3 py-3 bg-surface-alt border border-border-strong rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base"
                 />
               </div>
 
@@ -560,14 +560,14 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                 <button
                   type="button"
                   onClick={handlePrevSection}
-                  className="flex-1 border border-gray-300 text-gray-700 text-center py-3 px-4 rounded-md hover:bg-gray-50 transition touch-manipulation"
+                  className="flex-1 border border-border-strong text-ink text-center py-3 px-4 rounded-lg hover:bg-surface-hover transition touch-manipulation"
                 >
                   Back
                 </button>
                 <button
                   type="button"
                   onClick={handleNextSection}
-                  className="flex-1 bg-blue-600 text-white text-center py-3 px-4 rounded-md hover:bg-blue-700 transition touch-manipulation"
+                  className="flex-1 bg-pitch-500 text-[#06170D] font-semibold text-center py-3 px-4 rounded-lg hover:bg-pitch-400 transition touch-manipulation"
                 >
                   Continue to Cricket Info
                 </button>
@@ -579,18 +579,18 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
         {/* Section 3: Cricket Info */}
         {currentSection === 3 && (
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Cricket Info</h3>
+            <h3 className="text-lg font-semibold text-ink mb-4">Cricket Info</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="cricketInfo.playingRole" className="block text-sm font-medium text-gray-700 mb-1">
-                  Playing Role <span className="text-red-500">*</span>
+                <label htmlFor="cricketInfo.playingRole" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Playing Role <span className="text-wicket-500">*</span>
                 </label>
                 <select
                   id="cricketInfo.playingRole"
                   name="cricketInfo.playingRole"
                   value={formData.cricketInfo.playingRole}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors['cricketInfo.playingRole'] ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors['cricketInfo.playingRole'] ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors['cricketInfo.playingRole'] ? 'true' : 'false'}
                 >
                   <option value="">Select playing role</option>
@@ -600,12 +600,12 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   <option value="Wicket-keeper">Wicket-keeper</option>
                 </select>
                 {errors['cricketInfo.playingRole'] && (
-                  <p className="mt-1 text-sm text-red-600">{errors['cricketInfo.playingRole']}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors['cricketInfo.playingRole']}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="cricketInfo.battingStyle" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="cricketInfo.battingStyle" className="block text-sm font-medium text-ink-secondary mb-1.5">
                   Batting Style
                 </label>
                 <select
@@ -613,7 +613,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="cricketInfo.battingStyle"
                   value={formData.cricketInfo.battingStyle}
                   onChange={handleChange}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                  className="w-full px-3 py-3 bg-surface-alt border border-border-strong rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base"
                 >
                   <option value="">Select batting style</option>
                   <option value="Right-hand">Right-hand</option>
@@ -622,7 +622,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
               </div>
 
               <div>
-                <label htmlFor="cricketInfo.bowlingStyle" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="cricketInfo.bowlingStyle" className="block text-sm font-medium text-ink-secondary mb-1.5">
                   Bowling Style
                 </label>
                 <select
@@ -630,7 +630,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="cricketInfo.bowlingStyle"
                   value={formData.cricketInfo.bowlingStyle}
                   onChange={handleChange}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                  className="w-full px-3 py-3 bg-surface-alt border border-border-strong rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base"
                 >
                   <option value="">Select bowling style</option>
                   <option value="Right-arm Fast">Right-arm Fast</option>
@@ -642,7 +642,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
               </div>
 
               <div>
-                <label htmlFor="cricketInfo.experience" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="cricketInfo.experience" className="block text-sm font-medium text-ink-secondary mb-1.5">
                   Years of Experience
                 </label>
                 <input
@@ -652,7 +652,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="cricketInfo.experience"
                   value={formData.cricketInfo.experience}
                   onChange={handleChange}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                  className="w-full px-3 py-3 bg-surface-alt border border-border-strong rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base"
                 />
               </div>
 
@@ -660,14 +660,14 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                 <button
                   type="button"
                   onClick={handlePrevSection}
-                  className="flex-1 border border-gray-300 text-gray-700 text-center py-3 px-4 rounded-md hover:bg-gray-50 transition touch-manipulation"
+                  className="flex-1 border border-border-strong text-ink text-center py-3 px-4 rounded-lg hover:bg-surface-hover transition touch-manipulation"
                 >
                   Back
                 </button>
                 <button
                   type="button"
                   onClick={handleNextSection}
-                  className="flex-1 bg-blue-600 text-white text-center py-3 px-4 rounded-md hover:bg-blue-700 transition touch-manipulation"
+                  className="flex-1 bg-pitch-500 text-[#06170D] font-semibold text-center py-3 px-4 rounded-lg hover:bg-pitch-400 transition touch-manipulation"
                 >
                   Continue to Emergency Contact
                 </button>
@@ -679,11 +679,11 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
         {/* Section 4: Emergency Contact */}
         {currentSection === 4 && (
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Emergency Contact</h3>
+            <h3 className="text-lg font-semibold text-ink mb-4">Emergency Contact</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="emergencyContact.name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Contact Name <span className="text-red-500">*</span>
+                <label htmlFor="emergencyContact.name" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Contact Name <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -691,16 +691,16 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="emergencyContact.name"
                   value={formData.emergencyContact.name}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors['emergencyContact.name'] ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors['emergencyContact.name'] ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors['emergencyContact.name'] ? 'true' : 'false'}
                 />
                 {errors['emergencyContact.name'] && (
-                  <p className="mt-1 text-sm text-red-600">{errors['emergencyContact.name']}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors['emergencyContact.name']}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="emergencyContact.relationship" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="emergencyContact.relationship" className="block text-sm font-medium text-ink-secondary mb-1.5">
                   Relationship
                 </label>
                 <input
@@ -710,13 +710,13 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   placeholder="e.g. Parent, Spouse, Sibling"
                   value={formData.emergencyContact.relationship}
                   onChange={handleChange}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                  className="w-full px-3 py-3 bg-surface-alt border border-border-strong rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base"
                 />
               </div>
 
               <div>
-                <label htmlFor="emergencyContact.phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Contact Phone <span className="text-red-500">*</span>
+                <label htmlFor="emergencyContact.phone" className="block text-sm font-medium text-ink-secondary mb-1.5">
+                  Contact Phone <span className="text-wicket-500">*</span>
                 </label>
                 <input
                   type="tel"
@@ -725,16 +725,16 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   placeholder="1234567890"
                   value={formData.emergencyContact.phone}
                   onChange={handleChange}
-                  className={`w-full px-3 py-3 border ${errors['emergencyContact.phone'] ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base`}
+                  className={`w-full px-3 py-3 border ${errors['emergencyContact.phone'] ? 'border-wicket-500' : 'border-border-strong'} rounded-lg bg-surface-alt text-ink focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500 text-base`}
                   aria-invalid={errors['emergencyContact.phone'] ? 'true' : 'false'}
                 />
                 {errors['emergencyContact.phone'] && (
-                  <p className="mt-1 text-sm text-red-600">{errors['emergencyContact.phone']}</p>
+                  <p className="mt-1 text-sm text-wicket-400">{errors['emergencyContact.phone']}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="profileImage" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="profileImage" className="block text-sm font-medium text-ink-secondary mb-1.5">
                   Profile Photo
                 </label>
                 <div className="flex items-center gap-4">
@@ -750,7 +750,7 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                     id="profileImage"
                     accept="image/*"
                     onChange={handleFileChange}
-                    className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    className="block w-full text-sm text-ink-secondary file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-pitch-500/15 file:text-pitch-400 hover:file:bg-pitch-500/25"
                   />
                 </div>
               </div>
@@ -762,29 +762,29 @@ const PlayerRegistrationForm: React.FC<PlayerRegistrationFormProps> = ({
                   name="termsAccepted"
                   checked={formData.termsAccepted}
                   onChange={handleChange}
-                  className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 accent-pitch-500 border-border-strong rounded"
                   aria-invalid={errors.termsAccepted ? 'true' : 'false'}
                 />
-                <label htmlFor="termsAccepted" className="ml-2 text-sm text-gray-700">
-                  I accept the terms and conditions <span className="text-red-500">*</span>
+                <label htmlFor="termsAccepted" className="ml-2 text-sm text-ink-secondary">
+                  I accept the terms and conditions <span className="text-wicket-500">*</span>
                 </label>
               </div>
               {errors.termsAccepted && (
-                <p className="text-sm text-red-600">{errors.termsAccepted}</p>
+                <p className="text-sm text-wicket-400">{errors.termsAccepted}</p>
               )}
 
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={handlePrevSection}
-                  className="flex-1 border border-gray-300 text-gray-700 text-center py-3 px-4 rounded-md hover:bg-gray-50 transition touch-manipulation"
+                  className="flex-1 border border-border-strong text-ink text-center py-3 px-4 rounded-lg hover:bg-surface-hover transition touch-manipulation"
                 >
                   Back
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 bg-blue-600 text-white text-center py-3 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition touch-manipulation"
+                  className="flex-1 bg-pitch-500 text-[#06170D] font-semibold text-center py-3 px-4 rounded-lg hover:bg-pitch-400 disabled:opacity-50 disabled:cursor-not-allowed transition touch-manipulation"
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit Registration'}
                 </button>

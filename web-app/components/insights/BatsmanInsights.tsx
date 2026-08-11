@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Card from '@/components/ui/Card';
+import Badge, { BadgeVariant } from '@/components/ui/Badge';
 
 interface InsightResponse {
   success: boolean;
@@ -16,23 +18,29 @@ const SOURCE_LABEL: Record<string, string> = {
   generic: 'Generic tip (no data yet)',
 };
 
+const SOURCE_VARIANT: Record<string, BadgeVariant> = {
+  'own-data': 'success',
+  'pool-data': 'warning',
+  generic: 'neutral',
+};
+
 function InsightCard({ title, insight, loading }: { title: string; insight: InsightResponse | null; loading: boolean }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4">
-      <div className="flex justify-between items-start mb-2">
-        <h3 className="font-medium text-gray-900">{title}</h3>
+    <Card>
+      <div className="flex justify-between items-start gap-2 mb-2">
+        <h3 className="font-semibold text-ink">{title}</h3>
         {insight && (
-          <span className={`text-xs px-2 py-0.5 rounded-full ${insight.source === 'own-data' ? 'bg-green-100 text-green-700' : insight.source === 'pool-data' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+          <Badge variant={SOURCE_VARIANT[insight.source]}>
             {SOURCE_LABEL[insight.source]}{insight.sampleSize > 0 ? ` · ${insight.sampleSize} balls` : ''}
-          </span>
+          </Badge>
         )}
       </div>
       {loading ? (
-        <p className="text-sm text-gray-400">Loading...</p>
+        <p className="text-sm text-ink-muted">Loading...</p>
       ) : (
-        <p className="text-sm text-gray-700">{insight?.message}</p>
+        <p className="text-sm text-ink-secondary">{insight?.message}</p>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -58,7 +66,7 @@ export default function BatsmanInsights({ batsmanId, label }: { batsmanId: strin
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">{label}</p>
       <InsightCard title="🏏 Shot Advice" insight={shotAdvice} loading={loading} />
       <InsightCard title="🎯 Bowling Plan" insight={bowlingPlan} loading={loading} />
       <InsightCard title="🧤 Fielding Placement" insight={fieldingPlan} loading={loading} />

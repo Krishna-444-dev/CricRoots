@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import { useRouter } from 'next/navigation';
+import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
 
 interface Lesson {
   _id: string;
@@ -37,34 +39,32 @@ export default function LessonDetailPage({ params }: { params: { id: string } })
   };
 
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
   }
 
   if (!lesson) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Lesson not found.</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Lesson not found.</p></main>;
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <Link href="/edtech" className="text-sm text-blue-600 hover:underline">&larr; Back to lessons</Link>
-        <div className="bg-white rounded-lg shadow-sm p-6 mt-4">
-          <div className="flex justify-between items-start mb-2">
-            <h1 className="text-2xl font-bold text-gray-900">{lesson.title}</h1>
-            <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 capitalize whitespace-nowrap ml-2">{lesson.difficulty}</span>
-          </div>
-          <p className="text-sm text-gray-500 mb-6 capitalize">
-            {lesson.category} · by {lesson.author?.name ?? 'Unknown'} · {new Date(lesson.createdAt).toLocaleDateString()}
-          </p>
-          <div className="prose text-gray-800 whitespace-pre-wrap leading-relaxed">{lesson.content}</div>
-
-          {user?.id === lesson.author?._id && (
-            <button onClick={handleDelete} className="mt-6 text-sm text-red-600 hover:underline">
-              Delete lesson
-            </button>
-          )}
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <Link href="/edtech" className="text-sm text-pitch-400 hover:underline">&larr; Back to lessons</Link>
+      <Card padding="lg" className="mt-4">
+        <div className="flex justify-between items-start gap-3 mb-2">
+          <h1 className="text-2xl font-bold text-ink">{lesson.title}</h1>
+          <Badge variant="neutral" className="capitalize whitespace-nowrap">{lesson.difficulty}</Badge>
         </div>
-      </div>
+        <p className="text-sm text-ink-secondary mb-6 capitalize">
+          {lesson.category} · by {lesson.author?.name ?? 'Unknown'} · {new Date(lesson.createdAt).toLocaleDateString()}
+        </p>
+        <div className="text-ink-secondary whitespace-pre-wrap leading-relaxed">{lesson.content}</div>
+
+        {user?.id === lesson.author?._id && (
+          <button onClick={handleDelete} className="mt-6 text-sm text-wicket-500 hover:text-wicket-400 transition-colors">
+            Delete lesson
+          </button>
+        )}
+      </Card>
     </main>
   );
 }

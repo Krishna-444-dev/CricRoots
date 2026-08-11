@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import PlayerStatsDashboard from '@/components/PlayerStatsDashboard';
+import Card from '@/components/ui/Card';
+import { buttonVariants } from '@/components/ui/buttonStyles';
 
 interface Profile {
   user: { _id: string; name: string; role: string; createdAt: string };
@@ -58,42 +60,34 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   };
 
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
   }
 
   if (!profile) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">User not found.</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">User not found.</p></main>;
   }
 
   const isSelf = currentUser?.id === params.id;
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6 flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{profile.user.name}</h1>
-            <p className="text-sm text-gray-500 capitalize">{profile.user.role}</p>
-            <p className="text-sm text-gray-600 mt-2">
-              <span className="font-medium">{profile.followerCount}</span> followers ·{' '}
-              <span className="font-medium">{profile.followingCount}</span> following
-            </p>
-          </div>
-          {!isSelf && currentUser && (
-            <button
-              onClick={toggleFollow}
-              disabled={busy}
-              className={`text-sm px-4 py-2 rounded-md transition disabled:opacity-50 ${
-                isFollowing ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              {isFollowing ? 'Following' : 'Follow'}
-            </button>
-          )}
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <Card className="mb-6 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">{profile.user.name}</h1>
+          <p className="text-sm text-ink-secondary capitalize">{profile.user.role}</p>
+          <p className="text-sm text-ink-secondary mt-2">
+            <span className="font-semibold text-ink">{profile.followerCount}</span> followers ·{' '}
+            <span className="font-semibold text-ink">{profile.followingCount}</span> following
+          </p>
         </div>
+        {!isSelf && currentUser && (
+          <button onClick={toggleFollow} disabled={busy} className={buttonVariants(isFollowing ? 'outline' : 'primary', 'sm')}>
+            {isFollowing ? 'Following' : 'Follow'}
+          </button>
+        )}
+      </Card>
 
-        {playerId && <PlayerStatsDashboard playerId={playerId} />}
-      </div>
+      {playerId && <PlayerStatsDashboard playerId={playerId} />}
     </main>
   );
 }

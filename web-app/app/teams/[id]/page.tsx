@@ -4,6 +4,10 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import { inputClass, errorBoxClass } from '@/components/ui/formStyles';
 
 interface PlayerDoc {
   _id: string;
@@ -52,11 +56,11 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
   }, [load]);
 
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
   }
 
   if (!team) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Team not found.</p></main>;
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Team not found.</p></main>;
   }
 
   const captainUserId = typeof team.captain.user === 'string' ? team.captain.user : team.captain.user._id;
@@ -89,68 +93,52 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{team.name}</h1>
-            <p className="text-gray-500 mb-6">{team.city}</p>
-          </div>
-          <Link href={`/teams/${team._id}/chat`} className="text-blue-600 hover:underline text-sm whitespace-nowrap">
-            Team Chat
-          </Link>
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">{team.name}</h1>
+          <p className="text-ink-secondary">{team.city}</p>
         </div>
-        {team.description && <p className="text-gray-600 mb-6">{team.description}</p>}
-
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-3">Roster ({team.players.length})</h2>
-          <ul className="divide-y divide-gray-200">
-            {team.players.map(p => (
-              <li key={p._id} className="py-2 flex justify-between items-center">
-                <span>
-                  {playerName(p)}
-                  {p._id === team.captain._id && <span className="ml-2 text-xs text-blue-600 font-medium">Captain</span>}
-                </span>
-                <span className="text-sm text-gray-500">{p.specialization}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {isCaptain && (
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <h2 className="text-lg font-medium text-gray-900 mb-3">Add Player</h2>
-            {error && (
-              <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-                {error}
-              </div>
-            )}
-            {candidates.length === 0 ? (
-              <p className="text-sm text-gray-500">No other registered players available to add.</p>
-            ) : (
-              <form onSubmit={handleAddPlayer} className="flex gap-2">
-                <select
-                  value={selectedPlayerId}
-                  onChange={(e) => setSelectedPlayerId(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Select a player</option>
-                  {candidates.map(p => (
-                    <option key={p._id} value={p._id}>{playerName(p)} ({p.specialization})</option>
-                  ))}
-                </select>
-                <button
-                  type="submit"
-                  disabled={isAdding || !selectedPlayerId}
-                  className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
-                >
-                  Add
-                </button>
-              </form>
-            )}
-          </div>
-        )}
+        <Link href={`/teams/${team._id}/chat`} className="text-pitch-400 hover:text-pitch-300 text-sm font-medium whitespace-nowrap">
+          💬 Team Chat
+        </Link>
       </div>
+      {team.description && <p className="text-ink-secondary mb-6">{team.description}</p>}
+
+      <Card className="mb-6">
+        <h2 className="text-lg font-semibold text-ink mb-3">Roster ({team.players.length})</h2>
+        <ul className="divide-y divide-border">
+          {team.players.map(p => (
+            <li key={p._id} className="py-2.5 flex justify-between items-center">
+              <span className="text-ink flex items-center gap-2">
+                {playerName(p)}
+                {p._id === team.captain._id && <Badge variant="gold">Captain</Badge>}
+              </span>
+              <span className="text-sm text-ink-secondary">{p.specialization}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {isCaptain && (
+        <Card>
+          <h2 className="text-lg font-semibold text-ink mb-3">Add Player</h2>
+          {error && <div className={`${errorBoxClass} mb-3`}>{error}</div>}
+          {candidates.length === 0 ? (
+            <p className="text-sm text-ink-secondary">No other registered players available to add.</p>
+          ) : (
+            <form onSubmit={handleAddPlayer} className="flex gap-2">
+              <select value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} className={`flex-1 ${inputClass}`}>
+                <option value="">Select a player</option>
+                {candidates.map(p => (
+                  <option key={p._id} value={p._id}>{playerName(p)} ({p.specialization})</option>
+                ))}
+              </select>
+              <Button type="submit" disabled={isAdding || !selectedPlayerId}>Add</Button>
+            </form>
+          )}
+        </Card>
+      )}
     </main>
   );
 }

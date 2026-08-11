@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
+import { buttonVariants } from '@/components/ui/buttonStyles';
 
 interface Lesson {
   _id: string;
@@ -29,55 +34,50 @@ export default function EdtechPage() {
   }, [category]);
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Learn Cricket</h1>
-          <Link href="/edtech/new" className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition">
-            + New Lesson
-          </Link>
-        </div>
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <PageHeader
+        title="Learn Cricket"
+        description="Community-written lessons for players and coaches."
+        action={<Link href="/edtech/new" className={buttonVariants('primary')}>+ New Lesson</Link>}
+      />
 
-        <div className="flex flex-wrap gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          onClick={() => setCategory('')}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${category === '' ? 'bg-pitch-500 text-[#06170D]' : 'bg-surface-alt text-ink-secondary hover:text-ink'}`}
+        >
+          All
+        </button>
+        {CATEGORIES.map(c => (
           <button
-            onClick={() => setCategory('')}
-            className={`px-3 py-1 rounded-full text-sm font-medium ${category === '' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            key={c}
+            onClick={() => setCategory(c)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${category === c ? 'bg-pitch-500 text-[#06170D]' : 'bg-surface-alt text-ink-secondary hover:text-ink'}`}
           >
-            All
+            {c}
           </button>
-          {CATEGORIES.map(c => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${category === c ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-            >
-              {c}
-            </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-ink-secondary">Loading...</p>
+      ) : lessons.length === 0 ? (
+        <EmptyState icon="📘" title={`No lessons yet${category ? ` in ${category}` : ''}`} />
+      ) : (
+        <div className="space-y-3">
+          {lessons.map(l => (
+            <Link key={l._id} href={`/edtech/${l._id}`}>
+              <Card hover>
+                <div className="flex justify-between items-start gap-3">
+                  <h2 className="font-semibold text-ink">{l.title}</h2>
+                  <Badge variant="neutral" className="capitalize">{l.difficulty}</Badge>
+                </div>
+                <p className="text-sm text-ink-secondary mt-1 capitalize">{l.category} · by {l.author?.name ?? 'Unknown'}</p>
+              </Card>
+            </Link>
           ))}
         </div>
-
-        {loading ? (
-          <p className="text-gray-500">Loading...</p>
-        ) : lessons.length === 0 ? (
-          <p className="text-gray-500">No lessons yet{category ? ` in ${category}` : ''}.</p>
-        ) : (
-          <div className="space-y-3">
-            {lessons.map(l => (
-              <Link
-                key={l._id}
-                href={`/edtech/${l._id}`}
-                className="block bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
-              >
-                <div className="flex justify-between items-start">
-                  <h2 className="text-lg font-medium text-gray-900">{l.title}</h2>
-                  <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 capitalize">{l.difficulty}</span>
-                </div>
-                <p className="text-sm text-gray-500 mt-1 capitalize">{l.category} · by {l.author?.name ?? 'Unknown'}</p>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
     </main>
   );
 }

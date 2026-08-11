@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { inputClass, labelClass, errorBoxClass } from '@/components/ui/formStyles';
 
 const CATEGORIES = ['equipment', 'apparel', 'accessories', 'other'];
 
@@ -46,43 +49,43 @@ export default function NewListingPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="w-full max-w-lg bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Sell an Item</h1>
-        <p className="text-sm text-gray-500 mb-6">
-          Buyers pay you directly (cash, bank transfer, or in person) once you confirm the order - there's no online payment processing yet.
+    <main className="flex items-center justify-center px-4 py-12 min-h-[calc(100vh-4rem)]">
+      <Card padding="lg" className="w-full max-w-lg">
+        <h1 className="text-2xl font-bold text-ink mb-2">Sell an Item</h1>
+        <p className="text-sm text-ink-secondary mb-6">
+          Buyers pay you directly (cash, bank transfer, or in person) once you confirm the order — there&apos;s no online payment processing yet.
         </p>
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">{error}</div>}
+        {error && <div className={`${errorBoxClass} mb-4`}>{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
-            <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-3 border border-gray-300 rounded-md" />
+            <label className={labelClass}>Item Name</label>
+            <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-3 py-3 border border-gray-300 rounded-md" />
+            <label className={labelClass}>Description</label>
+            <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-3 border border-gray-300 rounded-md capitalize">
+              <label className={labelClass}>Category</label>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} capitalize`}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-              <input type="number" min="0" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} className="w-full px-3 py-3 border border-gray-300 rounded-md" />
+              <label className={labelClass}>Price ($)</label>
+              <input type="number" min="0" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-              <input type="number" min="0" required value={stock} onChange={(e) => setStock(e.target.value)} className="w-full px-3 py-3 border border-gray-300 rounded-md" />
+              <label className={labelClass}>Stock</label>
+              <input type="number" min="0" required value={stock} onChange={(e) => setStock(e.target.value)} className={inputClass} />
             </div>
           </div>
-          <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition">
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Publishing...' : 'List Item'}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </main>
   );
 }
