@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { Match } from '../shared/types';
@@ -8,12 +8,15 @@ import { Match } from '../shared/types';
 interface QuickLink {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
+  // Ionicons has no cricket-ball glyph - MaterialCommunityIcons does, see MainTabNavigator.tsx
+  // for the same reasoning. `icon` is ignored when this is set.
+  mdiIcon?: keyof typeof MaterialCommunityIcons.glyphMap;
   screen: string;
   tab?: string;
 }
 
 const QUICK_LINKS: QuickLink[] = [
-  { label: 'Matches', icon: 'baseball', screen: 'MatchesList', tab: 'Matches' },
+  { label: 'Matches', icon: 'baseball', mdiIcon: 'cricket', screen: 'MatchesList', tab: 'Matches' },
   { label: 'Teams', icon: 'people', screen: 'TeamsList', tab: 'Teams' },
   { label: 'Tournaments', icon: 'trophy', screen: 'TournamentsList', tab: 'Tournaments' },
   { label: 'Network', icon: 'person-add', screen: 'Network', tab: 'Home' },
@@ -63,7 +66,11 @@ export default function HomeScreen({ navigation }: any) {
       <View style={styles.quickLinksGrid}>
         {QUICK_LINKS.map(link => (
           <TouchableOpacity key={link.label} style={styles.quickLink} onPress={() => openQuickLink(link)}>
-            <Ionicons name={link.icon} size={24} color={colors.pitch400} />
+            {link.mdiIcon ? (
+              <MaterialCommunityIcons name={link.mdiIcon} size={24} color={colors.pitch400} />
+            ) : (
+              <Ionicons name={link.icon} size={24} color={colors.pitch400} />
+            )}
             <Text style={styles.quickLinkLabel}>{link.label}</Text>
           </TouchableOpacity>
         ))}

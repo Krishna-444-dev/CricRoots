@@ -2,7 +2,7 @@
 // ./stacks/) so feature areas can push detail screens without leaving their tab.
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import HomeStack from './stacks/HomeStack';
 import MatchesStack from './stacks/MatchesStack';
@@ -14,9 +14,12 @@ import { colors } from '../theme';
 
 const Tab = createBottomTabNavigator();
 
-const TAB_ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
+// Ionicons has no cricket-ball glyph (its closest options are baseball/tennisball, which read
+// wrong for a cricket-first app) - MaterialCommunityIcons does have a proper "cricket" icon, so
+// the Matches tab uses that family instead. MDI's "cricket" has no separate outline variant, so
+// focus state there is conveyed by tabBarActiveTintColor's color change alone.
+const IONICONS_TAB_ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
   Home: ['home', 'home-outline'],
-  Matches: ['baseball', 'baseball-outline'],
   Teams: ['people', 'people-outline'],
   Tournaments: ['trophy', 'trophy-outline'],
   Profile: ['person', 'person-outline'],
@@ -29,7 +32,10 @@ const MainTabNavigator = () => {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
-          const [filled, outline] = TAB_ICONS[route.name] || ['ellipse', 'ellipse-outline'];
+          if (route.name === 'Matches') {
+            return <MaterialCommunityIcons name="cricket" size={size} color={color} />;
+          }
+          const [filled, outline] = IONICONS_TAB_ICONS[route.name] || ['ellipse', 'ellipse-outline'];
           return <Ionicons name={focused ? filled : outline} size={size} color={color} />;
         },
         tabBarActiveTintColor: colors.pitch400,

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput } from 'react-native';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { Tournament, Match } from '../shared/types';
@@ -55,7 +55,7 @@ function formatDate(d?: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type Section = 'standings' | 'matches' | 'awards';
+type Section = 'standings' | 'matches' | 'awards' | 'announcements';
 
 interface Props {
   route: { params: { tournamentId: string } };
@@ -89,6 +89,12 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const [computing, setComputing] = useState(false);
   const [awardsError, setAwardsError] = useState('');
 
+  // Announcements - GET is public, POST is organizer-only (enforced server-side too)
+  const [announcements, setAnnouncements] = useState<any[] | null>(null);
+  const [announcementText, setAnnouncementText] = useState('');
+  const [postingAnnouncement, setPostingAnnouncement] = useState(false);
+  const [announcementError, setAnnouncementError] = useState('');
+
   const load = useCallback(() => {
     setError('');
     Promise.all([
@@ -111,9 +117,32 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    api.tournaments
+      .getMessages(tournamentId)
+      .then(({ messages }) => setAnnouncements(messages))
+      .catch(() => setAnnouncements(null));
+  }, [tournamentId]);
+
   const onRefresh = () => {
     setRefreshing(true);
     load();
+  };
+
+  const handlePostAnnouncement = async () => {
+    if (!announcementText.trim()) return;
+    setPostingAnnouncement(true);
+    setAnnouncementError('');
+    try {
+      await api.tournaments.postMessage(tournamentId, announcementText.trim());
+      setAnnouncementText('');
+      const { messages: updated } = await api.tournaments.getMessages(tournamentId);
+      setAnnouncements(updated);
+    } catch (err) {
+      setAnnouncementError(err instanceof Error ? err.message : 'Failed to post announcement');
+    } finally {
+      setPostingAnnouncement(false);
+    }
   };
 
   // Organizer identity: tournament.organizer is a populated User doc (real shape has `_id`,
@@ -239,14 +268,14 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         {!!error && <Text style={styles.errorBanner}>{error}</Text>}
 
         <View style={styles.segmentRow}>
-          {(['standings', 'matches', 'awards'] as Section[]).map(s => (
+          {(['standings', 'matches', 'awards', 'announcements'] as Section[]).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.segmentBtn, section === s && styles.segmentBtnActive]}
               onPress={() => setSection(s)}
             >
               <Text style={[styles.segmentText, section === s && styles.segmentTextActive]}>
-                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : 'Awards'}
+                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'awards' ? 'Awards' : 'Announcements'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -349,6 +378,42 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
             )}
           </View>
         )}
+
+        {section === 'announcements' && (
+          <View style={styles.sectionBody}>
+            {announcements === null ? (
+              <Text style={styles.muted}>Announcements aren't available right now.</Text>
+            ) : announcements.length === 0 ? (
+              <Text style={styles.muted}>No announcements yet.</Text>
+            ) : (
+              announcements.slice(-30).reverse().map(m => (
+                <View key={m._id} style={styles.messageRow}>
+                  <Text style={styles.messageSender}>{m.sender?.name || 'Organizer'}</Text>
+                  <Text style={styles.messageText}>{m.text}</Text>
+                </View>
+              ))
+            )}
+            {!!announcementError && <Text style={styles.errorBanner}>{announcementError}</Text>}
+            {isOrganizer && (
+              <View style={styles.messageInputRow}>
+                <TextInput
+                  style={styles.messageInput}
+                  value={announcementText}
+                  onChangeText={setAnnouncementText}
+                  placeholder="Post an announcement..."
+                  placeholderTextColor={colors.inkMuted}
+                />
+                <TouchableOpacity
+                  style={[styles.sendBtn, (!announcementText.trim() || postingAnnouncement) && styles.sendBtnDisabled]}
+                  onPress={handlePostAnnouncement}
+                  disabled={postingAnnouncement || !announcementText.trim()}
+                >
+                  <Text style={styles.sendBtnText}>{postingAnnouncement ? '...' : 'Post'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       <Modal visible={registerOpen} animationType="slide" transparent onRequestClose={() => setRegisterOpen(false)}>
@@ -429,6 +494,24 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: colors.pitch400 },
   sectionBody: { padding: 16 },
   muted: { color: colors.inkMuted, fontSize: 13 },
+  messageRow: { marginBottom: 10, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10 },
+  messageSender: { color: colors.gold500, fontSize: 11, fontWeight: '700', marginBottom: 2 },
+  messageText: { color: colors.ink, fontSize: 13 },
+  messageInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 },
+  messageInput: {
+    flex: 1,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: colors.ink,
+    fontSize: 13,
+  },
+  sendBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  sendBtnDisabled: { opacity: 0.5 },
+  sendBtnText: { color: colors.background, fontWeight: '700', fontSize: 13 },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   tableRowAlt: { backgroundColor: colors.surface },
   tableHeaderCell: { color: colors.inkMuted, fontSize: 11, fontWeight: '700' },
