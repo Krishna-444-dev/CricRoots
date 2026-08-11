@@ -9,6 +9,7 @@ import { buttonVariants } from '@/components/ui/buttonStyles';
 
 const NAV_LINKS = [
   { href: '/matches', label: 'Matches' },
+  { href: '/calendar', label: 'Calendar' },
   { href: '/teams', label: 'Teams' },
   { href: '/tournaments', label: 'Tournaments' },
   { href: '/players', label: 'Players' },
