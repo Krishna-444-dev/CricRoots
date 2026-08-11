@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import PlayerStatsDashboard from '@/components/PlayerStatsDashboard';
@@ -81,9 +82,14 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
           </p>
         </div>
         {!isSelf && currentUser && (
-          <button onClick={toggleFollow} disabled={busy} className={buttonVariants(isFollowing ? 'outline' : 'primary', 'sm')}>
-            {isFollowing ? 'Following' : 'Follow'}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link href={`/messages/${params.id}`} className={buttonVariants('outline', 'sm')}>
+              Message
+            </Link>
+            <button onClick={toggleFollow} disabled={busy} className={buttonVariants(isFollowing ? 'outline' : 'primary', 'sm')}>
+              {isFollowing ? 'Following' : 'Follow'}
+            </button>
+          </div>
         )}
       </Card>
 
