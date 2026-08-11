@@ -60,6 +60,7 @@ app.use('/api/player-stats', require('./routes/playerStatsRoutes'));
 app.use('/api/teams', require('./routes/teamRoutes'));
 app.use('/api/matches', require('./routes/matchRoutes'));
 app.use('/api/tournaments', require('./routes/tournamentRoutes'));
+app.use('/api/lessons', require('./routes/lessonRoutes'));
 // app.use('/api/shop', require('./routes/shopRoutes'));
 
 // Error Handling Middleware

@@ -9,6 +9,7 @@ const links = [
   { href: '/tournaments', label: 'Tournaments' },
   { href: '/players', label: 'Player Stats' },
   { href: '/network', label: 'Network' },
+  { href: '/edtech', label: 'Learn Cricket' },
 ];
 
 export default function HomePage() {
