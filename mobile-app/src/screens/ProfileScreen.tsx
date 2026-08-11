@@ -1,17 +1,38 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { useAuth } from '../hooks/useAuth';
+import { api } from '../shared/api/apiClient';
 
 export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
+  const [resolvingStats, setResolvingStats] = useState(false);
 
   const confirmLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: () => logout() },
     ]);
+  };
+
+  // PlayerStatsScreen expects a Player document id, which is a different id space from
+  // `user.id` (a User document id) - passing user.id straight through was a latent bug.
+  // Resolve the logged-in user's own Player doc first via /players/me/profile.
+  const openMyStats = async () => {
+    if (resolvingStats) return;
+    setResolvingStats(true);
+    try {
+      const { player } = await api.players.getMyProfile();
+      navigation.navigate('PlayerStats', { playerId: player._id });
+    } catch (err) {
+      Alert.alert(
+        'No player profile yet',
+        err instanceof Error ? err.message : 'Register a player profile to view stats.'
+      );
+    } finally {
+      setResolvingStats(false);
+    }
   };
 
   return (
@@ -24,10 +45,7 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.email}>{user?.email}</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.row}
-        onPress={() => navigation.navigate('PlayerStats', { playerId: user?.id })}
-      >
+      <TouchableOpacity style={styles.row} onPress={openMyStats} disabled={resolvingStats}>
         <Ionicons name="stats-chart-outline" size={20} color={colors.pitch400} />
         <Text style={styles.rowText}>My Stats & Achievements</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
