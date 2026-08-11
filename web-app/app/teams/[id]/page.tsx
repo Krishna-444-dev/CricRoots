@@ -99,9 +99,14 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
           <h1 className="text-2xl font-bold text-ink">{team.name}</h1>
           <p className="text-ink-secondary">{team.city}</p>
         </div>
-        <Link href={`/teams/${team._id}/chat`} className="text-pitch-400 hover:text-pitch-300 text-sm font-medium whitespace-nowrap">
-          💬 Team Chat
-        </Link>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <Link href={`/teams/${team._id}/chat`} className="text-pitch-400 hover:text-pitch-300 text-sm font-medium whitespace-nowrap">
+            💬 Team Chat
+          </Link>
+          <Link href={`/groups/new?teamId=${team._id}`} className="text-ink-secondary hover:text-ink text-sm font-medium whitespace-nowrap">
+            + Create a Group
+          </Link>
+        </div>
       </div>
       {team.description && <p className="text-ink-secondary mb-6">{team.description}</p>}
 

@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: '/matches', label: 'Matches' },
   { href: '/calendar', label: 'Calendar' },
   { href: '/teams', label: 'Teams' },
+  { href: '/groups', label: 'Groups' },
   { href: '/tournaments', label: 'Tournaments' },
   { href: '/players', label: 'Players' },
   { href: '/network', label: 'Network' },
