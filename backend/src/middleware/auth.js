@@ -32,6 +32,26 @@ exports.protect = async (req, res, next) => {
   }
 };
 
+// Attach req.user if a valid token is present, but never reject the request when it's absent or
+// invalid - for public endpoints that only need to know identity when it's available (e.g.
+// "highlight the current user's own prediction within a public list").
+exports.optionalAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer')) {
+    return next();
+  }
+
+  try {
+    const decoded = verifyToken(authHeader.split(' ')[1]);
+    if (decoded) {
+      req.user = await User.findById(decoded.id);
+    }
+  } catch (error) {
+    // Silently ignore - an invalid/expired token on a public route just means "not logged in".
+  }
+  next();
+};
+
 // Authorize specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {

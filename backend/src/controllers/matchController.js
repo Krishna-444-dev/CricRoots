@@ -6,6 +6,7 @@ const { getMatchCharts } = require('../services/matchCharts');
 const { computeMatchMVP } = require('../services/mvpCalculator');
 const { generateCommentary } = require('../services/commentaryGenerator');
 const { getKeyMoments } = require('../services/keyMoments');
+const { settlePredictions } = require('../services/predictionSettler');
 
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
@@ -207,6 +208,12 @@ exports.updateMatch = async (req, res) => {
         await tournament.updateStandings();
         await tournament.save();
       }
+    }
+
+    // Settle the free points-based prediction game once a result exists - runs after save so
+    // predictions never see a partially-committed match.result.
+    if (match.status === 'Completed' && match.result) {
+      await settlePredictions(match);
     }
 
     // Emit match status change event
