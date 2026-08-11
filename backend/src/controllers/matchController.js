@@ -4,6 +4,7 @@ const Tournament = require('../models/Tournament');
 const AIService = require('../utils/aiService');
 const { getMatchCharts } = require('../services/matchCharts');
 const { computeMatchMVP } = require('../services/mvpCalculator');
+const { generateCommentary } = require('../services/commentaryGenerator');
 
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
@@ -230,7 +231,8 @@ exports.recordBall = async (req, res) => {
     const {
       inningsIndex, ballNumber, batsmanId, bowlerId, runs, isWicket, wicketType,
       isExtra, extraType,
-      line, length, shotType, shotZone, fielderId, fielderPosition
+      line, length, shotType, shotZone, fielderId, fielderPosition,
+      batsmanName, bowlerName, fielderName
     } = req.body;
 
     let match = await Match.findById(req.params.id);
@@ -273,6 +275,11 @@ exports.recordBall = async (req, res) => {
       fielderId: fielderId || null,
       fielderPosition: fielderPosition || null
     };
+
+    // Auto-generated commentary - names come from the client (already in state at the
+    // moment a ball is scored) rather than a server-side lookup, to avoid adding DB
+    // round-trips between this read and the save() below.
+    ball.commentary = generateCommentary(ball, { batsmanName, bowlerName, fielderName });
 
     match.innings[inningsIndex].balls.push(ball);
     match.innings[inningsIndex].runs += runs || 0;

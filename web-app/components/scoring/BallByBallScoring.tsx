@@ -2,6 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Line, Length, ShotType, ShotZone, FielderPosition,
+  LINES, LENGTHS, SHOT_TYPES, SHOT_ZONES, labelize,
+} from '@/lib/ballTaxonomy';
+import VoiceBallInput from './VoiceBallInput';
+import { ParsedBall } from '@/lib/voiceBallParser';
 
 interface Player {
   id: string;
@@ -9,25 +15,7 @@ interface Player {
   role: string;
 }
 
-export type Line = 'wide-outside-off' | 'outside-off' | 'off-stump' | 'middle-stump' | 'leg-stump' | 'down-leg' | 'unknown';
-export type Length = 'full-toss' | 'yorker' | 'full' | 'good-length' | 'short-of-good-length' | 'short' | 'bouncer' | 'unknown';
-export type ShotType = 'defensive' | 'drive' | 'cut' | 'pull-hook' | 'sweep' | 'flick-glance' | 'loft' | 'reverse-scoop' | 'edge' | 'other';
-export type ShotZone = 'fine-leg' | 'square-leg' | 'mid-wicket' | 'mid-on' | 'mid-off' | 'cover' | 'point' | 'third-man';
-export type FielderPosition = ShotZone | 'wicket-keeper' | 'bowler' | 'not-applicable';
-
-const LINES: Line[] = ['wide-outside-off', 'outside-off', 'off-stump', 'middle-stump', 'leg-stump', 'down-leg'];
-const LENGTHS: Length[] = ['full-toss', 'yorker', 'full', 'good-length', 'short-of-good-length', 'short', 'bouncer'];
-const SHOT_TYPES: ShotType[] = ['defensive', 'drive', 'cut', 'pull-hook', 'sweep', 'flick-glance', 'loft', 'reverse-scoop', 'edge', 'other'];
-// Batsman-relative wagon-wheel order (off side -> straight -> leg side); labels alone carry the
-// batsman-relative meaning ("cover" is always the batsman's own cover, left- or right-handed).
-const SHOT_ZONES: ShotZone[] = ['third-man', 'point', 'cover', 'mid-off', 'mid-on', 'mid-wicket', 'square-leg', 'fine-leg'];
-
-function labelize(value: string): string {
-  return value
-    .split('-')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
+export type { Line, Length, ShotType, ShotZone, FielderPosition };
 
 export interface BallEvent {
   ballNumber: number;
@@ -44,6 +32,11 @@ export interface BallEvent {
   shotZone: ShotZone | null;
   fielderId: string | null;
   fielderPosition: FielderPosition | null;
+  // Display names for auto-generated commentary - sourced from already-in-state player
+  // objects rather than a server-side lookup, see commentaryGenerator.js.
+  batsmanName?: string;
+  bowlerName?: string;
+  fielderName?: string;
 }
 
 interface BatsmanScorecard {
@@ -186,6 +179,30 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
     setBallType('wicket');
     setShowWicketModal(true);
     setDetailExpanded(true);
+  };
+
+  // Applies a voice-parsed partial result onto the same state the tap buttons already control,
+  // reusing the existing handlers so nothing about validation/submission changes. Never
+  // auto-submits - the scorer still taps Record Ball (or confirms the wicket modal) themselves.
+  const handleVoiceParsed = (parsed: ParsedBall) => {
+    if (parsed.isWicket) {
+      if (parsed.wicketType) setWicketType(parsed.wicketType);
+      handleWicketClick();
+    } else if (parsed.isExtra && parsed.extraType) {
+      const frontendType = (Object.keys(EXTRA_TYPE_TO_BACKEND) as Array<keyof typeof EXTRA_TYPE_TO_BACKEND>)
+        .find(key => EXTRA_TYPE_TO_BACKEND[key] === parsed.extraType);
+      if (frontendType) handleExtraClick(frontendType);
+    } else if (typeof parsed.runs === 'number') {
+      handleRunsClick(parsed.runs);
+    }
+
+    if (parsed.line) setLine(parsed.line);
+    if (parsed.length) setLength(parsed.length);
+    if (parsed.shotType) setShotType(parsed.shotType);
+    if (parsed.shotZone) setShotZone(parsed.shotZone);
+    if (parsed.line || parsed.length || parsed.shotType || parsed.shotZone) {
+      setDetailExpanded(true);
+    }
   };
 
   // Calculate strike rate
@@ -452,7 +469,10 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       shotType,
       shotZone,
       fielderId: ballType === 'wicket' ? fielder?.id ?? null : null,
-      fielderPosition: ballType === 'wicket' ? fielderPosition : null
+      fielderPosition: ballType === 'wicket' ? fielderPosition : null,
+      batsmanName: striker?.name,
+      bowlerName: bowler?.name,
+      fielderName: ballType === 'wicket' ? fielder?.name : undefined
     };
 
     // Call the callback with updated innings data and the raw event to persist
@@ -477,6 +497,8 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
 
   return (
     <div className="bg-surface border border-border rounded-xl shadow-card p-4 max-w-full">
+      <VoiceBallInput onParsed={handleVoiceParsed} />
+
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-ink mb-2">Current Batsmen</h3>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">

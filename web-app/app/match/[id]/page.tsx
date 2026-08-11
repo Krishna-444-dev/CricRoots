@@ -14,6 +14,16 @@ interface ChartInnings {
   cumulative: { over: number; total: number }[];
 }
 
+interface Ball {
+  ballNumber: number;
+  runs: number;
+  isWicket: boolean;
+  wicketType: string | null;
+  isExtra: boolean;
+  extraType: string;
+  commentary?: string;
+}
+
 interface Match {
   _id: string;
   title: string;
@@ -27,8 +37,26 @@ interface Match {
     runs: number;
     wickets: number;
     overs: number;
+    balls: Ball[];
   }>;
   manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
+}
+
+/** Over.ball notation, derived the same filtered-legal-balls way the backend computes overs -
+ * wides/no-balls don't advance the over count, so this can't be derived from array index alone. */
+function overBallLabel(balls: Ball[], index: number): string {
+  let legalCount = 0;
+  for (let i = 0; i <= index; i++) {
+    const b = balls[i];
+    const isLegal = !(b.isExtra && ['wide', 'no-ball'].includes(b.extraType));
+    if (i === index) {
+      const over = Math.floor(legalCount / 6);
+      const ballInOver = isLegal ? (legalCount % 6) + 1 : (legalCount % 6);
+      return `${over}.${Math.max(ballInOver, 1)}`;
+    }
+    if (isLegal) legalCount += 1;
+  }
+  return '';
 }
 
 export default function MatchPage() {
@@ -197,6 +225,28 @@ export default function MatchPage() {
                 ))}
               </div>
             </div>
+
+            {/* Live Commentary */}
+            {currentInnings?.balls && currentInnings.balls.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-base font-bold text-ink mb-3">Live Commentary</h3>
+                <div className="bg-surface border border-border rounded-xl divide-y divide-border max-h-96 overflow-y-auto">
+                  {currentInnings.balls.slice(-10).reverse().map((ball, i, arr) => {
+                    const originalIndex = currentInnings.balls.length - 1 - i;
+                    return (
+                      <div key={originalIndex} className="p-3 flex gap-3 items-start">
+                        <span className="text-xs font-mono text-ink-muted mt-0.5 shrink-0 w-10">
+                          {overBallLabel(currentInnings.balls, originalIndex)}
+                        </span>
+                        <p className={`text-sm ${ball.isWicket ? 'text-wicket-400 font-medium' : ball.runs === 4 || ball.runs === 6 ? 'text-pitch-400 font-medium' : 'text-ink-secondary'}`}>
+                          {ball.commentary || `${ball.runs} run${ball.runs === 1 ? '' : 's'}.`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Manhattan & Worm Charts */}
             {chartsInnings.some((inn) => inn.overs.length > 0) && (

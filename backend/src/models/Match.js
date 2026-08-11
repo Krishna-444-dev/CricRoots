@@ -59,6 +59,10 @@ const matchSchema = new mongoose.Schema({
       isWicket: Boolean,
       wicketType: String, // bowled, caught, lbw, run out, etc.
 
+      // Auto-generated natural-language commentary for this ball - see
+      // backend/src/services/commentaryGenerator.js
+      commentary: { type: String, default: '' },
+
       isExtra: { type: Boolean, default: false },
       extraType: {
         type: String,

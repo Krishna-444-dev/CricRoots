@@ -1,18 +1,12 @@
 'use client';
 
+import { SHOT_ZONES as ZONE_ORDER, labelize } from '@/lib/ballTaxonomy';
+
 interface WagonWheelZone {
   zone: string;
   balls: number;
   runs: number;
   runsPercent: number;
-}
-
-// Batsman-relative sweep: off-side backward -> off-side forward -> straight -> leg-side forward -> leg-side backward.
-// Matches the SHOT_ZONES order used by the live scoring tagging UI.
-const ZONE_ORDER = ['third-man', 'point', 'cover', 'mid-off', 'mid-on', 'mid-wicket', 'square-leg', 'fine-leg'];
-
-function labelize(zone: string): string {
-  return zone.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 function polarToXY(cx: number, cy: number, radius: number, degrees: number) {
