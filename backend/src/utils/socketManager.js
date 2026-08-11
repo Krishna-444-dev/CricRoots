@@ -30,6 +30,12 @@ class SocketManager {
     this.io.on('connection', (socket) => {
       console.log(`User ${socket.userId} connected: ${socket.id}`);
 
+      // Every authenticated connection auto-joins its own personal room, so a direct message
+      // can be delivered by user id alone - no explicit join-dm event needed the way match/team/
+      // tournament rooms require, since a DM's audience (one specific person) is already known
+      // the instant the socket authenticates.
+      socket.join(`user-${socket.userId}`);
+
       // Join a match room
       socket.on('join-match', (matchId) => {
         socket.join(`match-${matchId}`);
@@ -179,6 +185,16 @@ class SocketManager {
     this.io.to(`${scope}-${id}`).emit('new-message', {
       scope,
       id,
+      message,
+      timestamp: new Date()
+    });
+  }
+
+  /**
+   * Deliver a direct message to the recipient's personal room, if they're currently connected.
+   */
+  emitDirectMessage(recipientId, message) {
+    this.io.to(`user-${recipientId}`).emit('new-direct-message', {
       message,
       timestamp: new Date()
     });
