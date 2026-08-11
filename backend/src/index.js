@@ -62,7 +62,8 @@ app.use('/api/matches', require('./routes/matchRoutes'));
 app.use('/api/tournaments', require('./routes/tournamentRoutes'));
 app.use('/api/lessons', require('./routes/lessonRoutes'));
 app.use('/api/news', require('./routes/newsRoutes'));
-// app.use('/api/shop', require('./routes/shopRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/orders', require('./routes/orderRoutes'));
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

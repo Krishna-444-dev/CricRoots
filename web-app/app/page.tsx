@@ -11,6 +11,7 @@ const links = [
   { href: '/network', label: 'Network' },
   { href: '/edtech', label: 'Learn Cricket' },
   { href: '/news', label: 'News' },
+  { href: '/marketplace', label: 'Marketplace' },
 ];
 
 export default function HomePage() {

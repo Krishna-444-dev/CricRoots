@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useMemo, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 
 export interface CartItem {
   id: string;
@@ -27,9 +27,29 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 const TAX_RATE = 0.1;
 const FREE_SHIPPING_THRESHOLD = 100;
 const SHIPPING_COST = 9.99;
+const STORAGE_KEY = 'cricsync_cart';
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        setItems(JSON.parse(raw));
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    }
+  }, [items, hydrated]);
 
   const addItem: CartContextValue['addItem'] = (item, quantity = 1) => {
     setItems((prev) => {
