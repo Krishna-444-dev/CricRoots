@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { PlayerCareerStats } from '../shared/types';
+import { useAuth } from '../hooks/useAuth';
 
 const ACHIEVEMENT_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'century-maker': 'trophy',
@@ -43,13 +44,18 @@ function StatGrid({ rows }: { rows: StatRow[] }) {
   );
 }
 
-export default function PlayerStatsScreen({ route }: any) {
+export default function PlayerStatsScreen({ route, navigation }: any) {
   const playerId: string | undefined = route?.params?.playerId;
+  const { user } = useAuth();
 
   const [stats, setStats] = useState<PlayerCareerStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The Player doc's `user` field (the User id to message) - a separate id space from the
+  // Player doc id this screen is keyed on. Resolved via a second, non-blocking fetch since
+  // PlayerCareerStats.player only carries a name-only summary, not the owning User.
+  const [messageTargetUserId, setMessageTargetUserId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!playerId) {
@@ -63,11 +69,22 @@ export default function PlayerStatsScreen({ route }: any) {
       .then(({ stats: fetched }) => setStats(fetched))
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load stats'))
       .finally(() => { setLoading(false); setRefreshing(false); });
+
+    api.players.getPlayerById(playerId)
+      .then(({ player }) => {
+        const owningUser: any = player?.user;
+        const userId = typeof owningUser === 'string' ? owningUser : owningUser?._id || owningUser?.id || null;
+        setMessageTargetUserId(userId);
+      })
+      .catch(() => setMessageTargetUserId(null));
   }, [playerId]);
 
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  const isOwnProfile = !!user && !!messageTargetUserId && user.id === messageTargetUserId;
+  const canMessage = !!messageTargetUserId && !isOwnProfile;
 
   if (loading) {
     return (
@@ -106,6 +123,15 @@ export default function PlayerStatsScreen({ route }: any) {
         <View style={styles.specBadge}>
           <Text style={styles.specBadgeText}>{player?.specialization ?? 'Player'}</Text>
         </View>
+        {canMessage && (
+          <TouchableOpacity
+            style={styles.messageButton}
+            onPress={() => navigation.navigate('MessageThread', { userId: messageTargetUserId, name: player?.name ?? 'Player' })}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.background} />
+            <Text style={styles.messageButtonText}>Message</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -245,6 +271,11 @@ const styles = StyleSheet.create({
     marginTop: 6, backgroundColor: colors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4,
   },
   specBadgeText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '700' },
+  messageButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, backgroundColor: colors.pitch500,
+    borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8,
+  },
+  messageButtonText: { color: colors.background, fontSize: 13, fontWeight: '700' },
 
   section: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
   sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: 'bold', marginBottom: 4 },

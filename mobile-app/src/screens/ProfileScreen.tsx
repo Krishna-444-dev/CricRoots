@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../shared/api/apiClient';
@@ -8,6 +9,18 @@ import { api } from '../shared/api/apiClient';
 export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const [resolvingStats, setResolvingStats] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Refetched on every focus (not just mount) so the badge clears promptly after reading a
+  // thread and coming back, without needing a socket connection for this v1 pass.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      api.messages.getUnreadCount()
+        .then(({ count }) => setUnreadCount(count))
+        .catch(() => {});
+    }, [user])
+  );
 
   const confirmLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
@@ -57,6 +70,17 @@ export default function ProfileScreen({ navigation }: any) {
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Messages')}>
+        <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.pitch400} />
+        <Text style={styles.rowText}>Messages</Text>
+        {unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+          </View>
+        )}
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.row} onPress={confirmLogout}>
         <Ionicons name="log-out-outline" size={20} color={colors.wicket400} />
         <Text style={[styles.rowText, { color: colors.wicket400 }]}>Log out</Text>
@@ -83,4 +107,9 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10,
   },
   rowText: { color: colors.ink, fontSize: 14, fontWeight: '600', flex: 1 },
+  unreadBadge: {
+    minWidth: 20, height: 20, borderRadius: 10, backgroundColor: colors.pitch500,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, marginRight: 4,
+  },
+  unreadBadgeText: { color: colors.background, fontSize: 10, fontWeight: '800' },
 });

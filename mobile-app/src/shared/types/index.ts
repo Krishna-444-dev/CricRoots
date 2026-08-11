@@ -240,3 +240,23 @@ export interface LeaderboardEntry {
   correctPredictions: number;
   totalPredictions: number;
 }
+
+// Direct 1:1 player messaging (backend/src/models/DirectMessage.js via
+// backend/src/controllers/directMessageController.js, mounted at /api/messages). Note this is
+// a separate feature from Team/Tournament group chat (teamsAPI.getMessages / tournamentsAPI.getMessages).
+export interface DirectMessage {
+  _id: string;
+  sender: { _id: string; name: string };
+  recipient: { _id: string; name: string };
+  text: string;
+  read: boolean;
+  createdAt: string;
+}
+
+// One row in the inbox (GET /messages/conversations) - one per person messaged, not the
+// messages themselves.
+export interface Conversation {
+  user: { _id: string; name: string };
+  lastMessage: { text: string; createdAt: string; fromMe: boolean };
+  unreadCount: number;
+}

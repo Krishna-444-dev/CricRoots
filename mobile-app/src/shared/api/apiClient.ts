@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -225,6 +225,17 @@ export const predictionsAPI = {
     apiFetch<{ success: true; leaderboard: LeaderboardEntry[] }>(`/predictions/leaderboard?limit=${limit}`),
 };
 
+// --- Direct 1:1 messages (backend/src/routes/directMessageRoutes.js, mounted at /api/messages) -
+//     separate from the Team/Tournament group chat above. Fetching a thread marks the other
+//     person's messages to you as read server-side; there's no separate mark-as-read endpoint. ---
+export const messagesAPI = {
+  getConversations: () => apiFetch<{ success: true; conversations: Conversation[] }>('/messages/conversations'),
+  getUnreadCount: () => apiFetch<{ success: true; count: number }>('/messages/unread-count'),
+  getThread: (userId: string) => apiFetch<{ success: true; messages: DirectMessage[] }>(`/messages/${userId}`),
+  sendMessage: (userId: string, text: string) =>
+    apiFetch<{ success: true; message: DirectMessage }>(`/messages/${userId}`, 'POST', { text }),
+};
+
 export const api = {
   auth: authAPI,
   users: usersAPI,
@@ -239,6 +250,7 @@ export const api = {
   products: productsAPI,
   orders: ordersAPI,
   predictions: predictionsAPI,
+  messages: messagesAPI,
 };
 
 export default api;
