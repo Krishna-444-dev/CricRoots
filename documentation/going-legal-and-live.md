@@ -64,17 +64,39 @@ this is the checklist of what's still missing around it.
 5. **Set up basic uptime/error monitoring.** Even a free tier of something like UptimeRobot (pings
    the site and texts/emails you if it goes down) is far better than finding out your scoring app was
    down during someone's actual match because a player told you afterward.
-6. **App store submission:**
+6. **App store submission (for a real public launch, later):**
    - Apple Developer Program: $99/yr - needed for iOS.
    - Google Play Console: $25 one-time - needed for Android.
-   - The mobile app hasn't been run on a real device or simulator yet in this project's history -
-     do that before submitting, not after. Budget real time for whatever that surfaces.
 7. **Do a full dry run yourself first.** Register an account, create a team, score a full match
    start to finish, on the actual production deployment - before a single real person outside your
    own circle touches it.
 
 **Total realistic cost for this track: ~$40-65/mo once live at pilot scale** (hosting, domain
 amortized, Apple Developer fee amortized) - see the viability report for the fuller breakdown.
+
+## Track C: getting it in front of real testers, with zero setup on their end
+
+For a pilot ("a few people, a few matches, one season"), skip app store distribution entirely at
+first - it's slower (developer account approval, app review) and not what it's for yet. The mobile
+app (now upgraded to current Expo SDK 57 as of this doc) can be shared as a live link that opens
+instantly inside the free **Expo Go** app - no waitlist, no review, no account approval needed on
+the tester's side.
+
+**One-time setup (yours):**
+1. Create a free account at [expo.dev](https://expo.dev) if you don't have one.
+2. From `mobile-app/`, run `npx eas-cli login` and sign in.
+3. Run `npx eas-cli update:configure` once to link this project to your Expo account.
+4. Run `npx eas-cli update --branch preview --message "pilot build"` to publish. This gives you a
+   shareable `expo.dev` link and QR code.
+
+**What a tester does:** install the free "Expo Go" app from the App Store or Play Store, then tap
+your link (or scan the QR code) - CricSync opens immediately inside it. That's the entire install
+process.
+
+When you're ready for something that feels more like a "real app" (its own icon on the home screen,
+no Expo Go wrapper) - or once you need push notifications or any native module Expo Go doesn't
+support - that's when to move to EAS Build + TestFlight/Play internal testing instead. Not needed
+for the first pilot.
 
 ## Sequencing recommendation
 
