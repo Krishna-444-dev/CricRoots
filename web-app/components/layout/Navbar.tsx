@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/AuthContext';
 import { useCart } from '@/CartContext';
+import { apiFetch } from '@/lib/apiFetch';
+import { useDirectMessageSocket } from '@/hooks/useDirectMessageSocket';
 import { buttonVariants } from '@/components/ui/buttonStyles';
 
 const NAV_LINKS = [
@@ -22,12 +24,34 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { user, isLoading, logout } = useAuth();
+  const { user, token, isLoading, logout } = useAuth();
   const { items } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const cartCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+
+  const refreshUnreadCount = useCallback(async () => {
+    const res = await apiFetch('/api/messages/unread-count');
+    const data = await res.json();
+    if (data.success) setUnreadCount(data.count);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+    refreshUnreadCount();
+  }, [user, refreshUnreadCount]);
+
+  // Live-updates the badge the moment a new DM arrives, instead of polling.
+  useDirectMessageSocket({
+    token,
+    enabled: Boolean(user && token),
+    onMessage: () => refreshUnreadCount(),
+  });
 
   return (
     <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-border">
@@ -53,6 +77,16 @@ export default function Navbar() {
           </nav>
 
           <div className="hidden lg:flex items-center gap-3 shrink-0">
+            {user && (
+              <Link href="/messages" className="relative p-2 rounded-lg text-ink-secondary hover:text-ink hover:bg-surface-hover transition-colors" aria-label="Messages">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-gold-500 text-[#241503] text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+            )}
             <Link href="/cart" className="relative p-2 rounded-lg text-ink-secondary hover:text-ink hover:bg-surface-hover transition-colors" aria-label="Cart">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
               {cartCount > 0 && (
@@ -105,6 +139,11 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
+          {user && (
+            <Link href="/messages" onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-ink-secondary hover:text-ink hover:bg-surface-hover">
+              Messages {unreadCount > 0 ? `(${unreadCount})` : ''}
+            </Link>
+          )}
           <Link href="/cart" onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-ink-secondary hover:text-ink hover:bg-surface-hover">
             Cart {cartCount > 0 ? `(${cartCount})` : ''}
           </Link>
