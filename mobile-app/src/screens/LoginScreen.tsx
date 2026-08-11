@@ -5,6 +5,7 @@ import { TextInput, Button, Text, HelperText } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 import { colors, commonStyles } from '../theme';
+import { API_BASE_URL } from '../shared/api/apiClient';
 
 const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
@@ -63,6 +64,8 @@ const LoginScreen = ({ navigation }: any) => {
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>CricSync</Text>
             <Text style={styles.tagline}>Your complete cricket companion</Text>
+            {/* TEMPORARY - remove once the pilot-testing network issue is confirmed fixed */}
+            <Text style={styles.debugUrl}>API: {API_BASE_URL}</Text>
           </View>
           
           <View style={styles.formContainer}>
@@ -159,6 +162,12 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  debugUrl: {
+    fontSize: 11,
+    color: colors.error,
+    marginTop: 12,
+    textAlign: 'center',
   },
   formContainer: {
     width: '100%',

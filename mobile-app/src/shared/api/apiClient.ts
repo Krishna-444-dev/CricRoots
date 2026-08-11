@@ -48,13 +48,20 @@ async function apiFetch<T = any>(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const url = `${API_BASE_URL}${path}`;
+  const response = await fetch(url, {
     method,
     headers,
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
 
-  const data = await response.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+  // Includes the URL and status in the fallback message on purpose - "Invalid server response"
+  // alone gives no clue whether the request hit the wrong host entirely vs. a real backend bug,
+  // which was genuinely hard to diagnose during early pilot testing.
+  const data = await response.json().catch(() => ({
+    success: false,
+    message: `Invalid server response from ${url} (status ${response.status})`
+  }));
 
   if (!response.ok || data.success === false) {
     throw new Error(data.message || `Request failed: ${response.status}`);
