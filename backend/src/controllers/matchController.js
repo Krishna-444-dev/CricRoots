@@ -3,6 +3,12 @@ const Team = require('../models/Team');
 const Tournament = require('../models/Tournament');
 const AIService = require('../utils/aiService');
 const { getMatchCharts } = require('../services/matchCharts');
+const { computeMatchMVP } = require('../services/mvpCalculator');
+
+// Populate helper for manOfTheMatch: the field only stores a Player ref, but
+// display needs the player's user's name - mirrors the nested Player->User
+// populate pattern used for tournament awards in tournamentController.js.
+const MAN_OF_THE_MATCH_POPULATE = { path: 'manOfTheMatch', populate: { path: 'user', select: 'name' } };
 
 // @desc    Create a new match
 // @route   POST /api/matches
@@ -91,7 +97,7 @@ exports.getAllMatches = async (req, res) => {
     const matches = await Match.find()
       .populate('team1')
       .populate('team2')
-      .populate('manOfTheMatch')
+      .populate(MAN_OF_THE_MATCH_POPULATE)
       .sort({ scheduledDate: -1 });
 
     res.status(200).json({
@@ -115,7 +121,7 @@ exports.getMatch = async (req, res) => {
     const match = await Match.findById(req.params.id)
       .populate('team1')
       .populate('team2')
-      .populate('manOfTheMatch')
+      .populate(MAN_OF_THE_MATCH_POPULATE)
       .populate('createdBy');
 
     if (!match) {
@@ -178,10 +184,18 @@ exports.updateMatch = async (req, res) => {
       }
     }
 
+    // Auto-compute Man of the Match from ball-by-ball data when a match is
+    // marked Completed without an explicit manOfTheMatch being supplied -
+    // same pattern as the auto-derived result above. Organizers can still
+    // override by passing manOfTheMatch explicitly in the request body.
+    if (status === 'Completed' && !manOfTheMatch) {
+      match.manOfTheMatch = computeMatchMVP(match);
+    }
+
     match = await match.save();
     await match.populate('team1');
     await match.populate('team2');
-    await match.populate('manOfTheMatch');
+    await match.populate(MAN_OF_THE_MATCH_POPULATE);
 
     // Refresh the tournament's points table if this match belongs to one
     // and just moved into a state that counts toward standings.
@@ -321,7 +335,7 @@ exports.getScorecard = async (req, res) => {
     const match = await Match.findById(req.params.id)
       .populate('team1')
       .populate('team2')
-      .populate('manOfTheMatch');
+      .populate(MAN_OF_THE_MATCH_POPULATE);
 
     if (!match) {
       return res.status(404).json({

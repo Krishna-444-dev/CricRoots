@@ -28,6 +28,7 @@ interface Match {
     wickets: number;
     overs: number;
   }>;
+  manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
 }
 
 export default function MatchPage() {
@@ -120,6 +121,11 @@ export default function MatchPage() {
           <Link href={`/match/${matchId}/scouting`} className="block mt-3 text-sm font-medium text-gold-500 hover:text-gold-400 transition-colors">
             📋 Scouting Report &rarr;
           </Link>
+          {match.manOfTheMatch?.user?.name && (
+            <p className="mt-2 text-sm font-medium text-gold-500">
+              🏆 Man of the Match: {match.manOfTheMatch.user.name}
+            </p>
+          )}
         </div>
       </div>
 
