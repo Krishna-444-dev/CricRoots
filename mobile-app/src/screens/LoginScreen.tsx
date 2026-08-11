@@ -69,7 +69,11 @@ const LoginScreen = ({ navigation }: any) => {
             <TextInput
               label="Email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (emailError) setEmailError('');
+                if (error) clearError();
+              }}
               mode="outlined"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -77,11 +81,14 @@ const LoginScreen = ({ navigation }: any) => {
               error={!!emailError}
             />
             {emailError ? <HelperText type="error">{emailError}</HelperText> : null}
-            
+
             <TextInput
               label="Password"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (passwordError) setPasswordError('');
+              }}
               mode="outlined"
               secureTextEntry
               style={commonStyles.textInput}
@@ -136,8 +143,8 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flexGrow: 1,
-    justifyContent: 'center',
     padding: 16,
+    paddingTop: 64,
   },
   logoContainer: {
     alignItems: 'center',

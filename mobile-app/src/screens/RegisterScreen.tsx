@@ -99,17 +99,24 @@ const RegisterScreen = ({ navigation }: any) => {
             <TextInput
               label="Full Name"
               value={name}
-              onChangeText={setName}
+              onChangeText={(text) => {
+                setName(text);
+                if (nameError) setNameError('');
+              }}
               mode="outlined"
               style={commonStyles.textInput}
               error={!!nameError}
             />
             {nameError ? <HelperText type="error">{nameError}</HelperText> : null}
-            
+
             <TextInput
               label="Email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (emailError) setEmailError('');
+                if (error) clearError();
+              }}
               mode="outlined"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -117,33 +124,42 @@ const RegisterScreen = ({ navigation }: any) => {
               error={!!emailError}
             />
             {emailError ? <HelperText type="error">{emailError}</HelperText> : null}
-            
+
             <TextInput
               label="Phone (optional)"
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={(text) => {
+                setPhone(text);
+                if (phoneError) setPhoneError('');
+              }}
               mode="outlined"
               keyboardType="phone-pad"
               style={commonStyles.textInput}
               error={!!phoneError}
             />
             {phoneError ? <HelperText type="error">{phoneError}</HelperText> : null}
-            
+
             <TextInput
               label="Password"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (passwordError) setPasswordError('');
+              }}
               mode="outlined"
               secureTextEntry
               style={commonStyles.textInput}
               error={!!passwordError}
             />
             {passwordError ? <HelperText type="error">{passwordError}</HelperText> : null}
-            
+
             <TextInput
               label="Confirm Password"
               value={confirmPassword}
-              onChangeText={setConfirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                if (confirmPasswordError) setConfirmPasswordError('');
+              }}
               mode="outlined"
               secureTextEntry
               style={commonStyles.textInput}

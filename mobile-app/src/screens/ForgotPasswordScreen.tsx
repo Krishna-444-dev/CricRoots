@@ -86,7 +86,11 @@ const ForgotPasswordScreen = ({ navigation }: any) => {
               <TextInput
                 label="Email"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (emailError) setEmailError('');
+                  if (error) setError('');
+                }}
                 mode="outlined"
                 keyboardType="email-address"
                 autoCapitalize="none"
