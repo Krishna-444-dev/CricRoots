@@ -207,6 +207,7 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 ### Tactical Insights (`/api/insights`) — data-driven from tagged deliveries, with graceful pool-average fallback
 - `GET /batsman/:playerId/shot-advice` · `GET /batsman/:playerId/bowling-plan` · `GET /batsman/:playerId/fielding-plan`
 - `GET /teams/:teamId/bowler-scouting`
+- `GET /matchup/:batsmanId/:bowlerId/bowling-plan` — joint batter-vs-bowler recommendation, blended through a 4-level hierarchical backoff (exact matchup → batter vs bowler-archetype → archetype vs archetype → global) rather than either player's tendencies alone. See `documentation/` research memo for the full design rationale.
 
 ### Edtech (`/api/lessons`)
 - Standard `GET /` / `GET /:id` / `POST /` (protected, accepts an optional `tags` array) / `DELETE /:id` (protected) CRUD
