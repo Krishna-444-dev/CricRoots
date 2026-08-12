@@ -200,6 +200,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
     if (parsed.length) setLength(parsed.length);
     if (parsed.shotType) setShotType(parsed.shotType);
     if (parsed.shotZone) setShotZone(parsed.shotZone);
+    if (parsed.fielderPosition) setFielderPosition(parsed.fielderPosition);
     if (parsed.line || parsed.length || parsed.shotType || parsed.shotZone) {
       setDetailExpanded(true);
     }

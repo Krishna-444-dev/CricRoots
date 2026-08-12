@@ -35,7 +35,23 @@ const SHOT_VERBS = {
   loft: 'lofts',
   'reverse-scoop': 'reverse-scoops',
   edge: 'edges',
-  other: 'plays it'
+  other: 'plays'
+};
+
+// Explicit past-tense forms - several of these are irregular (cut/swept) or would double
+// a silent trailing 'e' (drive -> "driveed") if derived mechanically from SHOT_VERBS via a
+// naive s-stripping regex, so they're spelled out rather than computed.
+const SHOT_VERBS_PAST = {
+  defensive: 'defended',
+  drive: 'drove',
+  cut: 'cut',
+  'pull-hook': 'pulled',
+  sweep: 'swept',
+  'flick-glance': 'flicked',
+  loft: 'lofted',
+  'reverse-scoop': 'reverse-scooped',
+  edge: 'edged',
+  other: 'played'
 };
 
 const ZONE_LABELS = {
@@ -127,11 +143,22 @@ function generateBoundaryCommentary(ball, batsman) {
   const verb = SHOT_VERBS[ball.shotType];
   const zone = zoneLabel(ball.shotZone);
 
+  // Edge boundaries get their own phrasing rather than the generic verb templates below -
+  // "edges... and gets away with it" reads very differently from a clean, deliberate shot.
+  if (ball.shotType === 'edge') {
+    return pick([
+      `${runsWord}! ${batsman} edges${zone ? ` through ${zone}` : ''}... and gets away with it!`,
+      `${batsman} edges it - and gets away with it, ${runsWord === 'SIX' ? 'six' : 'four'} runs.`,
+      `Thick edge! ${batsman} gets away with it${zone ? `, races away through ${zone}` : ''} for ${runsWord === 'SIX' ? 'six' : 'four'}.`
+    ]);
+  }
+
   if (verb) {
+    const pastVerb = SHOT_VERBS_PAST[ball.shotType] || verb;
     return pick([
       `${runsWord}! ${batsman} ${verb}${zone ? ` through ${zone}` : ''}.`,
       `What a shot! ${batsman} ${verb} it away for ${runsWord === 'SIX' ? 'six' : 'four'}.`,
-      `${runsWord}! Beautifully ${verb === 'edges' ? 'edged' : verb.replace(/s$/, 'ed')}${zone ? ` past ${zone}` : ''}.`
+      `${runsWord}! Beautifully ${pastVerb}${zone ? ` past ${zone}` : ''}.`
     ]);
   }
 

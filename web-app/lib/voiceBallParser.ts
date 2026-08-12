@@ -22,7 +22,7 @@
 // wrong, since the scorer sees a "Heard: ..." preview and can tap to fill anything the parser
 // left blank.
 
-import { Line, Length, ShotType, ShotZone } from './ballTaxonomy';
+import { Line, Length, ShotType, ShotZone, FielderPosition } from './ballTaxonomy';
 
 export interface ParsedBall {
   runs?: number;
@@ -34,7 +34,16 @@ export interface ParsedBall {
   length?: Length;
   shotType?: ShotType;
   shotZone?: ShotZone;
+  fielderPosition?: FielderPosition;
 }
+
+// Wicket types where a zone word plausibly names where the *fielder* was standing rather than
+// where the batsman hit the ball - catches, stumpings (keeper's read), and run-outs (thrower's
+// position). shotZone and fielderPosition share the same 8 values by construction, so the
+// wording alone can't disambiguate; the presence of one of these wicket keywords earlier in the
+// same utterance is the signal. Wicket rules are ordered before zone rules in RULES below, so
+// parsed.wicketType is already set by the time a zone rule runs.
+const FIELDING_WICKET_TYPES = new Set(['caught', 'stumped', 'run out']);
 
 type Setter = (parsed: ParsedBall) => void;
 
@@ -50,6 +59,22 @@ function wordRule(phrase: string, field: keyof ParsedBall, apply: Setter): Rule 
   // on both ends so "stump" never matches inside "stumped" or vice versa.
   const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return { pattern: new RegExp(`\\b${escaped}\\b`), field, apply };
+}
+
+// Zone words are ambiguous between shotZone (where the ball went) and fielderPosition (where
+// the fielder was standing) since both use the same 8-value taxonomy. Resolved at match time by
+// checking whether a fielding-relevant wicket keyword (caught/stumped/run out) was already
+// matched earlier in the same utterance - see FIELDING_WICKET_TYPES above. Field is nominally
+// 'shotZone' for claimedFields dedup purposes: only one zone word should ever be consumed per
+// utterance regardless of which final field it resolves to.
+function zoneRule(phrase: string, zoneValue: ShotZone): Rule {
+  return wordRule(phrase, 'shotZone', p => {
+    if (p.isWicket && p.wicketType && FIELDING_WICKET_TYPES.has(p.wicketType)) {
+      p.fielderPosition = zoneValue;
+    } else {
+      p.shotZone = zoneValue;
+    }
+  });
 }
 
 // Ordered most-specific (multi-word) to least-specific (single word) WITHIN each field, since
@@ -117,17 +142,18 @@ const RULES: Rule[] = [
   wordRule('defended', 'shotType', p => { p.shotType = 'defensive'; }),
   wordRule('blocked', 'shotType', p => { p.shotType = 'defensive'; }),
 
-  // --- Shot zone (multi-word first) ---
-  wordRule('fine leg', 'shotZone', p => { p.shotZone = 'fine-leg'; }),
-  wordRule('square leg', 'shotZone', p => { p.shotZone = 'square-leg'; }),
-  wordRule('mid wicket', 'shotZone', p => { p.shotZone = 'mid-wicket'; }),
-  wordRule('midwicket', 'shotZone', p => { p.shotZone = 'mid-wicket'; }),
-  wordRule('mid on', 'shotZone', p => { p.shotZone = 'mid-on'; }),
-  wordRule('mid off', 'shotZone', p => { p.shotZone = 'mid-off'; }),
-  wordRule('third man', 'shotZone', p => { p.shotZone = 'third-man'; }),
-  wordRule('covers', 'shotZone', p => { p.shotZone = 'cover'; }),
-  wordRule('cover', 'shotZone', p => { p.shotZone = 'cover'; }),
-  wordRule('point', 'shotZone', p => { p.shotZone = 'point'; }),
+  // --- Shot zone / fielder position (multi-word first; see zoneRule doc comment above for
+  // how the same word list resolves to one field or the other) ---
+  zoneRule('fine leg', 'fine-leg'),
+  zoneRule('square leg', 'square-leg'),
+  zoneRule('mid wicket', 'mid-wicket'),
+  zoneRule('midwicket', 'mid-wicket'),
+  zoneRule('mid on', 'mid-on'),
+  zoneRule('mid off', 'mid-off'),
+  zoneRule('third man', 'third-man'),
+  zoneRule('covers', 'cover'),
+  zoneRule('cover', 'cover'),
+  zoneRule('point', 'point'),
 
   // --- Extras (before bare run-word rules so "wide" isn't mistaken for anything else) ---
   wordRule('no ball', 'isExtra', p => { p.isExtra = true; p.extraType = 'no-ball'; }),

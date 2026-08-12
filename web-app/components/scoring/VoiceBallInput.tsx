@@ -2,6 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { parseBallTranscript, ParsedBall } from '@/lib/voiceBallParser';
+import { labelize } from '@/lib/ballTaxonomy';
+
+// Renders what the parser actually understood from the transcript, as short "Field: Value"
+// chips, so the scorer can visually confirm before tapping Record Ball - a raw transcript
+// alone doesn't show whether e.g. "off stump" landed as the line or was missed entirely.
+function summarizeParsed(parsed: ParsedBall): string {
+  const parts: string[] = [];
+  if (parsed.isWicket) parts.push(`Wicket: ${parsed.wicketType ? labelize(parsed.wicketType.replace(/ /g, '-')) : 'yes'}`);
+  if (parsed.isExtra) parts.push(`Extra: ${parsed.extraType ? labelize(parsed.extraType) : 'yes'}`);
+  if (typeof parsed.runs === 'number') parts.push(`Runs: ${parsed.runs}`);
+  if (parsed.line) parts.push(`Line: ${labelize(parsed.line)}`);
+  if (parsed.length) parts.push(`Length: ${labelize(parsed.length)}`);
+  if (parsed.shotType) parts.push(`Shot: ${labelize(parsed.shotType)}`);
+  if (parsed.shotZone) parts.push(`Zone: ${labelize(parsed.shotZone)}`);
+  if (parsed.fielderPosition) parts.push(`Fielder pos: ${labelize(parsed.fielderPosition)}`);
+  return parts.length > 0 ? parts.join(' · ') : 'nothing recognized - use the buttons below';
+}
 
 interface SpeechRecognitionResultLike {
   isFinal: boolean;
@@ -43,6 +60,7 @@ export default function VoiceBallInput({ onParsed }: VoiceBallInputProps) {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState('');
+  const [heard, setHeard] = useState<{ transcript: string; summary: string } | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
@@ -80,12 +98,15 @@ export default function VoiceBallInput({ onParsed }: VoiceBallInputProps) {
       setListening(false);
       const transcript = finalTranscript.trim();
       if (transcript) {
-        onParsed(parseBallTranscript(transcript), transcript);
+        const parsed = parseBallTranscript(transcript);
+        setHeard({ transcript, summary: summarizeParsed(parsed) });
+        onParsed(parsed, transcript);
       }
     };
 
     recognitionRef.current = recognition;
     setInterimText('');
+    setHeard(null);
     setListening(true);
     recognition.start();
   };
@@ -111,8 +132,14 @@ export default function VoiceBallInput({ onParsed }: VoiceBallInputProps) {
       >
         {listening ? '🎙️ Listening... release to fill' : '🎙️ Hold to speak the ball'}
       </button>
-      {interimText && (
+      {listening && interimText && (
         <p className="text-xs text-ink-muted italic px-2 text-center">&ldquo;{interimText}&rdquo;</p>
+      )}
+      {!listening && heard && (
+        <div className="text-xs px-2 text-center">
+          <p className="text-ink-muted italic">Heard: &ldquo;{heard.transcript}&rdquo;</p>
+          <p className="text-pitch-400 font-medium mt-0.5">{heard.summary}</p>
+        </div>
       )}
     </div>
   );
