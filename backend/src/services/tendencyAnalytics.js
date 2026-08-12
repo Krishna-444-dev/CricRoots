@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Match = require('../models/Match');
 const Player = require('../models/Player');
-const { hierarchicalBlend } = require('../utils/statUtils');
+const { hierarchicalBlend, blendWithPrior } = require('../utils/statUtils');
 
 function oid(id) {
   return new mongoose.Types.ObjectId(id);
@@ -175,6 +175,10 @@ async function getMatchupPlan(batsmanId, bowlerId) {
       blendedDismissalRate: blended.value !== null ? Math.round(blended.value * 100) / 100 : null,
       confidence: blended.confidence,
       basedOn: blended.level !== null ? levels[blended.level].label : 'no data',
+      // The effective sample size backing blendedDismissalRate (whichever level actually
+      // contributed) - exposed so getLiveMatchupPlan can treat this whole historical
+      // estimate as a single prior with a real weight, instead of re-deriving one.
+      historicalSampleSize: blended.sampleSize,
       rawBallsAtFinestLevel: exactMatchup.buckets.find(b => b.line === line && b.length === length)?.balls ?? 0
     };
   });
@@ -698,6 +702,76 @@ function round(n) {
   return Math.round(n * 100) / 100;
 }
 
+const LIVE_K = 5;
+
+/**
+ * Layers "how is this batter playing TODAY" on top of the all-time historical matchup
+ * plan from getMatchupPlan - the real-time extension proposed in
+ * documentation/hierarchical-matchup-shrinkage-research.md. Deliberately scoped to this
+ * batter's deliveries in the CURRENT match against ANY bowler (not just the specific
+ * bowler passed in): a handful of balls faced today reflects conditions - pitch
+ * behavior, weather, current form - that no historical stat captures, and in a short
+ * match there's rarely enough live data against one specific bowler alone to be useful.
+ * This is a genuinely different axis from getMatchupPlan's identity-based specificity
+ * (who's playing) - recency/context, not who - so it's blended as one extra step on top
+ * of the historical composite via the same blendWithPrior primitive, using a smaller
+ * pseudo-count (LIVE_K=5 vs the usual 15): a ball faced five minutes ago under today's
+ * actual conditions should outweigh a historical archetype-level data point faster than
+ * a typical archetype/global blend would allow.
+ */
+async function getLiveMatchupPlan(matchId, batsmanId, bowlerId) {
+  const [historical, match] = await Promise.all([
+    getMatchupPlan(batsmanId, bowlerId),
+    Match.findById(matchId).select('innings.balls')
+  ]);
+  if (!historical || !match) return null;
+
+  // Today's balls faced by this batter, any bowler, grouped by line/length - a single
+  // match document is small enough (well under a few hundred balls even for a full
+  // innings) that reducing it in JS is simpler than a second aggregation pipeline for
+  // what's inherently already-loaded data.
+  const liveBuckets = new Map();
+  for (const innings of match.innings || []) {
+    for (const ball of innings.balls || []) {
+      if (String(ball.batsmanId) !== String(batsmanId)) continue;
+      if (ball.line === 'unknown' || ball.length === 'unknown') continue;
+      const key = `${ball.line}|${ball.length}`;
+      const entry = liveBuckets.get(key) || { balls: 0, dismissals: 0 };
+      entry.balls += 1;
+      if (ball.isWicket) entry.dismissals += 1;
+      liveBuckets.set(key, entry);
+    }
+  }
+
+  const buckets = historical.buckets.map((bucket) => {
+    const live = liveBuckets.get(`${bucket.line}|${bucket.length}`);
+    const liveN = live ? live.balls : 0;
+    const liveRate = live ? round((live.dismissals / live.balls) * 100) : null;
+
+    if (bucket.blendedDismissalRate === null) {
+      // No historical signal anywhere for this bucket - live data, if any, is all there is.
+      return { ...bucket, liveBalls: liveN, liveDismissalRate: liveRate, todayAdjustedRate: liveRate };
+    }
+
+    const adjusted = blendWithPrior(
+      liveRate ?? 0, liveN,
+      bucket.blendedDismissalRate, bucket.historicalSampleSize,
+      LIVE_K
+    );
+
+    return {
+      ...bucket,
+      liveBalls: liveN,
+      liveDismissalRate: liveRate,
+      todayAdjustedRate: adjusted.value !== null ? Math.round(adjusted.value * 100) / 100 : bucket.blendedDismissalRate
+    };
+  });
+
+  buckets.sort((a, b) => (b.todayAdjustedRate ?? -1) - (a.todayAdjustedRate ?? -1));
+
+  return { ...historical, buckets };
+}
+
 module.exports = {
   getZoneBreakdown,
   getLineLengthBreakdown,
@@ -705,6 +779,7 @@ module.exports = {
   getBowlerLineLengthEffectiveness,
   getPlayerIdsByArchetype,
   getMatchupPlan,
+  getLiveMatchupPlan,
   getFieldingStats,
   getCareerStats,
   getAchievements,

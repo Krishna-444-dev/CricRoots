@@ -81,18 +81,41 @@ Archetypes are bootstrapped from the `battingStyle`/`bowlingStyle` fields alread
 player registration, not a learned cluster - not enough data to cluster on reliably yet, consistent
 with the project's existing "shrinkage stats in backend, not ML, at current data scale" strategy.
 
-## Proposed extension (not built): real-time in-match updates
+## Real-time in-match updates (shipped 2026-08-12)
 
-Everything above is a pre-match/between-overs query against historical data. Nothing today updates
-a recommendation *as the current match unfolds* - no cricket product found in the research does
-this at grassroots scale either. Sketch: treat each level's blended estimate as a prior, update it
-with a sequential Beta-Binomial-style posterior after every ball recorded *in the current match*.
-By ball 20 of an innings, the shown recommendation should have organically shifted from generic
-archetype-level advice toward "this batter is struggling against short balls today" - without
-retraining anything, since it's the same blending primitive applied online instead of as a one-shot
-query. This is the highest-priority next step precisely because the research found nothing -
-commercial or academic - doing live statistical (not video/ball-tracking) tactical updates during
-an amateur match.
+Everything in Section "The algorithm" is a pre-match/between-overs query against all-time
+historical data. This extension makes the recommendation shift *as the current match unfolds* - no
+cricket product found in the research does this at grassroots scale either.
+
+**Design**: rather than folding "today" into the existing 4-level historical chain as a 5th rung,
+it's treated as a genuinely different axis and blended as one extra step *on top of* the historical
+composite. The historical chain's specificity axis is about *identity* (which players); live form is
+about *recency/context* (pitch behavior today, weather, current form) - conflating the two into one
+chain would have been a modeling error, not just a simplification. Concretely:
+
+1. Compute the historical blended estimate per line/length bucket exactly as before
+   (`getMatchupPlan`), which already reports an effective `historicalSampleSize` per bucket.
+2. Separately tally this batter's deliveries *in the current match only* (any bowler - a handful of
+   balls faced today reflects today's conditions regardless of who's bowling them, and there's
+   rarely enough live data against one specific bowler alone in a short match to be useful).
+3. Blend the two with the same `blendWithPrior` primitive, but a smaller pseudo-count
+   (`LIVE_K = 5` vs. the usual 15) - a ball faced five minutes ago under today's actual conditions
+   should outweigh a historical archetype-level data point faster than a typical archetype/global
+   blend would allow. This is the one genuinely new tuning decision in this extension; the blending
+   mechanism itself is the same primitive used everywhere else, just applied again.
+
+**Where it lives:**
+- `backend/src/services/tendencyAnalytics.js` - `getLiveMatchupPlan(matchId, batsmanId, bowlerId)`
+- `backend/src/controllers/insightsController.js` - `getLiveMatchupPlan`
+- Route: `GET /api/insights/matchup/:batsmanId/:bowlerId/live-bowling-plan?matchId=...`
+- `web-app/components/scoring/LiveMatchupPanel.tsx`, mounted in `BallByBallScoring.tsx` right below
+  the current striker/bowler summary - refetches after every ball recorded (keyed on the current
+  over.ball position), so the on-screen recommendation actually moves as the innings progresses.
+- Verified end-to-end against the live dev backend: registered throwaway fixtures, recorded three
+  tagged balls for a brand-new player pair, confirmed the live endpoint correctly reflects today's
+  dismissal-rate-so-far per bucket, confirmed graceful fallback to the historical rate for buckets
+  with zero live balls today, confirmed 400 on a missing `matchId` and 404 on an unknown one, then
+  cleaned up the test fixtures.
 
 ## On patenting - the honest version
 

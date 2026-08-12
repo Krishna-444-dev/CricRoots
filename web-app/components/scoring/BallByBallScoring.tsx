@@ -8,6 +8,7 @@ import {
 } from '@/lib/ballTaxonomy';
 import VoiceBallInput from './VoiceBallInput';
 import { ParsedBall } from '@/lib/voiceBallParser';
+import LiveMatchupPanel from './LiveMatchupPanel';
 
 interface Player {
   id: string;
@@ -548,6 +549,13 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
           </div>
         </div>
       </div>
+
+      <LiveMatchupPanel
+        matchId={matchId}
+        batsmanId={striker?.id}
+        bowlerId={bowler?.id}
+        refreshKey={`${inningsData.overs}.${inningsData.balls}`}
+      />
 
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-ink mb-2">Match Status</h3>

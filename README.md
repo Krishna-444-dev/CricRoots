@@ -208,6 +208,7 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /batsman/:playerId/shot-advice` · `GET /batsman/:playerId/bowling-plan` · `GET /batsman/:playerId/fielding-plan`
 - `GET /teams/:teamId/bowler-scouting`
 - `GET /matchup/:batsmanId/:bowlerId/bowling-plan` — joint batter-vs-bowler recommendation, blended through a 4-level hierarchical backoff (exact matchup → batter vs bowler-archetype → archetype vs archetype → global) rather than either player's tendencies alone. See `documentation/` research memo for the full design rationale.
+- `GET /matchup/:batsmanId/:bowlerId/live-bowling-plan?matchId=...` — the same recommendation, live-adjusted with this batter's deliveries so far in the current match, surfaced in the live-scoring UI so it shifts as the innings actually unfolds.
 
 ### Edtech (`/api/lessons`)
 - Standard `GET /` / `GET /:id` / `POST /` (protected, accepts an optional `tags` array) / `DELETE /:id` (protected) CRUD

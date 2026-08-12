@@ -183,6 +183,54 @@ exports.getMatchupPlan = async (req, res) => {
   }
 };
 
+// @desc    Live in-match version of the matchup plan above - blends the same historical
+//          hierarchical estimate with this batter's deliveries so far IN THIS MATCH, so
+//          the recommendation shifts as the innings actually unfolds (pitch behaving a
+//          certain way today, this batter's form today) rather than staying frozen at
+//          whatever history says. See tendencyAnalytics.getLiveMatchupPlan.
+// @route   GET /api/insights/matchup/:batsmanId/:bowlerId/live-bowling-plan?matchId=...
+// @access  Public
+exports.getLiveMatchupPlan = async (req, res) => {
+  try {
+    const { batsmanId, bowlerId } = req.params;
+    const { matchId } = req.query;
+
+    if (!matchId) {
+      return res.status(400).json({ success: false, message: 'matchId query param is required' });
+    }
+
+    const plan = await tendencyAnalytics.getLiveMatchupPlan(matchId, batsmanId, bowlerId);
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Batsman, bowler, or match not found' });
+    }
+
+    const actionable = plan.buckets.filter(b => b.todayAdjustedRate !== null);
+    if (actionable.length === 0) {
+      return res.status(200).json({
+        success: true,
+        source: 'generic',
+        message: 'No tagged delivery data anywhere yet - too early for even an archetype-level plan. Generic tip: a consistent good-length line around off stump is the safest default opening plan.'
+      });
+    }
+
+    const top = actionable.slice(0, 3);
+    const todayNote = top[0].liveBalls > 0
+      ? ` - including ${top[0].liveBalls} ball${top[0].liveBalls === 1 ? '' : 's'} bowled to them at this length/line already today`
+      : ' - no deliveries at this length/line to them yet today, so this is the historical read';
+
+    res.status(200).json({
+      success: true,
+      directMatchupBalls: plan.directMatchupBalls,
+      battingStyle: plan.battingStyle,
+      bowlingStyle: plan.bowlingStyle,
+      targetBuckets: top,
+      message: `Right now, best line/length vs this batter: ${top[0].length} ${top[0].line} (~${top[0].todayAdjustedRate}% dismissal rate${todayNote}).`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Scouting report on a team's bowlers (for the opposing batting side)
 // @route   GET /api/insights/teams/:teamId/bowler-scouting
 // @access  Public
