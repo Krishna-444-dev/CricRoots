@@ -92,7 +92,7 @@ const RegisterScreen = ({ navigation }: any) => {
         <ScrollView contentContainerStyle={styles.scrollView}>
           <View style={styles.headerContainer}>
             <Text style={styles.headerTitle}>Create Account</Text>
-            <Text style={styles.headerSubtitle}>Join CricSync today</Text>
+            <Text style={styles.headerSubtitle}>Join CricRoots today</Text>
           </View>
           
           <View style={styles.formContainer}>
@@ -170,7 +170,7 @@ const RegisterScreen = ({ navigation }: any) => {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Text style={styles.termsText}>
-              By registering, you agree to CricSync's Terms of Service and Privacy Policy.
+              By registering, you agree to CricRoots's Terms of Service and Privacy Policy.
             </Text>
 
             <Button

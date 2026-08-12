@@ -18,10 +18,10 @@ export default function RegistrationSuccessPage() {
   const [result, setResult] = useState<RegistrationResult | null>(null);
 
   useEffect(() => {
-    const raw = sessionStorage.getItem('cricsync_registration');
+    const raw = sessionStorage.getItem('cricroots_registration');
     if (raw) {
       setResult(JSON.parse(raw));
-      sessionStorage.removeItem('cricsync_registration');
+      sessionStorage.removeItem('cricroots_registration');
     }
   }, []);
 
@@ -46,7 +46,7 @@ export default function RegistrationSuccessPage() {
             <div className="text-5xl mb-4">✅</div>
             <h1 className="text-2xl font-bold text-ink mb-2">Welcome, {result.name}!</h1>
             <p className="text-ink-secondary mb-4">
-              Your CricSync account has been created and you&apos;re logged in.
+              Your CricRoots account has been created and you&apos;re logged in.
               {result.playerProfileCreated
                 ? ' Your player profile is set up too.'
                 : ' Your account is ready, but the cricket profile could not be saved.'}

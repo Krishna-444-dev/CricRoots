@@ -1,6 +1,6 @@
-# CricSync Deployment Guide
+# CricRoots Deployment Guide
 
-This guide provides comprehensive instructions for deploying the CricSync application using Docker and Docker Compose.
+This guide provides comprehensive instructions for deploying the CricRoots application using Docker and Docker Compose.
 
 ## Table of Contents
 
@@ -74,10 +74,10 @@ docker-compose ps
 Expected output:
 ```
 NAME                    STATUS
-cricsync-mongodb        Up (healthy)
-cricsync-backend        Up (healthy)
-cricsync-ai-engine      Up (healthy)
-cricsync-nginx          Up
+cricroots-mongodb        Up (healthy)
+cricroots-backend        Up (healthy)
+cricroots-ai-engine      Up (healthy)
+cricroots-nginx          Up
 ```
 
 ### 5. Access Services
@@ -155,12 +155,12 @@ cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ssl/key.pem
 docker-compose -f docker-compose.yml build
 
 # Tag images for registry
-docker tag cricsync-backend:latest your-registry/cricsync-backend:1.0.0
-docker tag cricsync-ai-engine:latest your-registry/cricsync-ai-engine:1.0.0
+docker tag cricroots-backend:latest your-registry/cricroots-backend:1.0.0
+docker tag cricroots-ai-engine:latest your-registry/cricroots-ai-engine:1.0.0
 
 # Push to registry
-docker push your-registry/cricsync-backend:1.0.0
-docker push your-registry/cricsync-ai-engine:1.0.0
+docker push your-registry/cricroots-backend:1.0.0
+docker push your-registry/cricroots-ai-engine:1.0.0
 ```
 
 ### 4. Deploy to Production Server
@@ -177,8 +177,8 @@ cd CricSync
 cp .env.production .env
 
 # Pull latest images
-docker pull your-registry/cricsync-backend:1.0.0
-docker pull your-registry/cricsync-ai-engine:1.0.0
+docker pull your-registry/cricroots-backend:1.0.0
+docker pull your-registry/cricroots-ai-engine:1.0.0
 
 # Start services
 docker-compose up -d
@@ -233,14 +233,14 @@ ai.yourdomain.com -> your-server-ip
 docker-compose exec mongodb mongodump --username admin --password <password> --authenticationDatabase admin --out /backup
 
 # Copy backup to host
-docker cp cricsync-mongodb:/backup ./mongodb_backup
+docker cp cricroots-mongodb:/backup ./mongodb_backup
 ```
 
 ### Restore MongoDB
 
 ```bash
 # Copy backup to container
-docker cp ./mongodb_backup cricsync-mongodb:/backup
+docker cp ./mongodb_backup cricroots-mongodb:/backup
 
 # Restore data
 docker-compose exec mongodb mongorestore --username admin --password <password> --authenticationDatabase admin /backup
@@ -287,7 +287,7 @@ docker-compose logs backend
 docker stats
 
 # View container details
-docker inspect cricsync-backend
+docker inspect cricroots-backend
 ```
 
 ## Troubleshooting
@@ -335,7 +335,7 @@ BACKEND_PORT=5001
 
 ```bash
 # Check memory limits
-docker inspect cricsync-backend | grep -i memory
+docker inspect cricroots-backend | grep -i memory
 
 # Update docker-compose.yml with memory limits
 # Add under service:
@@ -456,8 +456,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build and push
         run: |
-          docker build -t cricsync-backend:latest ./backend
-          docker push cricsync-backend:latest
+          docker build -t cricroots-backend:latest ./backend
+          docker push cricroots-backend:latest
       - name: Deploy
         run: |
           ssh user@server "cd CricSync && docker-compose pull && docker-compose up -d"

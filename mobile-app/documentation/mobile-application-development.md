@@ -1,8 +1,8 @@
-# CricSync Mobile Application Development Documentation
+# CricRoots Mobile Application Development Documentation
 
 ## Overview
 
-This document provides comprehensive documentation for the CricSync mobile application development process. It covers the architecture, shared code strategy, platform-specific implementations, and guidelines for future development.
+This document provides comprehensive documentation for the CricRoots mobile application development process. It covers the architecture, shared code strategy, platform-specific implementations, and guidelines for future development.
 
 ## Table of Contents
 
@@ -20,10 +20,10 @@ This document provides comprehensive documentation for the CricSync mobile appli
 
 ## Project Structure
 
-The CricSync mobile application follows a well-organized structure to facilitate maintainability and scalability:
+The CricRoots mobile application follows a well-organized structure to facilitate maintainability and scalability:
 
 ```
-/CricSync
+/CricRoots
 ├── /assets                 # Static assets like images and fonts
 ├── /src
 │   ├── /components         # Reusable UI components
@@ -46,7 +46,7 @@ The CricSync mobile application follows a well-organized structure to facilitate
 
 ## Shared Code Strategy
 
-The CricSync mobile application implements a comprehensive shared code strategy with the web application to maximize code reuse and ensure consistency across platforms.
+The CricRoots mobile application implements a comprehensive shared code strategy with the web application to maximize code reuse and ensure consistency across platforms.
 
 ### Shared Types
 
@@ -148,7 +148,7 @@ export const androidConfig = {
 
 ## Authentication Flow
 
-The authentication flow in the CricSync mobile application is implemented using React Navigation and the shared authentication hook:
+The authentication flow in the CricRoots mobile application is implemented using React Navigation and the shared authentication hook:
 
 1. **AppNavigator**: The root navigator that determines whether to show the authentication flow or the main application based on the user's authentication state.
 
@@ -163,7 +163,7 @@ The authentication flow in the CricSync mobile application is implemented using 
 
 ## Navigation Structure
 
-The CricSync mobile application uses React Navigation for navigation:
+The CricRoots mobile application uses React Navigation for navigation:
 
 1. **AppNavigator**: The root navigator that handles authentication state.
 
@@ -180,9 +180,9 @@ The CricSync mobile application uses React Navigation for navigation:
 
 ## UI Components and Styling
 
-The CricSync mobile application uses React Native Paper for UI components and a consistent theming system:
+The CricRoots mobile application uses React Native Paper for UI components and a consistent theming system:
 
-1. **Theme Configuration**: Defined in `/theme/index.ts` with CricSync brand colors and common styles.
+1. **Theme Configuration**: Defined in `/theme/index.ts` with CricRoots brand colors and common styles.
 
 2. **Platform-Specific Styling**: Applied using the platform-specific configurations.
 
@@ -192,7 +192,7 @@ The CricSync mobile application uses React Native Paper for UI components and a 
 
 ## State Management
 
-The CricSync mobile application uses a combination of React Context and local state for state management:
+The CricRoots mobile application uses a combination of React Context and local state for state management:
 
 1. **Authentication State**: Managed by the `useAuth` hook.
 
@@ -204,7 +204,7 @@ The CricSync mobile application uses a combination of React Context and local st
 
 ## API Integration
 
-The CricSync mobile application integrates with the backend API using the shared API client:
+The CricRoots mobile application integrates with the backend API using the shared API client:
 
 1. **API Client**: Defined in `/shared/api/apiClient.ts` with endpoints for all required functionality.
 
@@ -216,7 +216,7 @@ The CricSync mobile application integrates with the backend API using the shared
 
 ## Testing Guidelines
 
-The CricSync mobile application should be tested thoroughly:
+The CricRoots mobile application should be tested thoroughly:
 
 1. **Unit Testing**: Test individual components and functions.
 
@@ -230,7 +230,7 @@ The CricSync mobile application should be tested thoroughly:
 
 ## Deployment Process
 
-The deployment process for the CricSync mobile application involves:
+The deployment process for the CricRoots mobile application involves:
 
 1. **Building the Application**: Using Expo or React Native CLI.
 
@@ -244,7 +244,7 @@ The deployment process for the CricSync mobile application involves:
 
 ## Future Development Roadmap
 
-The future development roadmap for the CricSync mobile application includes:
+The future development roadmap for the CricRoots mobile application includes:
 
 1. **Feature Enhancements**:
    - Offline support

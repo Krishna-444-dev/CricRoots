@@ -1,7 +1,7 @@
 {
-  "name": "cricsync-backend",
+  "name": "cricroots-backend",
   "version": "1.0.0",
-  "description": "Backend API for CricSync - The All-in-One Cricket Application",
+  "description": "Backend API for CricRoots - The All-in-One Cricket Application",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -11,7 +11,7 @@
   "keywords": [
     "cricket",
     "api",
-    "cricsync",
+    "cricroots",
     "backend"
   ],
   "author": "",

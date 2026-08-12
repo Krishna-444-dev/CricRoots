@@ -79,7 +79,7 @@ export default function TeamChatPage({ params }: { params: { id: string } }) {
         setError(data.message || 'Could not send message');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setSending(false);
     }

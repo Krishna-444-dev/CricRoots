@@ -33,7 +33,7 @@ export default function DirectMessageThreadPage({ params }: { params: { userId: 
         setLoading(false);
       })
       .catch(() => {
-        setError('Could not reach the CricSync server');
+        setError('Could not reach the CricRoots server');
         setLoading(false);
       });
   }, [params.userId, token]);
@@ -88,7 +88,7 @@ export default function DirectMessageThreadPage({ params }: { params: { userId: 
         setError(data.message || 'Could not send message');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setSending(false);
     }

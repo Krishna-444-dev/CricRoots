@@ -1,4 +1,4 @@
-// CricSync "Stadium Dark" theme - mirrors web-app/tailwind.config.js exactly, so the brand
+// CricRoots "Stadium Dark" theme - mirrors web-app/tailwind.config.js exactly, so the brand
 // looks and feels the same across web, iOS, and Android.
 import { MD3DarkTheme as DefaultTheme } from 'react-native-paper';
 
@@ -40,7 +40,7 @@ export const colors = {
   textSecondary: '#96A3BC',
 };
 
-export const CricSyncTheme = {
+export const CricRootsTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,

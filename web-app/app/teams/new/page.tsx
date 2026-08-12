@@ -39,7 +39,7 @@ export default function NewTeamPage() {
         setError(data.message || 'Could not create team');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setIsSubmitting(false);
     }

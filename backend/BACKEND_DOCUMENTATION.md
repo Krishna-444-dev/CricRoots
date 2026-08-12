@@ -1,8 +1,8 @@
-# CricSync Backend API Documentation
+# CricRoots Backend API Documentation
 
 ## Overview
 
-The CricSync backend is a Node.js/Express server that provides a RESTful API for the CricSync mobile and web applications. It handles user authentication, player management, team operations, and integrates with the Python AI recommendation engine.
+The CricRoots backend is a Node.js/Express server that provides a RESTful API for the CricRoots mobile and web applications. It handles user authentication, player management, team operations, and integrates with the Python AI recommendation engine.
 
 ## Technology Stack
 
@@ -54,7 +54,7 @@ cp .env.example .env
 ```
 PORT=5000
 NODE_ENV=development
-MONGO_URI=mongodb://localhost:27017/cricsync
+MONGO_URI=mongodb://localhost:27017/cricroots
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRE=30d
 ```
@@ -466,4 +466,4 @@ The following endpoints are planned for future implementation:
 
 ---
 
-*For more information, see the main CricSync README.md*
+*For more information, see the main CricRoots README.md*

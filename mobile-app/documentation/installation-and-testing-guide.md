@@ -1,6 +1,6 @@
-# CricSync Mobile Application Installation and Testing Guide
+# CricRoots Mobile Application Installation and Testing Guide
 
-This guide provides detailed instructions for installing and testing the CricSync mobile application on both iOS and Android devices.
+This guide provides detailed instructions for installing and testing the CricRoots mobile application on both iOS and Android devices.
 
 ## Table of Contents
 1. [iOS Installation and Testing](#ios-installation-and-testing)
@@ -21,8 +21,8 @@ This guide provides detailed instructions for installing and testing the CricSyn
 
 1. Clone the repository and navigate to the project directory:
    ```bash
-   git clone https://github.com/your-repo/cricsync.git
-   cd cricsync/mobile-app/CricketApp-manual
+   git clone https://github.com/your-repo/cricroots.git
+   cd cricroots/mobile-app/CricketApp-manual
    ```
 
 2. Install dependencies:
@@ -84,7 +84,7 @@ This guide provides detailed instructions for installing and testing the CricSyn
 2. Tap the invitation link in the email
 3. The TestFlight app will open
 4. Tap "Accept" to accept the invitation
-5. Tap "Install" to install the CricSync app
+5. Tap "Install" to install the CricRoots app
 6. The app will be installed on your home screen
 7. Open the app and begin testing
 
@@ -99,8 +99,8 @@ This guide provides detailed instructions for installing and testing the CricSyn
 
 1. Clone the repository and navigate to the project directory:
    ```bash
-   git clone https://github.com/your-repo/cricsync.git
-   cd cricsync/mobile-app/CricketApp-manual
+   git clone https://github.com/your-repo/cricroots.git
+   cd cricroots/mobile-app/CricketApp-manual
    ```
 
 2. Install dependencies:
@@ -161,7 +161,7 @@ This guide provides detailed instructions for installing and testing the CricSyn
 
 ### Step 4: Launch and Test
 
-1. Once installed, the CricSync app will appear on your home screen
+1. Once installed, the CricRoots app will appear on your home screen
 2. Tap the icon to launch the app
 3. Begin testing according to the test plan
 
@@ -177,7 +177,7 @@ For rapid development testing without building native binaries:
 
 1. Navigate to the project directory:
    ```bash
-   cd cricsync/mobile-app/CricketApp-manual
+   cd cricroots/mobile-app/CricketApp-manual
    ```
 
 2. Install dependencies:
@@ -244,7 +244,7 @@ For rapid development testing without building native binaries:
 
 ## Testing Guidelines
 
-When testing the CricSync application, focus on these key areas:
+When testing the CricRoots application, focus on these key areas:
 
 ### Functional Testing
 - Team creation and management
@@ -287,4 +287,4 @@ Submit issues through the project's issue tracking system or directly to the dev
 
 ---
 
-For additional support or questions about the installation and testing process, please contact the development team at support@cricsync.com.
+For additional support or questions about the installation and testing process, please contact the development team at support@cricroots.com.

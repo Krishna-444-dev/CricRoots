@@ -79,7 +79,7 @@ export default function PredictionWidget({ matchId, matchStatus, team1, team2 }:
         setError(data.message || 'Could not save your prediction');
       }
     } catch (err) {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setSubmitting(null);
     }

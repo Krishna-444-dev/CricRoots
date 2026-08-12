@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Privacy Policy — CricSync',
+  title: 'Privacy Policy — CricRoots',
 };
 
 export default function PrivacyPage() {
@@ -12,7 +12,7 @@ export default function PrivacyPage() {
 
       <div className="space-y-6 text-sm text-ink-secondary leading-relaxed [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-ink [&_h2]:mt-8 [&_h2]:mb-2 [&_p]:mb-3 [&_li]:mb-1.5">
         <p>
-          This Privacy Policy explains what information CricSync collects, how it's used, and the choices
+          This Privacy Policy explains what information CricRoots collects, how it's used, and the choices
           you have.
         </p>
 
@@ -45,14 +45,14 @@ export default function PrivacyPage() {
             users as part of normal Service operation (this is a team sport — scores are meant to be
             shared). Auto-generated tournament news is visible publicly and, with extra emphasis, to
             players registered in that tournament. Your account password is never visible to anyone,
-            including CricSync staff.
+            including CricRoots staff.
           </p>
         </section>
 
         <section>
           <h2>4. Children's privacy</h2>
           <p>
-            CricSync isn't directed at children under 13, and we don't knowingly collect personal
+            CricRoots isn't directed at children under 13, and we don't knowingly collect personal
             information from anyone under 13. Players between 13 and 17 may only use the Service with a
             parent or guardian's involvement. If you believe a child under 13 has created an account,
             contact us and we'll remove it.
@@ -62,7 +62,7 @@ export default function PrivacyPage() {
         <section>
           <h2>5. Where your data lives</h2>
           <p>
-            Data is stored on the infrastructure that hosts CricSync's backend and database. We use
+            Data is stored on the infrastructure that hosts CricRoots's backend and database. We use
             reasonable technical and organizational measures to protect it, but no online service can
             guarantee perfect security.
           </p>

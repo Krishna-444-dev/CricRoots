@@ -45,7 +45,7 @@ export default function NewLessonPage() {
         setError(data.message || 'Could not create lesson');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setIsSubmitting(false);
     }

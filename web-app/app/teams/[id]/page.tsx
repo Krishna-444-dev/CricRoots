@@ -86,7 +86,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
         setError(data.message || 'Could not add player');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setIsAdding(false);
     }

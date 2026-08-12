@@ -1,8 +1,8 @@
-# iOS Device Testing Plan for CricSync
+# iOS Device Testing Plan for CricRoots
 
 ## Overview
 
-This document outlines the comprehensive testing plan for the CricSync mobile application on iOS devices. The testing plan ensures that the application functions correctly, looks visually appealing, and provides a smooth user experience across various iOS devices and versions.
+This document outlines the comprehensive testing plan for the CricRoots mobile application on iOS devices. The testing plan ensures that the application functions correctly, looks visually appealing, and provides a smooth user experience across various iOS devices and versions.
 
 ## Test Environments
 
@@ -248,4 +248,4 @@ For each test case, record the following information:
 
 ## Conclusion
 
-This comprehensive testing plan ensures that the CricSync iOS application meets high-quality standards before submission to the App Store. By systematically testing all aspects of the application across various devices and iOS versions, we can identify and address issues early in the development cycle, resulting in a polished and reliable application for our users.
+This comprehensive testing plan ensures that the CricRoots iOS application meets high-quality standards before submission to the App Store. By systematically testing all aspects of the application across various devices and iOS versions, we can identify and address issues early in the development cycle, resulting in a polished and reliable application for our users.

@@ -1,12 +1,12 @@
-# CricSync Mobile Application Development Guide for Future Tasks
+# CricRoots Mobile Application Development Guide for Future Tasks
 
 ## Introduction
 
-This guide is specifically designed to help you continue the development of the CricSync mobile application in subsequent tasks. It provides practical information, next steps, and implementation guidelines to ensure a smooth continuation of the development process.
+This guide is specifically designed to help you continue the development of the CricRoots mobile application in subsequent tasks. It provides practical information, next steps, and implementation guidelines to ensure a smooth continuation of the development process.
 
 ## Current Development Status
 
-As of March 28, 2025, the CricSync mobile application has the following components implemented:
+As of March 28, 2025, the CricRoots mobile application has the following components implemented:
 
 1. **Project Structure**: Complete basic structure with shared code organization
 2. **Shared Code Strategy**: Implemented with types, API client, hooks, contexts, and utilities
@@ -130,7 +130,7 @@ export class ScoringService {
   socket = null;
   
   connect(matchId, token) {
-    this.socket = io('https://api.cricsync.com', {
+    this.socket = io('https://api.cricroots.com', {
       auth: {
         token
       },

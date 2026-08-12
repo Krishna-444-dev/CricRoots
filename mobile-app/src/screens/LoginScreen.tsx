@@ -62,7 +62,7 @@ const LoginScreen = ({ navigation }: any) => {
       >
         <ScrollView contentContainerStyle={styles.scrollView}>
           <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>CricSync</Text>
+            <Text style={styles.logoText}>CricRoots</Text>
             <Text style={styles.tagline}>Your complete cricket companion</Text>
             {/* TEMPORARY - remove once the pilot-testing network issue is confirmed fixed */}
             <Text style={styles.debugUrl}>API: {API_BASE_URL}</Text>

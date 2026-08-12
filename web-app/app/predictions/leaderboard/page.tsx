@@ -62,7 +62,7 @@ export default function LeaderboardPage() {
         setLeaderboardError('Could not load the leaderboard');
       }
     } catch (err) {
-      setLeaderboardError('Could not reach the CricSync server');
+      setLeaderboardError('Could not reach the CricRoots server');
     } finally {
       setLeaderboardLoading(false);
     }
@@ -86,7 +86,7 @@ export default function LeaderboardPage() {
         setMineError('Could not load your predictions');
       }
     } catch (err) {
-      setMineError('Could not reach the CricSync server');
+      setMineError('Could not reach the CricRoots server');
     } finally {
       setMineLoading(false);
       setMineLoaded(true);

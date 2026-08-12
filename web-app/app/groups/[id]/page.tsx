@@ -149,7 +149,7 @@ export default function GroupDetailPage({ params }: { params: { id: string } }) 
         setError(data.message || 'Could not send message');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setSending(false);
     }
@@ -194,7 +194,7 @@ export default function GroupDetailPage({ params }: { params: { id: string } }) 
         setPollError(data.message || 'Could not create poll');
       }
     } catch {
-      setPollError('Could not reach the CricSync server');
+      setPollError('Could not reach the CricRoots server');
     } finally {
       setPollSubmitting(false);
     }
@@ -218,7 +218,7 @@ export default function GroupDetailPage({ params }: { params: { id: string } }) 
         setUploadError(data.message || 'Upload failed');
       }
     } catch {
-      setUploadError('Could not reach the CricSync server');
+      setUploadError('Could not reach the CricRoots server');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

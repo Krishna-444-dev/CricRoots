@@ -1,12 +1,12 @@
-# CricSync - The All-in-One Cricket Application
+# CricRoots - The All-in-One Cricket Application
 
-CricSync is a comprehensive, full-stack cricket application designed to provide an all-in-one experience for cricket enthusiasts, players, and tournament organizers. Built with modern technologies across web, mobile, and backend platforms, CricSync brings together team management, ball-by-ball live scoring, tournament administration, a player social network, community edtech, news, a gear marketplace, and data-driven AI tactical insights — with **real-time WebSocket support**.
+CricRoots is a comprehensive, full-stack cricket application designed to provide an all-in-one experience for cricket enthusiasts, players, and tournament organizers. Built with modern technologies across web, mobile, and backend platforms, CricRoots brings together team management, ball-by-ball live scoring, tournament administration, a player social network, community edtech, news, a gear marketplace, and data-driven AI tactical insights — with **real-time WebSocket support**.
 
 The product direction: a world-class, one-stop app for cricket, starting with local and club tournaments rather than international cricket — every stat and recommendation is built to work from a club's own scoring data instead of assuming access to professional-league datasets.
 
 ## Project Overview
 
-This repository contains the complete CricSync ecosystem, including:
+This repository contains the complete CricRoots ecosystem, including:
 
 - **Web Application** (`web-app/`): Next.js 14 (App Router) + TypeScript + Tailwind frontend. Covers auth, live scoring, tournament management, a player network, edtech, news, and a marketplace with cart/checkout, all under a shared "Stadium Dark" design system.
 - **Mobile Application** (`mobile-app/`): React Native (Expo SDK 54) with full feature parity to the web app across 22 screens — live scoring, tournaments, teams, marketplace, news, learn, and the prediction game. Distributed for pilot testing via Expo Go (no App Store review needed yet — see `documentation/going-legal-and-live.md`).
@@ -43,7 +43,7 @@ This repository contains the complete CricSync ecosystem, including:
 - **Personalized Learn**: lesson recommendations matched against a player's own weak line/length batting or bowling data, with an honest "why you're seeing this" explanation and a generic fallback when there's not enough data yet.
 - **Auto-generated tournament news**: when a tournament match completes, an article is automatically written spotlighting the standout performance (century, five-wicket haul, hat-trick) or a plain result recap — visible to everyone, with a personalized "My Tournaments" feed for players actually registered in that tournament.
 - **Points-based prediction game**: predict a match winner (plus a Man of the Match bonus) before it starts, with a leaderboard — free points only, explicitly not real-money betting.
-- **Marketplace**: real listings, shopping cart, checkout, and buyer/seller order tracking for cricket gear (cash/bank-transfer/in-person payment only — CricSync isn't a party to the sale).
+- **Marketplace**: real listings, shopping cart, checkout, and buyer/seller order tracking for cricket gear (cash/bank-transfer/in-person payment only — CricRoots isn't a party to the sale).
 
 ### 📱 Cross-platform Support
 - **Web app**: responsive, real-time, actively developed.
@@ -78,7 +78,7 @@ This repository contains the complete CricSync ecosystem, including:
 
 ### Quick Start with Docker
 
-1. **Clone the repository**:
+1. **Clone the repository** (the GitHub repo itself is still named `CricSync` pending a manual rename — see note below):
 ```bash
 git clone https://github.com/Krishna-444-dev/CricSync.git
 cd CricSync
@@ -275,7 +275,7 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 
 ---
 
-**CricSync** - *Bringing the world of cricket together, one match at a time.*
+**CricRoots** - *Bringing the world of cricket together, one match at a time.*
 
 *Developed with the assistance of Manus AI*
 

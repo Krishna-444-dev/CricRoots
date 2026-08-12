@@ -6,7 +6,7 @@ Distilled from `/ai-system/*.tsx` (6,313 lines across 5 components) and the two
 **Purpose of this document**: the `ai-system/` prototype is disconnected mock-data UI,
 scoped for professional/international cricket, and will not be adopted wholesale. This
 is a reference for whoever builds the real shrinkage-weighted statistics layer for
-CricSync's four local-tournament recommendation features:
+CricRoots's four local-tournament recommendation features:
 
 1. Shot advice for a batsman
 2. Opposition bowler scouting
@@ -48,7 +48,7 @@ recommendation-endpoint work, read in this order:
 
 **Important scope note**: `BatsmanRecommendation.tsx` and `BowlerRecommendation.tsx`
 solve "which player should play next" (a captain's team-selection problem for
-professional squads with benches). None of CricSync's four planned features are that
+professional squads with benches). None of CricRoots's four planned features are that
 problem — local tournaments field a fixed XI. The genuinely reusable material in
 those two files is the *scoring/explanation machinery*, not the "next player" framing.
 

@@ -1,6 +1,6 @@
-# CricSync AI Recommendation Engine
+# CricRoots AI Recommendation Engine
 
-The CricSync AI Recommendation Engine is a Python-based machine learning service that provides intelligent tactical recommendations for cricket matches. It uses scikit-learn to train and deploy models that provide real-time insights based on match conditions and player abilities.
+The CricRoots AI Recommendation Engine is a Python-based machine learning service that provides intelligent tactical recommendations for cricket matches. It uses scikit-learn to train and deploy models that provide real-time insights based on match conditions and player abilities.
 
 ## Advanced Features
 
@@ -97,4 +97,4 @@ For development, the `data_generator.py` script creates high-quality synthetic d
 
 ---
 
-*Part of the CricSync - The All-in-One Cricket Application*
+*Part of the CricRoots - The All-in-One Cricket Application*

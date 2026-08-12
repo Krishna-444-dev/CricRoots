@@ -39,7 +39,7 @@ export default function GroupsPage() {
         setLoading(false);
       })
       .catch(() => {
-        setError('Could not reach the CricSync server');
+        setError('Could not reach the CricRoots server');
         setLoading(false);
       });
   }, [token]);

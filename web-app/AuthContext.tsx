@@ -20,7 +20,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const STORAGE_KEY = 'cricsync_auth';
+const STORAGE_KEY = 'cricroots_auth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.user, data.token);
       return { success: true };
     } catch {
-      return { success: false, message: 'Could not reach the CricSync server' };
+      return { success: false, message: 'Could not reach the CricRoots server' };
     }
   };
 

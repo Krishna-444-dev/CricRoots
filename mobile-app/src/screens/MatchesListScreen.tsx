@@ -103,7 +103,7 @@ export default function MatchesListScreen({ navigation }: Props) {
             <View style={styles.centered}>
               <Text style={styles.emptyTitle}>No matches yet</Text>
               <Text style={styles.muted}>
-                {error || 'Matches created on CricSync will show up here.'}
+                {error || 'Matches created on CricRoots will show up here.'}
               </Text>
             </View>
           }

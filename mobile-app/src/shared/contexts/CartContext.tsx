@@ -123,7 +123,7 @@ interface StorageInterface {
 }
 
 // Storage key
-const CART_STORAGE_KEY = 'cricsync_cart';
+const CART_STORAGE_KEY = 'cricroots_cart';
 
 // Provider component factory
 export function createCartProvider(storage: StorageInterface) {

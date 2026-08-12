@@ -3,7 +3,7 @@
 // probability it caused, surface the largest swings as auto-highlights.
 //
 // Every video-based cricket highlight-detection approach (ball-tracking, broadcast footage)
-// is irrelevant here - CricSync has no video, only structured ball events. WPA is the one
+// is irrelevant here - CricRoots has no video, only structured ball events. WPA is the one
 // technique that works from that alone: it only needs a win-probability number before and
 // after each ball, which the AI engine's /win-probability endpoint already provides.
 //

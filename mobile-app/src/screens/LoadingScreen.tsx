@@ -7,7 +7,7 @@ import { colors } from '../theme';
 const LoadingScreen = () => {
   return (
     <View style={styles.container}>
-      <Text style={styles.logoText}>CricSync</Text>
+      <Text style={styles.logoText}>CricRoots</Text>
       <ActivityIndicator size="large" color={colors.primary} style={styles.spinner} />
       <Text style={styles.loadingText}>Loading...</Text>
     </View>

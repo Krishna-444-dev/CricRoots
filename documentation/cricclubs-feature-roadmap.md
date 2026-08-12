@@ -6,7 +6,7 @@ the UI redesign that preceded them. Started 2026-08-10.
 
 ## Why competitor research
 
-CricSync's vision is a world-class, one-stop cricket app, starting with local/club tournaments.
+CricRoots's vision is a world-class, one-stop cricket app, starting with local/club tournaments.
 CricClubs and CricHeroes are the incumbents in that exact niche, so their feature sets are a useful
 checklist of "table stakes" for a tournament organizer or club player — and their review complaints
 are a useful list of gaps to deliberately do better on.
@@ -23,10 +23,10 @@ it for the full breakdown. **CricHeroes user complaints**: almost everything exc
 scoring is paywalled (players can't see their own stats or even the tournament points table for
 free), requires a phone number to register, Android/iOS feature parity gaps, ads on the free tier.
 
-**CricSync's structural advantage**: the ball-by-ball scoring UI already tags `line`, `length`,
+**CricRoots's structural advantage**: the ball-by-ball scoring UI already tags `line`, `length`,
 `shotZone`, `shotType`, `fielderId`, and `fielderPosition` per delivery (built for the AI tactical
 insights feature). Both competitors' flagship analytics features (wagon wheels, keeper stats,
-Manhattan/Worm charts, MVP calculation) are things CricSync can build almost for free from data it
+Manhattan/Worm charts, MVP calculation) are things CricRoots can build almost for free from data it
 already collects — and unlike CricHeroes, none of it needs to sit behind a paywall. See
 [[project_ai_strategy]] in memory for the broader AI/data strategy this feeds into.
 
@@ -109,7 +109,7 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   it the track most likely to conflict with whatever else was running in parallel.
 - **Live streaming + AI highlights** (CricHeroes) — real video infrastructure, a much bigger lift
   than anything else on this list. Noted for completeness, not scoped or planned.
-- **Community feed** (CricHeroes: rules/education/trivia/quizzes/polls/stories) — CricSync's
+- **Community feed** (CricHeroes: rules/education/trivia/quizzes/polls/stories) — CricRoots's
   edtech/news modules already cover lessons and announcements; polls/trivia/quizzes would be new
   data models. Lower priority than the stats/analytics gaps above.
 

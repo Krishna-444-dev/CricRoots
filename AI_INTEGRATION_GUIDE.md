@@ -1,6 +1,6 @@
-# CricSync AI Integration Guide
+# CricRoots AI Integration Guide
 
-This document provides a comprehensive guide on how the AI Engine is integrated with the backend and frontend components of the CricSync application.
+This document provides a comprehensive guide on how the AI Engine is integrated with the backend and frontend components of the CricRoots application.
 
 ## Architecture Overview
 
@@ -293,7 +293,7 @@ BACKEND_API_URL=http://backend:5000
 
 ### Docker Compose
 
-Services communicate through the `cricsync-network`:
+Services communicate through the `cricroots-network`:
 - Backend: `http://ai-engine:5001`
 - AI Engine: `http://backend:5000`
 

@@ -1,8 +1,8 @@
-# CricSync Architecture Documentation
+# CricRoots Architecture Documentation
 
 ## System Overview
 
-CricSync is a full-stack cricket application built with a microservices-inspired architecture. The system consists of multiple independent services that communicate through well-defined APIs, allowing for scalability, maintainability, and independent deployment.
+CricRoots is a full-stack cricket application built with a microservices-inspired architecture. The system consists of multiple independent services that communicate through well-defined APIs, allowing for scalability, maintainability, and independent deployment.
 
 ## Architecture Diagram
 

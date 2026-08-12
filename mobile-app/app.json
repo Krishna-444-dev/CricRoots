@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CricSync",
+    "name": "CricRoots",
     "slug": "cricsync",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,14 +11,14 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cricsync.mobile"
+      "bundleIdentifier": "com.cricroots.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B1220"
       },
-      "package": "com.cricsync.mobile"
+      "package": "com.cricroots.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"

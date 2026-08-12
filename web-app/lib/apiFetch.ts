@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'cricsync_auth';
+const STORAGE_KEY = 'cricroots_auth';
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;

@@ -75,7 +75,7 @@ there's no player profile or not enough tagged-ball data yet. Same transparency 
 existing insights endpoints (`source: 'own-data' | 'generic'`), not a black box.
 
 Seeded the lesson library with 7 new tagged lessons (plus tagged 3 existing ones) covering the
-line/length vocabulary gaps, authored by the existing "CricSync Coaching" seed account, so the
+line/length vocabulary gaps, authored by the existing "CricRoots Coaching" seed account, so the
 feature has real content to recommend rather than only ever falling back to generic in practice.
 
 ### Verification

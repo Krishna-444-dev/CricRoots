@@ -53,7 +53,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
 // Basic Route
 app.get('/', (req, res) => {
   res.json({
-    message: 'Welcome to CricSync API',
+    message: 'Welcome to CricRoots API',
     version: '1.0.0',
     status: 'Running',
     websocket: 'Enabled'
@@ -96,6 +96,6 @@ app.use((req, res) => {
 
 // Start Server
 server.listen(PORT, () => {
-  console.log(`CricSync Backend running on port ${PORT}`);
+  console.log(`CricRoots Backend running on port ${PORT}`);
   console.log(`WebSocket server ready for connections`);
 });

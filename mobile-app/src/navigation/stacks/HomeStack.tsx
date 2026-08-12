@@ -14,7 +14,7 @@ const Stack = createNativeStackNavigator();
 export default function HomeStack() {
   return (
     <Stack.Navigator id={undefined} screenOptions={navScreenOptions}>
-      <Stack.Screen name="HomeMain" component={HomeScreen} options={{ title: 'CricSync' }} />
+      <Stack.Screen name="HomeMain" component={HomeScreen} options={{ title: 'CricRoots' }} />
       <Stack.Screen name="Network" component={NetworkScreen} />
       <Stack.Screen name="Learn" component={LearnScreen} />
       <Stack.Screen name="News" component={NewsScreen} />

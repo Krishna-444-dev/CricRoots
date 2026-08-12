@@ -27,7 +27,7 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 const TAX_RATE = 0.1;
 const FREE_SHIPPING_THRESHOLD = 100;
 const SHIPPING_COST = 9.99;
-const STORAGE_KEY = 'cricsync_cart';
+const STORAGE_KEY = 'cricroots_cart';
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);

@@ -1,5 +1,5 @@
 // shared/api/apiClient.ts
-// Fetch wrapper + typed route groups matching the REAL CricSync backend (backend/src/routes/*),
+// Fetch wrapper + typed route groups matching the REAL CricRoots backend (backend/src/routes/*),
 // not an imagined API surface - every path here corresponds to an actual mounted route as of
 // this pass. See backend/src/index.js for the full mount list.
 
@@ -21,7 +21,7 @@ function resolveBaseUrl(): string {
     return Platform.OS === 'android' ? 'http://10.0.2.2:5000/api' : 'http://localhost:5000/api';
   }
 
-  return 'https://api.cricsync.com/api';
+  return 'https://api.cricroots.com/api';
 }
 
 export const API_BASE_URL = resolveBaseUrl();

@@ -27,7 +27,7 @@ interface UseAuthReturn extends AuthState {
   clearError: () => void;
 }
 
-const TOKEN_STORAGE_KEY = 'cricsync_auth_token';
+const TOKEN_STORAGE_KEY = 'cricroots_auth_token';
 
 interface StorageInterface {
   getItem: (key: string) => Promise<string | null>;

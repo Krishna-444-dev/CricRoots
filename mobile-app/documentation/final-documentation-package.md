@@ -1,12 +1,12 @@
-# CricSync Mobile Application - Final Documentation Package
+# CricRoots Mobile Application - Final Documentation Package
 
 ## Overview
 
-This document serves as the master index for all documentation related to the CricSync mobile application. It provides links to all documentation files and a summary of their contents to help you navigate the complete documentation package.
+This document serves as the master index for all documentation related to the CricRoots mobile application. It provides links to all documentation files and a summary of their contents to help you navigate the complete documentation package.
 
 ## Project Structure
 
-The CricSync mobile application is organized as follows:
+The CricRoots mobile application is organized as follows:
 
 ```
 mobile-app/
@@ -120,7 +120,7 @@ The application includes the following key screens:
 
 ## Development Roadmap
 
-The future development roadmap for the CricSync mobile application includes:
+The future development roadmap for the CricRoots mobile application includes:
 
 1. **Short-term (1-2 months)**
    - Complete iOS testing and App Store submission
@@ -141,7 +141,7 @@ The future development roadmap for the CricSync mobile application includes:
 
 ## Getting Started
 
-To continue development of the CricSync mobile application:
+To continue development of the CricRoots mobile application:
 
 1. Review the [Mobile Application Development](/documentation/mobile-application-development.md) document for an overview of the architecture
 2. Follow the [Installation and Testing Guide](/documentation/installation-and-testing-guide.md) to set up the development environment
@@ -149,7 +149,7 @@ To continue development of the CricSync mobile application:
 
 ## Conclusion
 
-This documentation package provides a comprehensive overview of the CricSync mobile application, including its architecture, implementation details, and future development plans. The platform-specific approach ensures a native experience on both iOS and Android while maintaining a single codebase for easier maintenance.
+This documentation package provides a comprehensive overview of the CricRoots mobile application, including its architecture, implementation details, and future development plans. The platform-specific approach ensures a native experience on both iOS and Android while maintaining a single codebase for easier maintenance.
 
 For any questions or additional support, please contact the development team.
 

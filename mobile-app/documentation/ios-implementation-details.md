@@ -1,8 +1,8 @@
-# iOS Implementation Details for CricSync Mobile Application
+# iOS Implementation Details for CricRoots Mobile Application
 
 ## Overview
 
-This document provides detailed information about the iOS-specific implementations in the CricSync mobile application. It covers UI components, navigation adaptations, animations, and testing utilities that ensure the application looks and feels native on iOS devices.
+This document provides detailed information about the iOS-specific implementations in the CricRoots mobile application. It covers UI components, navigation adaptations, animations, and testing utilities that ensure the application looks and feels native on iOS devices.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This document provides detailed information about the iOS-specific implementatio
 
 ## iOS-Specific UI Components
 
-The CricSync mobile application implements iOS-specific UI components that follow Apple's Human Interface Guidelines to ensure a native look and feel on iOS devices.
+The CricRoots mobile application implements iOS-specific UI components that follow Apple's Human Interface Guidelines to ensure a native look and feel on iOS devices.
 
 ### Button Components
 
@@ -129,7 +129,7 @@ Key iOS action sheet characteristics:
 
 ## iOS Navigation Adaptations
 
-The CricSync mobile application implements iOS-specific navigation patterns to ensure a native experience.
+The CricRoots mobile application implements iOS-specific navigation patterns to ensure a native experience.
 
 ### Back Button
 
@@ -218,7 +218,7 @@ Key iOS swipe gesture characteristics:
 
 ## iOS Animation Patterns
 
-The CricSync mobile application implements iOS-specific animation patterns to ensure a native feel.
+The CricRoots mobile application implements iOS-specific animation patterns to ensure a native feel.
 
 ### Fade In Animation
 
@@ -336,7 +336,7 @@ Key iOS button press characteristics:
 
 ## iOS Testing Utilities
 
-The CricSync mobile application includes testing utilities for iOS-specific components and animations.
+The CricRoots mobile application includes testing utilities for iOS-specific components and animations.
 
 ### Component Test Screen
 
@@ -378,7 +378,7 @@ This screen allows testing of:
 
 ## Integration Guidelines
 
-To integrate iOS-specific components and animations into the CricSync application:
+To integrate iOS-specific components and animations into the CricRoots application:
 
 1. **Platform Detection**: Use the platform utilities to detect iOS:
 

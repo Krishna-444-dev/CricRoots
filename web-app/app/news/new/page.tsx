@@ -43,7 +43,7 @@ export default function NewNewsPage() {
         setError(data.message || 'Could not create post');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setIsSubmitting(false);
     }

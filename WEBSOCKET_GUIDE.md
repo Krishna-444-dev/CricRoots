@@ -1,10 +1,10 @@
-# CricSync WebSocket Real-time Integration Guide
+# CricRoots WebSocket Real-time Integration Guide
 
-This document provides a comprehensive guide on the WebSocket implementation for real-time AI insights and match updates in the CricSync application.
+This document provides a comprehensive guide on the WebSocket implementation for real-time AI insights and match updates in the CricRoots application.
 
 ## Overview
 
-The CricSync application now uses **Socket.io** for real-time, bidirectional communication between the backend server and connected clients (mobile and web). This replaces the previous polling mechanism, providing instant updates with significantly reduced latency and server load.
+The CricRoots application now uses **Socket.io** for real-time, bidirectional communication between the backend server and connected clients (mobile and web). This replaces the previous polling mechanism, providing instant updates with significantly reduced latency and server load.
 
 ## Architecture
 

@@ -1,12 +1,12 @@
-# App Store Assets and Metadata for CricSync
+# App Store Assets and Metadata for CricRoots
 
 ## App Information
 
 ### Basic Information
-- **App Name**: CricSync
+- **App Name**: CricRoots
 - **Subtitle**: Your Complete Cricket Companion
-- **Bundle ID**: com.cricsync.app
-- **SKU**: CRICSYNC2025
+- **Bundle ID**: com.cricroots.app
+- **SKU**: CRICROOTS2025
 - **Primary Language**: English
 - **Primary Category**: Sports
 - **Secondary Category**: Social Networking
@@ -14,14 +14,14 @@
 ### App Version Information
 - **Version Number**: 1.0.0
 - **Build Number**: 1
-- **Copyright**: © 2025 CricSync
+- **Copyright**: © 2025 CricRoots
 - **Age Rating**: 4+
 
 ## App Description
 
 ### App Store Description
 ```
-CricSync is the ultimate cricket companion app that brings together everything cricket enthusiasts need in one seamless platform.
+CricRoots is the ultimate cricket companion app that brings together everything cricket enthusiasts need in one seamless platform.
 
 COMPREHENSIVE TEAM MANAGEMENT
 • Register and manage cricket teams with detailed player profiles
@@ -38,7 +38,7 @@ PROFESSIONAL SCORING SYSTEM
 CRICKET MARKETPLACE
 • Shop for high-quality cricket equipment
 • Secure payment processing with multiple options
-• Exclusive deals for CricSync users
+• Exclusive deals for CricRoots users
 • Equipment recommendations based on player style
 
 COMMUNICATION HUB
@@ -53,26 +53,26 @@ TOURNAMENT MANAGEMENT
 • Real-time tournament standings and statistics
 • Multiple concurrent tournament support
 
-Download CricSync today and elevate your cricket experience to the next level!
+Download CricRoots today and elevate your cricket experience to the next level!
 ```
 
 ### Keywords
 cricket, sports, scoring, teams, tournaments, marketplace, communication, statistics, analytics, cricket equipment, cricket app, team management, match scoring
 
 ### Support URL
-https://cricsync.com/support
+https://cricroots.com/support
 
 ### Marketing URL
-https://cricsync.com
+https://cricroots.com
 
 ### Privacy Policy URL
-https://cricsync.com/privacy
+https://cricroots.com/privacy
 
 ## App Preview & Screenshots
 
 ### App Preview Video Script
 ```
-[0:00-0:05] Opening shot of CricSync logo animation with tagline "Your Complete Cricket Companion"
+[0:00-0:05] Opening shot of CricRoots logo animation with tagline "Your Complete Cricket Companion"
 
 [0:05-0:10] Quick overview of the home screen showing upcoming matches, tournaments, and quick action buttons
 
@@ -94,13 +94,13 @@ https://cricsync.com/privacy
 
 [0:50-0:55] Feature highlights reel showing key differentiators
 
-[0:55-1:00] Closing call-to-action with CricSync logo and download prompt
+[0:55-1:00] Closing call-to-action with CricRoots logo and download prompt
 ```
 
 ### Screenshot Descriptions
 
 #### iPhone Screenshots (6.5" Display)
-1. **Home Screen**: The CricSync dashboard showing upcoming matches, recent tournaments, and quick action buttons for scoring, teams, shop, and AI assist.
+1. **Home Screen**: The CricRoots dashboard showing upcoming matches, recent tournaments, and quick action buttons for scoring, teams, shop, and AI assist.
 2. **Teams Screen**: Team management interface displaying team listings with statistics, roles, and action buttons.
 3. **Scoring Interface**: Ball-by-ball scoring screen with detailed match statistics and player performance metrics.
 4. **Marketplace**: Cricket equipment shop with product listings, categories, and shopping cart functionality.
@@ -118,12 +118,12 @@ https://cricsync.com/privacy
 
 ## App Icon
 
-The CricSync app icon features a stylized cricket ball with dynamic motion lines against a gradient background transitioning from deep blue to vibrant teal. The cricket ball is rendered in traditional red with white stitching, and subtle motion blur effects convey speed and action. The design is clean and recognizable at all sizes while maintaining the app's professional sports focus.
+The CricRoots app icon features a stylized cricket ball with dynamic motion lines against a gradient background transitioning from deep blue to vibrant teal. The cricket ball is rendered in traditional red with white stitching, and subtle motion blur effects convey speed and action. The design is clean and recognizable at all sizes while maintaining the app's professional sports focus.
 
 ## Promotional Text
 
 ```
-CricSync brings professional cricket management to your fingertips with team organization, live scoring, equipment shopping, and team communication—all in one seamless app. Elevate your cricket experience today!
+CricRoots brings professional cricket management to your fingertips with team organization, live scoring, equipment shopping, and team communication—all in one seamless app. Elevate your cricket experience today!
 ```
 
 ## App Review Information
@@ -136,10 +136,10 @@ CricSync brings professional cricket management to your fingertips with team org
 
 ### Review Notes
 ```
-CricSync is a comprehensive cricket management application designed for cricket teams, players, and enthusiasts. The app includes features for team management, match scoring, equipment shopping, and team communication.
+CricRoots is a comprehensive cricket management application designed for cricket teams, players, and enthusiasts. The app includes features for team management, match scoring, equipment shopping, and team communication.
 
 Login credentials for testing:
-Username: appreviewer@cricsync.com
+Username: appreviewer@cricroots.com
 Password: Review2025!
 
 To test the full functionality:
@@ -155,9 +155,9 @@ All features are fully functional in this build. No in-app purchases are require
 ## Build Delivery
 
 ### TestFlight Information
-- **Beta App Description**: CricSync is your complete cricket companion app for team management, scoring, shopping, and communication. This beta version includes all core features for testing.
-- **Beta App Feedback Email**: beta@cricsync.com
-- **Demo Account**: Username: betatester@cricsync.com | Password: Beta2025!
+- **Beta App Description**: CricRoots is your complete cricket companion app for team management, scoring, shopping, and communication. This beta version includes all core features for testing.
+- **Beta App Feedback Email**: beta@cricroots.com
+- **Demo Account**: Username: betatester@cricroots.com | Password: Beta2025!
 
 ### Compliance Information
 - **Export Compliance**: This app does not use encryption
@@ -184,7 +184,7 @@ All features are fully functional in this build. No in-app purchases are require
 
 ### App Store Icon
 - 1024x1024 PNG with no alpha channel
-- Follows the CricSync branding guidelines with the cricket ball logo
+- Follows the CricRoots branding guidelines with the cricket ball logo
 
 ### Apple Watch App Icon
 - Not applicable for initial release

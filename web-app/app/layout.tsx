@@ -9,7 +9,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'CricSync',
+  title: 'CricRoots',
   description: 'The All-in-One Cricket Application',
 };
 

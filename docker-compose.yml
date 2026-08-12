@@ -1,10 +1,15 @@
+# Pinned explicitly (not left to default to the working-directory name) so existing volumes -
+# real MongoDB data and uploaded group-chat attachments from the CricSync-era pilot - keep
+# resolving correctly regardless of the CricRoots rename or any future directory rename.
+name: cricsync
+
 version: '3.8'
 
 services:
   # MongoDB Database
   mongodb:
     image: mongo:6.0
-    container_name: cricsync-mongodb
+    container_name: cricroots-mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
@@ -16,7 +21,7 @@ services:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
     networks:
-      - cricsync-network
+      - cricroots-network
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
       interval: 10s
@@ -28,7 +33,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: cricsync-backend
+    container_name: cricroots-backend
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-production}
@@ -47,7 +52,7 @@ services:
       - ./backend/src:/app/src
       - backend_uploads:/app/uploads
     networks:
-      - cricsync-network
+      - cricroots-network
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
@@ -60,7 +65,7 @@ services:
     build:
       context: ./ai-engine
       dockerfile: Dockerfile
-    container_name: cricsync-ai-engine
+    container_name: cricroots-ai-engine
     restart: unless-stopped
     environment:
       FLASK_ENV: ${FLASK_ENV:-production}
@@ -74,7 +79,7 @@ services:
       - ./ai-engine/src:/app/src
       - ai_models:/app/src/models/trained_models
     networks:
-      - cricsync-network
+      - cricroots-network
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5001/api/recommendations/health')"]
       interval: 30s
@@ -85,7 +90,7 @@ services:
   # Nginx Reverse Proxy (WebSocket Support)
   nginx:
     image: nginx:alpine
-    container_name: cricsync-nginx
+    container_name: cricroots-nginx
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-80}:80"
@@ -97,7 +102,7 @@ services:
       - backend
       - ai-engine
     networks:
-      - cricsync-network
+      - cricroots-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
@@ -116,5 +121,5 @@ volumes:
     driver: local
 
 networks:
-  cricsync-network:
+  cricroots-network:
     driver: bridge

@@ -126,7 +126,7 @@ export default function NewGroupPage() {
         setError(data.message || 'Could not create group');
       }
     } catch {
-      setError('Could not reach the CricSync server');
+      setError('Could not reach the CricRoots server');
     } finally {
       setIsSubmitting(false);
     }

@@ -119,7 +119,7 @@ full restart.
 ## Cricket analytics research pass
 
 Researched (WebSearch-heavy Explore agent) advanced cricket analytics work — GitHub repos,
-published methodologies — specifically evaluated against CricSync's local/club-level focus and
+published methodologies — specifically evaluated against CricRoots's local/club-level focus and
 small-data-volume constraint (a club season is thousands of balls, not the scale professional
 analytics train on). Full findings in the agent transcript; summary of what's actionable:
 
@@ -127,7 +127,7 @@ analytics train on). Full findings in the agent transcript; summary of what's ac
 1. **D/L "Standard Edition" rain-revision** — the *Professional* Edition used in international
    cricket is ICC-owned/proprietary, but the original Standard Edition (the exponential-decay
    resource formula from Duckworth & Lewis's own published papers) is public, and is what England's
-   ECB "Play-Cricket Scorer" app — the closest direct analog to CricSync — actually ships for
+   ECB "Play-Cricket Scorer" app — the closest direct analog to CricRoots — actually ships for
    recreational cricket. Closed-form formula + a resource table, no ML, no licensing issue, as long
    as it's clearly labeled "D/L Standard" (not claiming ICC-grade Professional Edition accuracy).
    **Not yet implemented** — the exact published resource-table values need sourcing/verification
@@ -135,10 +135,10 @@ analytics train on). Full findings in the agent transcript; summary of what's ac
    the one place in this research pass where getting it wrong (a plausible-looking but incorrect
    number, stated with false authority) is worse than not building it, so it wasn't rushed.
 2. **WPA-style "key moments" detection** — baseball's Win-Probability-Added concept (rank
-   deliveries by the swing in win probability before/after) ported to cricket, using CricSync's
+   deliveries by the swing in win probability before/after) ported to cricket, using CricRoots's
    *existing* win-probability endpoint. Notable because every cricket highlight-detection approach
    found in the literature is video-based (ball-tracking, broadcast footage) — WPA is the one
-   technique that works from structured event data alone, which is all CricSync has. Investigated
+   technique that works from structured event data alone, which is all CricRoots has. Investigated
    during this session; **found the win-probability model isn't currently trained at all**
    (`ai-engine`'s `/win-probability` endpoint returns "model not trained" — a deeper gap than the
    previously-known "trained on synthetic data" issue) — see below.
@@ -149,12 +149,12 @@ analytics train on). Full findings in the agent transcript; summary of what's ac
    player-skill stats do. A prerequisite for #2 to be trustworthy, not just a nice-to-have.
 4. **Markov-chain batting-order optimization** (Ovens & Bukiet and follow-up academic work) — a
    closed-form DP over each player's own run/dismissal distribution to suggest an optimal batting
-   order. Fits CricSync's existing shrinkage-stats architecture (same "small sample, pool toward
+   order. Fits CricRoots's existing shrinkage-stats architecture (same "small sample, pool toward
    average" problem already solved for shot advice/bowling plans) but needs the DP machinery built
    from scratch — no reusable library found.
 
 **Explicitly not a fit** (video/hardware-dependent, proprietary with no public methodology, or
-CricSync already has a comparable purpose-built solution): CricViz Expected Wickets/Runs, WASP,
+CricRoots already has a comparable purpose-built solution): CricViz Expected Wickets/Runs, WASP,
 ESPNcricinfo Forecaster, Impact Index, ICC Rankings' exact formula, video-based commentary
 generation research, ELO team ratings (trivial to add but low priority).
 

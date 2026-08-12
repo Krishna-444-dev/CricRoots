@@ -48,7 +48,7 @@ export default function RegisterPage() {
 
       if (!registerData.success) {
         result.error = registerData.message || 'Registration failed';
-        sessionStorage.setItem('cricsync_registration', JSON.stringify(result));
+        sessionStorage.setItem('cricroots_registration', JSON.stringify(result));
         return;
       }
 
@@ -74,9 +74,9 @@ export default function RegisterPage() {
         result.error = playerData.message || 'Player profile could not be created';
       }
     } catch (err) {
-      result.error = 'Could not reach the CricSync server';
+      result.error = 'Could not reach the CricRoots server';
     } finally {
-      sessionStorage.setItem('cricsync_registration', JSON.stringify(result));
+      sessionStorage.setItem('cricroots_registration', JSON.stringify(result));
     }
   };
 

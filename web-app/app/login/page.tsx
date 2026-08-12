@@ -34,7 +34,7 @@ export default function LoginPage() {
       <Card padding="lg" className="w-full max-w-sm">
         <div className="text-center mb-6">
           <span className="text-4xl">🏏</span>
-          <h1 className="text-2xl font-bold text-ink mt-2">Log in to CricSync</h1>
+          <h1 className="text-2xl font-bold text-ink mt-2">Log in to CricRoots</h1>
         </div>
         {error && <div className={`${errorBoxClass} mb-4`}>{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
