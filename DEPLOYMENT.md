@@ -32,8 +32,8 @@ This guide provides comprehensive instructions for deploying the CricRoots appli
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Krishna-444-dev/CricSync.git
-cd CricSync
+git clone https://github.com/Krishna-444-dev/CricRoots.git
+cd CricRoots
 ```
 
 ### 2. Configure Environment Variables
@@ -170,8 +170,8 @@ docker push your-registry/cricroots-ai-engine:1.0.0
 ssh user@production-server.com
 
 # Clone repository
-git clone https://github.com/Krishna-444-dev/CricSync.git
-cd CricSync
+git clone https://github.com/Krishna-444-dev/CricRoots.git
+cd CricRoots
 
 # Copy production env file
 cp .env.production .env
@@ -460,7 +460,7 @@ jobs:
           docker push cricroots-backend:latest
       - name: Deploy
         run: |
-          ssh user@server "cd CricSync && docker-compose pull && docker-compose up -d"
+          ssh user@server "cd CricRoots && docker-compose pull && docker-compose up -d"
 ```
 
 ---

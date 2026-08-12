@@ -78,10 +78,10 @@ This repository contains the complete CricRoots ecosystem, including:
 
 ### Quick Start with Docker
 
-1. **Clone the repository** (the GitHub repo itself is still named `CricSync` pending a manual rename — see note below):
+1. **Clone the repository**:
 ```bash
-git clone https://github.com/Krishna-444-dev/CricSync.git
-cd CricSync
+git clone https://github.com/Krishna-444-dev/CricRoots.git
+cd CricRoots
 ```
 
 2. **Configure environment**:

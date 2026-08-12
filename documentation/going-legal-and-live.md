@@ -60,11 +60,11 @@ this is the checklist of what's still missing around it.
    2026-08-12: the app is renamed **CricRoots** (from CricSync - a company already runs an app
    literally called "CricSync," and `cricsync.com`/`cricsync.app` were both already taken; see the
    demand-reality-check artifact from that session for the full research). Target domain:
-   **`cricroots.com`**, confirmed available. Still open: the GitHub repo itself is still named
-   `CricSync` (`github.com/Krishna-444-dev/CricSync`) - renaming it is a manual step on your end
-   (Settings -> repository name on GitHub; GitHub auto-redirects the old URL, so it's low-risk
-   whenever you get to it). Everything else in the codebase - app name, package names, bundle IDs,
-   Docker container labels, storage keys - was renamed in that same pass. The live MongoDB database
+   **`cricroots.com`**, confirmed available (not yet purchased). GitHub repo renamed to
+   `Krishna-444-dev/CricRoots` on 2026-08-12; the local clone's `origin` remote and all clone
+   instructions in README/DEPLOYMENT were updated to match. Everything else in the codebase - app
+   name, package names, bundle IDs, Docker container labels, storage keys - was renamed in that
+   same pass. The live MongoDB database
    name and Docker volume names were deliberately left as `cricsync` internally to avoid orphaning
    real pilot data (users, teams, uploaded group-chat attachments) - purely invisible infrastructure,
    not worth a live-data migration for a cosmetic string nobody sees.
