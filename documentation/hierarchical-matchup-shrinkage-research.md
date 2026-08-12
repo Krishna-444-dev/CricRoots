@@ -117,6 +117,34 @@ chain would have been a modeling error, not just a simplification. Concretely:
   with zero live balls today, confirmed 400 on a missing `matchId` and 404 on an unknown one, then
   cleaned up the test fixtures.
 
+## Next algorithmic directions (sketched, not built)
+
+Two natural extensions considered on 2026-08-12 while looking for further differentiation, kept
+honest about which one actually holds up:
+
+**Conditional fielding placement (promising).** `getFieldingPlan` today reports a batter's overall
+scoring zones in isolation - it doesn't account for what the *specific bowler about to bowl*
+actually tends to bowl. A batter's real shot-zone tendency is conditional on line/length (a batter
+who pulls short balls to mid-wicket but drives full balls to cover has a materially different
+"where will the ball go" answer against a bowler who mostly bangs it in short vs. one who's full and
+straight). The same hierarchical-plus-live-blend machinery already built applies directly: instead
+of blending *dismissal rate* per line/length bucket, blend *shot zone distribution* per line/length
+bucket, then combine with the specific bowler's own line/length tendencies to get a
+bowler-conditioned field recommendation. Nothing found in the prior-art research does this
+(the closest thing, Stats Perform's patented shot-zone predictor, is a different mechanism -
+personalized deep learning at ~500-balls-per-player scale - not a conditional shrinkage estimate at
+grassroots scale). Worth building next.
+
+**Bowler/over sequencing (weaker novelty, flagging honestly).** The obvious next step after
+per-ball recommendations is "which bowler should bowl the next over" - but this is exactly what the
+closest prior art (arXiv 2604.13861, Section "The gap that survived" above) already does at IPL
+scale with a Monte Carlo/MDP optimizer. Building a grassroots-scale version would be a legitimate
+product feature and would still differ on the same axes as the core algorithm (tactical-attribute
+granularity, tiny sample sizes, live updates) - but it would be extending someone else's already-
+published optimization framework to a new data regime, not filling a gap nobody's touched. Fine to
+build for product value; don't market it as a novel research contribution the way the core matchup
+engine can be.
+
 ## On patenting - the honest version
 
 An abstract statistical method ("blend estimates across a hierarchy of pools") is very likely
