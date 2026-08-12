@@ -139,6 +139,50 @@ exports.getFieldingPlan = async (req, res) => {
   }
 };
 
+// @desc    Bowling plan for a SPECIFIC batter-vs-bowler matchup, blended through a
+//          four-level backoff chain (exact matchup -> batter vs bowler-archetype ->
+//          archetype vs archetype -> global) so a real recommendation is possible
+//          even with 0-15 direct balls between these two specific players - the
+//          single-player-only getBowlingPlan above can't do this since it never
+//          knows who's actually bowling.
+// @route   GET /api/insights/matchup/:batsmanId/:bowlerId/bowling-plan
+// @access  Public
+exports.getMatchupPlan = async (req, res) => {
+  try {
+    const { batsmanId, bowlerId } = req.params;
+    const plan = await tendencyAnalytics.getMatchupPlan(batsmanId, bowlerId);
+
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Batsman or bowler not found' });
+    }
+
+    const actionable = plan.buckets.filter(b => b.confidence !== 'none' && b.blendedDismissalRate !== null);
+
+    if (actionable.length === 0) {
+      return res.status(200).json({
+        success: true,
+        source: 'generic',
+        directMatchupBalls: 0,
+        message: 'No tagged delivery data anywhere yet for either player - too early for even an archetype-level plan. Generic tip: a consistent good-length line around off stump is the safest default opening plan.'
+      });
+    }
+
+    const top = actionable.slice(0, 3);
+
+    res.status(200).json({
+      success: true,
+      source: plan.directMatchupBalls >= 6 ? 'own-matchup-data' : 'blended',
+      directMatchupBalls: plan.directMatchupBalls,
+      battingStyle: plan.battingStyle,
+      bowlingStyle: plan.bowlingStyle,
+      targetBuckets: top,
+      message: `Best line/length vs this batter: ${top[0].length} ${top[0].line} (~${top[0].blendedDismissalRate}% blended dismissal rate, ${top[0].confidence} confidence, based on ${top[0].basedOn}${plan.directMatchupBalls > 0 ? ` - ${plan.directMatchupBalls} balls of direct history between these two players` : ' - no direct history between these two players yet'}).`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Scouting report on a team's bowlers (for the opposing batting side)
 // @route   GET /api/insights/teams/:teamId/bowler-scouting
 // @access  Public

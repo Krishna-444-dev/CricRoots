@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const Match = require('../models/Match');
+const Player = require('../models/Player');
+const { hierarchicalBlend } = require('../utils/statUtils');
 
 function oid(id) {
   return new mongoose.Types.ObjectId(id);
@@ -38,13 +40,21 @@ async function getZoneBreakdown(batsmanId) {
 }
 
 /**
- * Per-(line,length)-bucket breakdown for a batsman: balls faced, runs scored,
- * dismissals - the input to both shot advice and bowling-plan features.
+ * Per-(line,length)-bucket breakdown restricted to any combination of batsman/bowler
+ * ID sets - the shared aggregation behind every line/length feature, including the
+ * hierarchical matchup backoff chain in getMatchupPlan. Passing an array pools
+ * across everyone in it (an archetype-level rung: e.g. every right-arm-fast bowler
+ * a given batsman has faced); omitting a side means "any batsman"/"any bowler" for
+ * that dimension - the ultimate global pool has both omitted.
  */
-async function getBatsmanLineLengthBreakdown(batsmanId) {
-  const match = batsmanId
-    ? { 'innings.balls.batsmanId': oid(batsmanId), 'innings.balls.line': { $ne: 'unknown' }, 'innings.balls.length': { $ne: 'unknown' } }
-    : { 'innings.balls.line': { $ne: 'unknown' }, 'innings.balls.length': { $ne: 'unknown' } };
+async function getLineLengthBreakdown({ batsmanIds, bowlerIds } = {}) {
+  const match = { 'innings.balls.line': { $ne: 'unknown' }, 'innings.balls.length': { $ne: 'unknown' } };
+  if (batsmanIds && batsmanIds.length > 0) {
+    match['innings.balls.batsmanId'] = { $in: batsmanIds.map(oid) };
+  }
+  if (bowlerIds && bowlerIds.length > 0) {
+    match['innings.balls.bowlerId'] = { $in: bowlerIds.map(oid) };
+  }
 
   const rows = await Match.aggregate([
     { $unwind: '$innings' },
@@ -75,6 +85,109 @@ async function getBatsmanLineLengthBreakdown(batsmanId) {
       strikeRate: r.balls > 0 ? round((r.runs / r.balls) * 100) : 0,
       dismissalRate: r.balls > 0 ? round((r.dismissals / r.balls) * 100) : 0
     }))
+  };
+}
+
+/**
+ * Per-(line,length)-bucket breakdown for a batsman: balls faced, runs scored,
+ * dismissals - the input to both shot advice and bowling-plan features.
+ * Thin wrapper over getLineLengthBreakdown for the single-batsman-only case.
+ */
+async function getBatsmanLineLengthBreakdown(batsmanId) {
+  return getLineLengthBreakdown({ batsmanIds: batsmanId ? [batsmanId] : undefined });
+}
+
+/**
+ * Player _ids sharing a given archetype (batting handedness and/or bowling style) -
+ * the population an individual player's matchup data backs off to when there isn't
+ * enough of their own head-to-head history yet (see getMatchupPlan). Bootstrapped
+ * from the categorical fields already captured at player registration rather than a
+ * learned cluster - deliberately simple given how little data exists to cluster on
+ * reliably at grassroots scale.
+ */
+async function getPlayerIdsByArchetype({ battingStyle, bowlingStyle } = {}) {
+  const query = {};
+  if (battingStyle) query.battingStyle = battingStyle;
+  if (bowlingStyle) query.bowlingStyle = bowlingStyle;
+  if (Object.keys(query).length === 0) return [];
+  const players = await Player.find(query).select('_id');
+  return players.map(p => p._id);
+}
+
+/**
+ * The core differentiated feature: a bowling-line-and-length recommendation for a
+ * SPECIFIC batter-vs-bowler matchup, shrunk through a four-level backoff chain
+ * (exact matchup -> batter vs bowler-archetype -> batter-archetype vs
+ * bowler-archetype -> global) via statUtils.hierarchicalBlend, rather than either
+ * (a) a raw exact-matchup average, which is nearly always built from 0-15 balls at
+ * club level and wildly overconfident, or (b) a single-player-only tendency (what
+ * getBowlingPlan already does), which ignores who's actually bowling. Everything
+ * needed already exists in the data model - batsmanId/bowlerId per ball, and
+ * battingStyle/bowlingStyle on Player - this just chains the existing shrinkage
+ * primitive across the levels that data naturally forms.
+ */
+async function getMatchupPlan(batsmanId, bowlerId) {
+  const [batsman, bowler] = await Promise.all([
+    Player.findById(batsmanId).select('battingStyle'),
+    Player.findById(bowlerId).select('bowlingStyle')
+  ]);
+  if (!batsman || !bowler) return null;
+
+  const [bowlerArchetypeIds, batterArchetypeIds] = await Promise.all([
+    getPlayerIdsByArchetype({ bowlingStyle: bowler.bowlingStyle }),
+    getPlayerIdsByArchetype({ battingStyle: batsman.battingStyle })
+  ]);
+
+  const [exactMatchup, batterVsBowlerArchetype, archetypeVsArchetype, global] = await Promise.all([
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: [bowlerId] }),
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: bowlerArchetypeIds }),
+    getLineLengthBreakdown({ batsmanIds: batterArchetypeIds, bowlerIds: bowlerArchetypeIds }),
+    getLineLengthBreakdown({})
+  ]);
+
+  // Union every bucket key seen at any level - a bucket only the archetype/global
+  // levels have ever seen is still worth reporting on (backoff needs somewhere to
+  // land), not just buckets the exact matchup happens to have touched.
+  const bucketKeys = new Set();
+  for (const breakdown of [exactMatchup, batterVsBowlerArchetype, archetypeVsArchetype, global]) {
+    for (const b of breakdown.buckets) bucketKeys.add(`${b.line}|${b.length}`);
+  }
+
+  const findBucket = (breakdown, line, length) =>
+    breakdown.buckets.find(b => b.line === line && b.length === length) || null;
+
+  const blendedBuckets = [...bucketKeys].map((key) => {
+    const [line, length] = key.split('|');
+    const levels = [
+      { source: exactMatchup, label: 'this exact matchup' },
+      { source: batterVsBowlerArchetype, label: `this batter vs ${bowler.bowlingStyle} bowling` },
+      { source: archetypeVsArchetype, label: `${batsman.battingStyle} batters vs ${bowler.bowlingStyle} bowling` },
+      { source: global, label: 'every tagged delivery' }
+    ].map(({ source, label }) => {
+      const bucket = findBucket(source, line, length);
+      return { value: bucket ? bucket.dismissalRate : 0, n: bucket ? bucket.balls : 0, label };
+    });
+
+    const blended = hierarchicalBlend(levels);
+    return {
+      line,
+      length,
+      blendedDismissalRate: blended.value !== null ? Math.round(blended.value * 100) / 100 : null,
+      confidence: blended.confidence,
+      basedOn: blended.level !== null ? levels[blended.level].label : 'no data',
+      rawBallsAtFinestLevel: exactMatchup.buckets.find(b => b.line === line && b.length === length)?.balls ?? 0
+    };
+  });
+
+  blendedBuckets.sort((a, b) => (b.blendedDismissalRate ?? -1) - (a.blendedDismissalRate ?? -1));
+
+  return {
+    batsmanId,
+    bowlerId,
+    battingStyle: batsman.battingStyle,
+    bowlingStyle: bowler.bowlingStyle,
+    directMatchupBalls: exactMatchup.totalBalls,
+    buckets: blendedBuckets
   };
 }
 
@@ -587,8 +700,11 @@ function round(n) {
 
 module.exports = {
   getZoneBreakdown,
+  getLineLengthBreakdown,
   getBatsmanLineLengthBreakdown,
   getBowlerLineLengthEffectiveness,
+  getPlayerIdsByArchetype,
+  getMatchupPlan,
   getFieldingStats,
   getCareerStats,
   getAchievements,
