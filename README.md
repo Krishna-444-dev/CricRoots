@@ -9,7 +9,7 @@ The product direction: a world-class, one-stop app for cricket, starting with lo
 This repository contains the complete CricRoots ecosystem, including:
 
 - **Web Application** (`web-app/`): Next.js 14 (App Router) + TypeScript + Tailwind frontend. Covers auth, live scoring, tournament management, a player network, edtech, news, and a marketplace with cart/checkout, all under a shared "Stadium Dark" design system.
-- **Mobile Application** (`mobile-app/`): React Native (Expo SDK 54) with full feature parity to the web app across 22 screens — live scoring, tournaments, teams, marketplace, news, learn, and the prediction game. Distributed for pilot testing via Expo Go (no App Store review needed yet — see `documentation/going-legal-and-live.md`).
+- **Mobile Application** (`mobile-app/`): React Native (Expo SDK 54) with full feature parity to the web app across 23 screens — live scoring, tournaments, teams, marketplace, news, learn, the prediction game, and the matchup-shrinkage Scouting Report. Distributed for pilot testing via Expo Go (no App Store review needed yet — see `documentation/going-legal-and-live.md`).
 - **Backend API** (`backend/`): Node.js/Express server with MongoDB, JWT auth, and Socket.io for real-time match/chat events.
 - **AI Engine** (`ai-engine/`): Python/Flask service providing win-probability and tactical-advisor predictions during a live match.
 - **Statistical insights service** (`backend/src/services/tendencyAnalytics.js`): a complementary Node-side aggregation layer over real ball-by-ball data (line, length, shot zone, fielder) captured during scoring — powers shot advice, bowling plans, fielding placement, bowler scouting, wagon wheels, wicketkeeper stats, and career/tournament leaderboards, all computed live from match documents rather than a separately-maintained stats table.
@@ -261,7 +261,7 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 | **Mongoose Models** | 16 |
 | **WebSocket Events** | 15+ |
 | **Web App Pages** | 34+ (matches, tournaments, teams, players, network, edtech, news, predictions leaderboard, marketplace/cart/checkout/orders, calendar, terms/privacy, auth) |
-| **Mobile App Screens** | 22 (full parity with web) |
+| **Mobile App Screens** | 23 (full parity with web, plus the matchup-shrinkage Scouting Report) |
 | **Documentation Pages** | 16+ |
 
 ## Performance Metrics
@@ -297,6 +297,7 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 *Developed with the assistance of Manus AI*
 
 ### Latest Updates
+- ✅ Matchup-shrinkage tactical engine ported to mobile: a Scouting Report screen (team bowler threat ranking plus a Matchup Finder for picking any batter-vs-bowler pair) and a compact, collapsible live tactical panel in the mobile scoring flow that refetches after every ball — closing the mobile gap on `documentation/hierarchical-matchup-shrinkage-research.md`, which previously only had a web UI
 - ✅ WhatsApp-style group chat: member-only team/squad groups, polls, and image/video attachments, all real-time — verified with a from-scratch integration test covering every permission boundary and vote-toggling edge case, which caught and fixed a Docker file-permissions bug, a missing nginx proxy path, and a subtle membership-check bug before they ever shipped
 - ✅ Direct 1:1 messaging between players (real-time via WebSocket, inbox with unread counts, "Message" button on profiles) and tournament announcements on mobile (organizer broadcasts to everyone registered)
 - ✅ First real on-device pilot test on iOS via Expo Go — found and fixed a genuinely missing `babel.config.js` (env vars were silently never inlined into any published build), an EAS Update environment-variable gap, several validation/keyboard UX bugs, and the wrong sport's icon on the Matches tab
