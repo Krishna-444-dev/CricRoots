@@ -55,12 +55,55 @@ export interface BallEvent {
   fielderName?: string;
 }
 
+// Who's currently at the crease / bowling, plus their live figures - saved by the scorer's
+// client on every ball (see backend's innings.liveState). Absent on older matches scored
+// before this existed, or if the current innings hasn't started yet. Mirrors web-app's
+// app/match/[id]/page.tsx LiveState/ScoreboardPlayer/BatsmanScorecardEntry/BowlerScorecardEntry.
+export interface LiveStatePlayer {
+  id: string;
+  name: string;
+  role: string;
+}
+
+export interface BatsmanScorecardEntry {
+  player: LiveStatePlayer;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  strikeRate: number;
+  status: string;
+  outMethod: string | null;
+  // Matches the web scorer's InningsData shape (BallByBallScoring.tsx): these are set from
+  // the bowler/fielder Player objects at dismissal time, not just an id/name string.
+  outBowler: LiveStatePlayer | null;
+  outFielder: LiveStatePlayer | null;
+}
+
+export interface BowlerScorecardEntry {
+  player: LiveStatePlayer;
+  overs: number;
+  balls: number;
+  maidens: number;
+  runs: number;
+  wickets: number;
+  economy: number;
+}
+
+export interface LiveState {
+  currentBatsmen: [LiveStatePlayer | null, LiveStatePlayer | null];
+  currentBowler: LiveStatePlayer | null;
+  battingScorecard: BatsmanScorecardEntry[];
+  bowlingScorecard: BowlerScorecardEntry[];
+}
+
 export interface Innings {
   team: Team | string;
   runs: number;
   wickets: number;
   overs: number;
   balls: BallEvent[];
+  liveState?: LiveState | null;
 }
 
 // Set when the second innings' overs get reduced mid-match (rain/other stoppage) - see

@@ -6,6 +6,9 @@ import { api } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { Match, BallEvent, Prediction } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
+import AtTheCrease from '../components/AtTheCrease';
+import FieldingPlan from '../components/FieldingPlan';
+import AITacticalAdvisor from '../components/AITacticalAdvisor';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
 
@@ -114,9 +117,10 @@ interface KeyMoment {
 
 export default function MatchDetailScreen({ route, navigation }: Props) {
   const { matchId } = route.params;
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [match, setMatch] = useState<Match | null>(null);
+  const [powerplayOvers, setPowerplayOvers] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,8 +136,9 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const load = useCallback(() => {
     api.matches
       .getMatchById(matchId)
-      .then(({ match }) => {
+      .then(({ match, powerplayOvers }) => {
         setMatch(match);
+        setPowerplayOvers(powerplayOvers ?? null);
         setError(null);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load match'))
@@ -289,6 +294,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const targetScore = match.interruption ? match.interruption.target : (match.innings[0]?.runs || 0);
 
   const activeIdx = activeInningsIndex(match);
+  const currentInnings = match.innings[activeIdx];
   const activeBalls = match.innings[activeIdx]?.balls ?? [];
   const recentBalls = activeBalls.slice(-12);
   const recentCommentary = [...activeBalls].slice(-8).reverse();
@@ -324,6 +330,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
               {match.status}
             </Text>
           </View>
+          {match.status === 'Live' && powerplayOvers != null && currentInnings && currentInnings.overs < powerplayOvers && (
+            <View style={styles.powerplayBadge}>
+              <Text style={styles.powerplayBadgeText}>⚡ Powerplay (overs 1-{powerplayOvers})</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -377,6 +388,32 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             This is an approximate rain-rule estimate inspired by the Duckworth-Lewis-Stern method, not the
             official licensed calculation — treat it as a guide, not a binding result.
           </Text>
+        </View>
+      )}
+
+      {/* At the Crease - live striker/non-striker/bowler figures. Mirrors web-app's
+          app/match/[id]/page.tsx "At the Crease" block. */}
+      {match.status === 'Live' && currentInnings?.liveState && (
+        <AtTheCrease liveState={currentInnings.liveState} />
+      )}
+
+      {/* Recommended field placements for whoever's currently batting - see FieldingPlan.tsx
+          for why this is a ranked text list rather than a diagram on mobile. */}
+      {match.status === 'Live' && currentInnings?.liveState && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recommended Field</Text>
+          <View style={styles.fieldingList}>
+            {currentInnings.liveState.currentBatsmen.map((batsman, i) => (
+              batsman && (
+                <FieldingPlan
+                  key={batsman.id}
+                  playerId={batsman.id}
+                  playerName={batsman.name}
+                  roleLabel={i === 0 ? 'Striker' : 'Non-striker'}
+                />
+              )
+            ))}
+          </View>
         </View>
       )}
 
@@ -560,6 +597,20 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {/* AI Tactical Advisor - win probability + tactical advice, wired up with a REST fetch
+          on mount (so it shows real data immediately) plus the existing WebSocket for live
+          updates as balls land. See AITacticalAdvisor.tsx. */}
+      {match.status === 'Live' && (
+        <View style={styles.section}>
+          <AITacticalAdvisor
+            matchId={match._id}
+            userId={user?.id ?? ''}
+            token={token ?? ''}
+            isLive={match.status === 'Live'}
+          />
+        </View>
+      )}
+
       {activeChart && activeChart.overs.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Over-by-over</Text>
@@ -706,6 +757,16 @@ const styles = StyleSheet.create({
   statusBadgeLive: { backgroundColor: colors.pitch900 },
   statusBadgeText: { color: colors.inkSecondary, fontSize: 11, fontWeight: '700' },
   statusBadgeTextLive: { color: colors.pitch400 },
+  powerplayBadge: {
+    marginLeft: 8,
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.3)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  powerplayBadgeText: { color: colors.gold400, fontSize: 11, fontWeight: '700' },
 
   scoreCard: {
     marginHorizontal: 16,
@@ -857,6 +918,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   reportChipText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600' },
+
+  fieldingList: { gap: 10 },
 
   // Manhattan/Worm chart list rows - one row per over, label + proportionally-filled bar
   // View(s), same pattern as PlayerStatsScreen's wagon wheel rows.
