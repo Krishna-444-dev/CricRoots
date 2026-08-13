@@ -87,6 +87,13 @@ export default function MatchesListScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Matches</Text>
+        <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateMatch')}>
+          <Text style={styles.createBtnText}>+ New Match</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <View style={styles.centered}>
           <Text style={styles.muted}>Loading matches...</Text>
@@ -142,6 +149,10 @@ export default function MatchesListScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingBottom: 0 },
+  headerTitle: { color: colors.ink, fontSize: 22, fontWeight: 'bold' },
+  createBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  createBtnText: { color: colors.background, fontWeight: '700', fontSize: 13 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   muted: { color: colors.inkMuted, textAlign: 'center', fontSize: 13, lineHeight: 18 },
   emptyTitle: { color: colors.ink, fontSize: 16, fontWeight: '700', marginBottom: 6 },

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MatchesListScreen from '../../screens/MatchesListScreen';
+import CreateMatchScreen from '../../screens/CreateMatchScreen';
 import MatchDetailScreen from '../../screens/MatchDetailScreen';
 import LiveScoringScreen from '../../screens/LiveScoringScreen';
 import PerformanceReportScreen from '../../screens/PerformanceReportScreen';
@@ -9,6 +10,7 @@ import { navScreenOptions } from '../screenOptions';
 
 export type MatchesStackParamList = {
   MatchesList: undefined;
+  CreateMatch: undefined;
   MatchDetail: { matchId: string };
   LiveScoring: { matchId: string };
   PerformanceReport: { matchId: string; playerId: string };
@@ -21,6 +23,7 @@ export default function MatchesStack() {
   return (
     <Stack.Navigator id={undefined} screenOptions={navScreenOptions}>
       <Stack.Screen name="MatchesList" component={MatchesListScreen} options={{ title: 'Matches' }} />
+      <Stack.Screen name="CreateMatch" component={CreateMatchScreen} options={{ title: 'New Match' }} />
       <Stack.Screen name="MatchDetail" component={MatchDetailScreen} options={{ title: 'Match' }} />
       <Stack.Screen name="LiveScoring" component={LiveScoringScreen} options={{ title: 'Live Scoring' }} />
       <Stack.Screen name="PerformanceReport" component={PerformanceReportScreen} options={{ title: 'Performance Report' }} />
