@@ -200,6 +200,19 @@ export interface PlayerCareerStats {
   achievements: Array<{ key: string; label: string; description: string; earned: boolean; count: number }>;
 }
 
+// Rankings leaderboard entries (backend/src/controllers/playerStatsController.js
+// getTopBatsmen/getTopBowlers) - a different, slimmer shape than PlayerCareerStats since these
+// come from tendencyAnalytics' leaderboard aggregation, not the full per-player stats query.
+export interface BattingRankingEntry {
+  player: { _id: string; name: string; specialization: string };
+  batting: { matches: number; runs: number; highestScore: number; average: number; strikeRate: number; centuries: number };
+}
+
+export interface BowlingRankingEntry {
+  player: { _id: string; name: string; specialization: string };
+  bowling: { matches: number; wickets: number; average: number; economyRate: number };
+}
+
 export interface Product {
   _id: string;
   name: string;

@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -103,7 +103,9 @@ export const usersAPI = {
 export const playersAPI = {
   getPlayers: () => apiFetch<{ success: true; players: any[] }>('/players'),
   getPlayerById: (playerId: string) => apiFetch<{ success: true; player: any }>(`/players/${playerId}`),
-  register: (data: { user: string; specialization: string; battingStyle: string; bowlingStyle?: string }) =>
+  // No `user` field in the body - the backend derives the owner from the auth token
+  // (req.user.id in playerController.registerPlayer), not anything the client sends.
+  register: (data: { specialization: string; battingStyle: string; bowlingStyle?: string }) =>
     apiFetch<{ success: true; player: any }>('/players/register', 'POST', data),
   update: (playerId: string, data: any) => apiFetch(`/players/${playerId}`, 'PUT', data),
   getMyProfile: () => apiFetch<{ success: true; player: any }>('/players/me/profile'),
@@ -113,8 +115,10 @@ export const playersAPI = {
 //     wicketkeeper stats, and achievement badges, all computed live from match data ---
 export const playerStatsAPI = {
   getStats: (playerId: string) => apiFetch<{ success: true; stats: any }>(`/player-stats/${playerId}`),
-  getTopBatsmen: (limit = 10) => apiFetch<{ success: true; batsmen: any[] }>(`/player-stats/rankings/batsmen?limit=${limit}`),
-  getTopBowlers: (limit = 10) => apiFetch<{ success: true; bowlers: any[] }>(`/player-stats/rankings/bowlers?limit=${limit}`),
+  getTopBatsmen: (limit = 10) =>
+    apiFetch<{ success: true; count: number; batsmen: BattingRankingEntry[] }>(`/player-stats/rankings/batsmen?limit=${limit}`),
+  getTopBowlers: (limit = 10) =>
+    apiFetch<{ success: true; count: number; bowlers: BowlingRankingEntry[] }>(`/player-stats/rankings/bowlers?limit=${limit}`),
 };
 
 // --- Teams (backend/src/routes/teamRoutes.js) ---

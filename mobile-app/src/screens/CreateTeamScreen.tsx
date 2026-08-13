@@ -70,10 +70,22 @@ export default function CreateTeamScreen({ navigation }: any) {
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
             {isProfileError && (
-              <Text style={styles.errorHint}>
-                You need a player profile before you can create or captain a team. That setup flow isn't available on
-                mobile yet - use the web app to complete your player profile first.
-              </Text>
+              <>
+                <Text style={styles.errorHint}>
+                  You need a player profile before you can create or captain a team.
+                </Text>
+                <TouchableOpacity
+                  style={styles.errorHintButton}
+                  onPress={() =>
+                    navigation.navigate('Profile', {
+                      screen: 'CompleteProfile',
+                      params: { redirectTab: 'Teams', redirectScreen: 'CreateTeam' },
+                    })
+                  }
+                >
+                  <Text style={styles.errorHintButtonText}>Complete your player profile</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         )}
@@ -112,6 +124,16 @@ const styles = StyleSheet.create({
   },
   errorText: { color: colors.wicket400, fontSize: 13, fontWeight: '600' },
   errorHint: { color: colors.inkSecondary, fontSize: 12, marginTop: 6, lineHeight: 17 },
+  errorHintButton: {
+    marginTop: 10,
+    backgroundColor: colors.pitch900,
+    borderWidth: 1,
+    borderColor: colors.pitch500,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  errorHintButtonText: { color: colors.pitch400, fontSize: 13, fontWeight: '700' },
   submitBtn: {
     backgroundColor: colors.pitch500,
     borderRadius: 12,

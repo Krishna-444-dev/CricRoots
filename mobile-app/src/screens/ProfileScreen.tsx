@@ -31,18 +31,18 @@ export default function ProfileScreen({ navigation }: any) {
 
   // PlayerStatsScreen expects a Player document id, which is a different id space from
   // `user.id` (a User document id) - passing user.id straight through was a latent bug.
-  // Resolve the logged-in user's own Player doc first via /players/me/profile.
+  // Resolve the logged-in user's own Player doc first via /players/me/profile. A 404 here means
+  // this user has no Player doc yet (e.g. registered via mobile, which never collected one) -
+  // route them to CompleteProfileScreen to create one instead of dead-ending on an Alert, and
+  // send them straight to their new stats page once they're done.
   const openMyStats = async () => {
     if (resolvingStats) return;
     setResolvingStats(true);
     try {
       const { player } = await api.players.getMyProfile();
       navigation.navigate('PlayerStats', { playerId: player._id });
-    } catch (err) {
-      Alert.alert(
-        'No player profile yet',
-        err instanceof Error ? err.message : 'Register a player profile to view stats.'
-      );
+    } catch {
+      navigation.navigate('CompleteProfile', { onSuccessGoToStats: true });
     } finally {
       setResolvingStats(false);
     }

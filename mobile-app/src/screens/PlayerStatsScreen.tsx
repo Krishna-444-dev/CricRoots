@@ -8,8 +8,10 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, 
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
-import { PlayerCareerStats } from '../shared/types';
+import { PlayerCareerStats, BattingRankingEntry, BowlingRankingEntry } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
+
+const RANKINGS_LIMIT = 5;
 
 const ACHIEVEMENT_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'century-maker': 'trophy',
@@ -44,6 +46,48 @@ function StatGrid({ rows }: { rows: StatRow[] }) {
   );
 }
 
+// Global top-5 leaderboard, not scoped to the player this screen is currently showing - mirrors
+// web's PlayerStatsDashboard "Rankings" tab. `keyStat` is the number shown on the right of each
+// row (runs for batsmen, wickets for bowlers); `subStat` is the secondary line under the name.
+function RankingsList({
+  title,
+  icon,
+  entries,
+  subStat,
+  keyStat,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  entries: Array<{ player: { _id: string; name: string }; sub: string; key: string }>;
+  subStat: string;
+  keyStat: string;
+}) {
+  return (
+    <View style={styles.rankingsCard}>
+      <View style={styles.rankingsHeader}>
+        <Ionicons name={icon} size={16} color={colors.gold400} />
+        <Text style={styles.rankingsTitle}>{title}</Text>
+      </View>
+      {entries.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Text style={styles.muted}>Not enough data yet.</Text>
+        </View>
+      ) : (
+        entries.map((entry, idx) => (
+          <View key={entry.player._id} style={styles.rankingRow}>
+            <Text style={styles.rankingPosition}>#{idx + 1}</Text>
+            <View style={styles.rankingInfo}>
+              <Text style={styles.rankingName}>{entry.player.name}</Text>
+              <Text style={styles.rankingSub}>{subStat}: {entry.sub}</Text>
+            </View>
+            <Text style={styles.rankingKeyStat}>{entry.key} {keyStat}</Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
+}
+
 export default function PlayerStatsScreen({ route, navigation }: any) {
   const playerId: string | undefined = route?.params?.playerId;
   const { user } = useAuth();
@@ -56,6 +100,10 @@ export default function PlayerStatsScreen({ route, navigation }: any) {
   // Player doc id this screen is keyed on. Resolved via a second, non-blocking fetch since
   // PlayerCareerStats.player only carries a name-only summary, not the owning User.
   const [messageTargetUserId, setMessageTargetUserId] = useState<string | null>(null);
+  // Global rankings - independent of `playerId`/`stats` above, so a failure or slow response
+  // here never blocks the rest of the screen (loaded non-blocking, same as messageTargetUserId).
+  const [topBatsmen, setTopBatsmen] = useState<BattingRankingEntry[]>([]);
+  const [topBowlers, setTopBowlers] = useState<BowlingRankingEntry[]>([]);
 
   const load = useCallback(() => {
     if (!playerId) {
@@ -77,6 +125,14 @@ export default function PlayerStatsScreen({ route, navigation }: any) {
         setMessageTargetUserId(userId);
       })
       .catch(() => setMessageTargetUserId(null));
+
+    api.playerStats.getTopBatsmen(RANKINGS_LIMIT)
+      .then(({ batsmen }) => setTopBatsmen(batsmen))
+      .catch(() => setTopBatsmen([]));
+
+    api.playerStats.getTopBowlers(RANKINGS_LIMIT)
+      .then(({ bowlers }) => setTopBowlers(bowlers))
+      .catch(() => setTopBowlers([]));
   }, [playerId]);
 
   useEffect(() => { load(); }, [load]);
@@ -218,6 +274,34 @@ export default function PlayerStatsScreen({ route, navigation }: any) {
         )}
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Top Rankings</Text>
+        <Text style={styles.sectionSubtitle}>Leaderboards across all players, not just this profile</Text>
+        <RankingsList
+          title="Top Batsmen"
+          icon="trophy"
+          subStat="Avg"
+          keyStat="runs"
+          entries={topBatsmen.map(b => ({
+            player: b.player,
+            sub: b.batting.average.toFixed(2),
+            key: String(b.batting.runs),
+          }))}
+        />
+        <View style={{ height: 10 }} />
+        <RankingsList
+          title="Top Bowlers"
+          icon="disc"
+          subStat="Econ"
+          keyStat="wickets"
+          entries={topBowlers.map(b => ({
+            player: b.player,
+            sub: b.bowling.economyRate.toFixed(2),
+            key: String(b.bowling.wickets),
+          }))}
+        />
+      </View>
+
       <View style={[styles.section, { paddingBottom: 32 }]}>
         <Text style={styles.sectionTitle}>Achievements</Text>
         <View style={styles.achievementsGrid}>
@@ -304,6 +388,21 @@ const styles = StyleSheet.create({
   },
   wagonBarFill: { height: '100%', backgroundColor: colors.pitch500, borderRadius: 6 },
   wagonStats: { color: colors.inkMuted, fontSize: 11, width: 68, textAlign: 'right' },
+
+  rankingsCard: {
+    backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14,
+  },
+  rankingsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  rankingsTitle: { color: colors.ink, fontSize: 13, fontWeight: '700' },
+  rankingRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 8,
+    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  rankingPosition: { color: colors.inkMuted, fontSize: 13, fontWeight: '700', width: 28 },
+  rankingInfo: { flex: 1 },
+  rankingName: { color: colors.ink, fontSize: 13, fontWeight: '600' },
+  rankingSub: { color: colors.inkMuted, fontSize: 11, marginTop: 2 },
+  rankingKeyStat: { color: colors.pitch400, fontSize: 13, fontWeight: '700' },
 
   achievementsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   achievementCard: {
