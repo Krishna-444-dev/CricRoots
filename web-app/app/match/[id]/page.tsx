@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/apiFetch';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
 import ManhattanChart from '@/components/insights/ManhattanChart';
 import WormChart from '@/components/insights/WormChart';
+import FieldingPlan from '@/components/insights/FieldingPlan';
 import PredictionWidget from '@/components/match/PredictionWidget';
 import styles from './page.module.css';
 
@@ -515,6 +516,27 @@ export default function MatchPage() {
                     </div>
                   );
                 })()}
+              </div>
+            )}
+
+            {/* Recommended field placements for whoever's currently batting - grounded in
+            where each of them has actually scored their runs (or, with too little data on
+            them individually, similar batsmen pooled together). See FieldingPlan.tsx. */}
+            {match.status === 'Live' && currentInnings.liveState && (
+              <div className="mt-4 bg-surface border border-border rounded-xl p-4">
+                <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wide text-ink-muted">Recommended Field</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {currentInnings.liveState.currentBatsmen.map((batsman, i) => (
+                    batsman && (
+                      <FieldingPlan
+                        key={batsman.id}
+                        playerId={batsman.id}
+                        playerName={batsman.name}
+                        roleLabel={i === 0 ? 'Striker' : 'Non-striker'}
+                      />
+                    )
+                  ))}
+                </div>
               </div>
             )}
 

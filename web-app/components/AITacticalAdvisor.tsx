@@ -46,6 +46,26 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
 
   const aiInsights = liveInsights || initialInsights;
 
+  // Real "who should bowl next" recommendation, grounded in the bowling team's actual roster
+  // and this app's own matchup/tendency stats (see getNextBowlerRecommendation on the
+  // backend) - not the synthetic model that used to power this panel.
+  const [bowlerRec, setBowlerRec] = useState<{
+    striker: { id: string; name: string };
+    recommendation: { playerId: string; name: string; reason: string } | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isLive) return;
+    let cancelled = false;
+    fetch(`/api/matches/${matchId}/next-bowler-recommendation`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.success && data.recommendation) setBowlerRec(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [matchId, isLive]);
+
   if (!isLive) {
     return null;
   }
@@ -153,13 +173,24 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
           </div>
         </div>
 
-        {/* "Key Recommendations" (next batsman/bowler) intentionally omitted here - the
-        underlying model is trained purely on match-state features (run rate, wickets,
-        overs, pitch) with no roster input at all, so its output is an arbitrary synthetic
-        class label with no correspondence to any real player in this or any match. Showing
-        it as "Player #149" looked like a broken name lookup; it isn't fixable with a name
-        lookup because there's nothing real for the number to refer to. Win probability and
-        tactical advice above are genuinely grounded in this match's real state and stay. */}
+        {/* Recommended Next Bowler - replaces the old synthetic-model "Key Recommendations"
+        block, which showed a "Player #149"-style number with no correspondence to any real
+        player (that model has no roster input at all). This one is grounded in the bowling
+        team's actual roster and this app's own matchup/tendency data. */}
+        {bowlerRec?.recommendation && (
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Recommended Next Bowler</h3>
+            <div className={styles.recommendationsGrid}>
+              <div className={styles.recommendationCard}>
+                <p className={styles.recommendationLabel}>vs {bowlerRec.striker.name}</p>
+                <p className={styles.recommendationValue}>{bowlerRec.recommendation.name}</p>
+              </div>
+            </div>
+            <div className={styles.adviceBox} style={{ marginTop: 12 }}>
+              <p className={styles.adviceText}>{bowlerRec.recommendation.reason}</p>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className={styles.footer}>

@@ -9,8 +9,11 @@ const { generateCommentary } = require('../services/commentaryGenerator');
 const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
 const { generateMatchArticle } = require('../services/matchArticleGenerator');
-const { getMatchPerformanceReport } = require('../services/tendencyAnalytics');
+const { getMatchPerformanceReport, getBowlerLineLengthEffectiveness, getLiveMatchupPlan } = require('../services/tendencyAnalytics');
+const { blendWithPrior } = require('../utils/statUtils');
 const { resourcePercent, revisedTarget } = require('../services/rainRuleCalculator');
+
+const MIN_BALLS_FOR_OWN_DATA = 6;
 
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
@@ -661,6 +664,140 @@ exports.getAIInsights = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Recommend which bowler should bowl the next over, grounded in the bowling team's
+//          real roster and this app's own matchup/tendency data - not a synthetic model.
+//          Ranks candidates by: (1) how likely they are to dismiss the current striker,
+//          blending historical matchup data with what's happened in this match so far
+//          (tendencyAnalytics.getLiveMatchupPlan - the same hierarchical-shrinkage engine
+//          used for scouting reports), (2) failing that, their overall economy rate, (3)
+//          failing that, a generic specialization-based ordering. A bowler can't bowl two
+//          overs back to back, so whoever bowled the innings' most recent over is excluded.
+// @route   GET /api/matches/:id/next-bowler-recommendation
+// @access  Public
+exports.getNextBowlerRecommendation = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+
+    const inningsIdx = currentInningsIndex(match);
+    const innings = match.innings[inningsIdx];
+    const liveState = innings?.liveState;
+    const striker = liveState?.currentBatsmen?.[0];
+    const lastBowler = liveState?.currentBowler;
+
+    if (!striker) {
+      return res.status(200).json({
+        success: true,
+        source: 'unavailable',
+        message: 'No live scoring state for this innings yet - recommendations need at least one ball recorded through the scoring UI.'
+      });
+    }
+
+    // The bowling team is whichever of the two playing teams isn't currently batting.
+    const bowlingTeamId = innings.team.toString() === match.team1.toString() ? match.team2 : match.team1;
+    const bowlingTeam = await Team.findById(bowlingTeamId).populate({
+      path: 'players',
+      populate: { path: 'user', select: 'name' }
+    });
+    if (!bowlingTeam) {
+      return res.status(404).json({ success: false, message: 'Bowling team not found' });
+    }
+
+    // A player with bowlingStyle 'None' has declared they don't bowl at all - never worth
+    // recommending regardless of what a data-sparse matchup read says, so this filter runs
+    // before the matchup ranking rather than trying to have the ranking itself learn to
+    // avoid them. Falls back to the full (minus last-bowler) roster only if literally
+    // nobody on the team bowls, since *someone* still has to.
+    const eligible = bowlingTeam.players.filter(
+      (p) => (!lastBowler || p._id.toString() !== lastBowler.id) && p.bowlingStyle !== 'None'
+    );
+    const candidates = eligible.length > 0
+      ? eligible
+      : bowlingTeam.players.filter((p) => !lastBowler || p._id.toString() !== lastBowler.id);
+
+    const poolStats = await getBowlerLineLengthEffectiveness(null);
+
+    const evaluated = await Promise.all(candidates.map(async (player) => {
+      const [ownStats, matchup] = await Promise.all([
+        getBowlerLineLengthEffectiveness(player._id),
+        getLiveMatchupPlan(req.params.id, striker.id, player._id.toString())
+      ]);
+
+      const hasEconomyData = ownStats.totalBalls >= MIN_BALLS_FOR_OWN_DATA;
+      let blendedEconomy = null;
+      if (hasEconomyData) {
+        const blended = blendWithPrior(ownStats.economy, ownStats.totalBalls, poolStats.economy ?? ownStats.economy, poolStats.totalBalls);
+        blendedEconomy = blended.value !== null ? Math.round(blended.value * 100) / 100 : null;
+      }
+
+      const actionableBuckets = (matchup?.buckets || []).filter((b) => b.todayAdjustedRate !== null);
+      const bestBucket = actionableBuckets.length > 0
+        ? actionableBuckets.reduce((best, b) => (b.todayAdjustedRate > best.todayAdjustedRate ? b : best))
+        : null;
+
+      return {
+        playerId: player._id,
+        name: player.user?.name ?? 'Unknown',
+        specialization: player.specialization,
+        bowlingStyle: player.bowlingStyle,
+        hasMatchupData: !!bestBucket,
+        dismissalRateVsStriker: bestBucket ? bestBucket.blendedDismissalRate : null,
+        confidence: bestBucket ? bestBucket.confidence : null,
+        hasEconomyData,
+        economy: hasEconomyData ? ownStats.economy : null,
+        blendedEconomy,
+      };
+    }));
+
+    // Tiered ranking (not a single opaque composite score): candidates with an actual
+    // matchup read on this striker come first, ranked by confidence first and dismissal
+    // rate second - with only a handful of tagged balls anywhere in the database (typical
+    // for a fresh club instance), a 100% rate from one ball is weaker evidence than a lower
+    // rate backed by real sample size, and confidence already encodes that. Then candidates
+    // with just a track-record economy figure; everyone else falls back to a generic
+    // specialization-based order.
+    const confidenceRank = { high: 0, medium: 1, low: 2, 'very-low': 3 };
+    const specializationRank = { Bowler: 0, 'All-rounder': 1, 'Wicket-keeper': 2, Batsman: 3 };
+    evaluated.sort((a, b) => {
+      if (a.hasMatchupData !== b.hasMatchupData) return a.hasMatchupData ? -1 : 1;
+      if (a.hasMatchupData) {
+        const confDiff = (confidenceRank[a.confidence] ?? 9) - (confidenceRank[b.confidence] ?? 9);
+        if (confDiff !== 0) return confDiff;
+        return b.dismissalRateVsStriker - a.dismissalRateVsStriker;
+      }
+      if (a.hasEconomyData !== b.hasEconomyData) return a.hasEconomyData ? -1 : 1;
+      if (a.hasEconomyData) return a.blendedEconomy - b.blendedEconomy;
+      return (specializationRank[a.specialization] ?? 4) - (specializationRank[b.specialization] ?? 4);
+    });
+
+    const top = evaluated[0];
+    let reason;
+    if (!top) {
+      reason = 'No eligible bowler found.';
+    } else if (top.hasMatchupData) {
+      const confidenceNote = top.confidence === 'low' || top.confidence === 'very-low'
+        ? ' (based on very little tagged data so far - treat as a starting point, not a strong signal)'
+        : '';
+      reason = `${top.name} has the strongest read against ${striker.name} - an estimated ${top.dismissalRateVsStriker}% dismissal rate in their most effective line/length, blending historical data with what's happened in this match so far${confidenceNote}.`;
+    } else if (top.hasEconomyData) {
+      reason = `No tagged matchup data against ${striker.name} yet, so this falls back to overall economy - ${top.name} has conceded ${top.economy} runs/over across tracked deliveries.`;
+    } else {
+      reason = `No tracked data for anyone in this attack yet - ${top.name} is suggested by role (${top.specialization}). Assess by eye early in the spell.`;
+    }
+
+    res.status(200).json({
+      success: true,
+      striker: { id: striker.id, name: striker.name },
+      recommendation: top ? { playerId: top.playerId, name: top.name, reason } : null,
+      candidates: evaluated
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
