@@ -26,6 +26,8 @@ export interface Team {
   description?: string;
   city: string;
   captain: Player | string;
+  viceCaptain?: Player | string | null;
+  coaches?: (Player | string)[];
   players: (Player | string)[];
   logo?: string;
 }
