@@ -19,13 +19,19 @@ This repository contains the complete CricRoots ecosystem, including:
 ## Key Features
 
 ### 🏏 Live Scoring & Match Management
-- **Ball-by-ball scoring UI**: runs, extras, wickets, with progressive-disclosure delivery tagging (line, length, shot zone, shot type, fielder) — auto-expands on boundaries and wickets, otherwise stays out of the way for fast scoring.
+- **Ball-by-ball scoring UI**: runs, extras, wickets, with progressive-disclosure delivery tagging (line, length, shot zone, shot type, fielder) — auto-expands on boundaries and wickets, otherwise stays out of the way for fast scoring. Extras always include their mandatory automatic run (a wide/no-ball is never recorded as 0 runs, even with no additional runs run).
 - **Voice-driven scoring**: speak a phrase like "yorker, off stump, driven for four" and it auto-fills the delivery-tagging form (never auto-submits — the scorer still confirms every ball). Supports selecting a recognition language (Hindi, Urdu, Bengali, Punjabi, Tamil, Telugu, regional English) for better accuracy on everything around the cricket terms, which stay matched in English.
+- **Multi-scorer support, one at a time**: any player rostered on either playing team, or an umpire the match creator appoints, can score — not just whoever created the match, so a single person doesn't have to run an entire innings alone. Only one of them holds the scoring lock at a time (everyone else sees who's currently scoring); the lock auto-expires after 2 minutes of inactivity so a dropped session can't block the match indefinitely.
+- **Resume scoring mid-innings**: the full live scoring state (both scorecards, current striker/non-striker/bowler, fall of wickets, extras) is saved on every ball, so reopening the scoring screen — on the same device or a different scorer picking up after a dropped session — continues exactly where it left off instead of restarting the innings from scratch.
+- **Who bowls next**: after every over completes, the scorer is prompted to pick the next bowler (excluding whoever just finished, matching the no-consecutive-overs rule) — figures like economy and overs bowled are tracked correctly per bowler across the whole innings, not just their current over.
+- **Full scorecard, mid-scoring**: the scorer can check complete batting and bowling figures for the whole match without leaving the scoring screen.
+- **Powerplay indicator**: a live badge on the match and scoring pages shows when the current over falls inside the powerplay window, using a tournament's own house rules if the match belongs to one, otherwise format-based defaults.
+- **Live "At the Crease" + recommendations**: the match page shows the current striker/non-striker/bowler's live figures, a "Recommended Field" panel per batsman (grounded in their own or similar batsmen's real scoring zones), and a "Recommended Next Bowler" pick — ranked by an actual matchup read against the current striker (the same hierarchical shrinkage engine below), not a generic model with no roster awareness.
 - **Matchup-aware bowling plans, pre-match and live**: a hierarchical shrinkage engine blends a specific batter-vs-bowler matchup with archetype and league-wide pools (see `documentation/hierarchical-matchup-shrinkage-research.md`), then adjusts further in real time using this match's actual deliveries so far as the innings unfolds.
 - **Post-match performance reports**: this match's numbers vs. career average, a recent-form trend across the last several matches, milestone/personal-best detection, and a tactical read cross-referencing each dismissal against the matchup engine's flagged risk zones.
 - **Auto-generated ball-by-ball commentary**: a phrase-bank generator turns the structured data captured on every delivery into readable commentary, shown live on the match page.
 - **Real match lifecycle**: create teams/rosters, create a match (optionally linked to a tournament), start an innings, score it live, finish the match — result and margin are auto-derived from the innings totals.
-- **AI tactical insights**: win-probability and aggressive/balanced/defensive tactical advice during a live match (Python AI engine, self-healing on load failure), plus shot advice / bowling plans / fielding placement derived from the batsman's or bowler's own tagged-ball history where enough data exists, falling back to a wider player-pool average otherwise.
+- **AI tactical insights**: win-probability and aggressive/balanced/defensive tactical advice during a live match (Python AI engine, self-healing on load failure, with an initial REST fetch so the panel doesn't sit spinning until the next ball is bowled), plus shot advice / bowling plans / fielding placement derived from the batsman's or bowler's own tagged-ball history where enough data exists, falling back to a wider player-pool average otherwise.
 - **Key Moments**: ranks a completed chase's deliveries by win-probability swing (the same idea as baseball's Win Probability Added) to auto-surface the match's biggest turning points.
 - **Rain-rule target revision**: report a stoppage during a chase and get a revised target immediately, using a resource-based model in the spirit of Duckworth-Lewis-Stern — explicitly an independent approximation, not the official ICC-licensed calculation (the real parameter tables have been commercially confidential since the 1998 paper), clearly labeled as such everywhere it's shown. See `backend/src/services/rainRuleCalculator.js`.
 
@@ -197,13 +203,15 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /:id/messages` · `POST /:id/messages` (protected) - team chat
 
 ### Matches (`/api/matches`)
-- `GET /` · `POST /` (protected, optionally linked to a tournament) · `GET /:id`
-- `PUT /:id` (protected) - update status/result; auto-derives the result from innings totals when marked Completed, settles predictions, and auto-generates a tournament news article
-- `POST /:id/record-ball` (protected) - records a ball, generates commentary, emits WebSocket events
-- `GET /:id/scorecard` · `GET /:id/ai-insights` · `GET /:id/charts` - Manhattan/Worm chart data
+- `GET /` · `POST /` (protected, optionally linked to a tournament) · `GET /:id` - also returns a top-level `powerplayOvers` figure alongside `match`
+- `PUT /:id` (protected, anyone who can score the match) - update status/result; auto-derives the result from innings totals when marked Completed, settles predictions, and auto-generates a tournament news article
+- `POST /:id/record-ball` (protected, requires holding the scoring lock) - records a ball, persists the scorer's full live-state snapshot (`liveState`) for resume, generates commentary, emits WebSocket events
+- `POST /:id/scoring-lock` / `DELETE /:id/scoring-lock` (protected) - claim/renew or release the exclusive right to score this match; a held lock expires after 2 minutes without renewal
+- `POST /:id/umpires` / `DELETE /:id/umpires/:userId` (protected, match creator only) - appoint/remove umpires, who get the same scoring rights as the creator without needing to be on either roster
+- `GET /:id/scorecard` · `GET /:id/ai-insights` · `GET /:id/next-bowler-recommendation` · `GET /:id/charts` - Manhattan/Worm chart data
 - `GET /:id/key-moments` - deliveries ranked by win-probability swing (chasing innings only)
 - `GET /:id/performance-report/:playerId` - this match's numbers vs. career average, a recent-form trend, milestones, and a tactical tie-back cross-referencing each dismissal against the matchup-shrinkage engine's flagged risk zones
-- `POST /:id/apply-interruption` (protected, match owner only) - reports a rain/stoppage during the chase and returns a revised target (an approximate rain-rule estimate, not the official DLS calculation - see `backend/src/services/rainRuleCalculator.js`)
+- `POST /:id/apply-interruption` (protected, anyone who can score the match) - reports a rain/stoppage during the chase and returns a revised target (an approximate rain-rule estimate, not the official DLS calculation - see `backend/src/services/rainRuleCalculator.js`)
 
 ### Predictions (`/api/predictions`) — free points-based prediction game, not real-money betting
 - `POST /` (protected) - submit/update a winner (+ optional Man of the Match) prediction; locks once the match leaves Scheduled
