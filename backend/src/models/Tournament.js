@@ -11,6 +11,17 @@ const tournamentSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    // Free-text custom playing conditions the organizer sets (overs per side, boundary
+    // rules, wide/no-ball variants, anything that differs from standard laws) - the
+    // in-app assistant grounds tournament-specific rules questions in this text rather
+    // than guessing, since every league customizes something. Separate from `rules`
+    // below, which is only numeric points config (win/tie/no-result scoring).
+    houseRules: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
+      default: ''
+    },
     organizer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

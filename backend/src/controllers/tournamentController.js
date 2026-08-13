@@ -238,13 +238,14 @@ exports.updateTournament = async (req, res) => {
       });
     }
 
-    const { name, description, status, prizePool, rules } = req.body;
+    const { name, description, status, prizePool, rules, houseRules } = req.body;
 
     if (name) tournament.name = name;
     if (description) tournament.description = description;
     if (status) tournament.status = status;
     if (prizePool) tournament.prizePool = prizePool;
     if (rules) tournament.rules = rules;
+    if (houseRules !== undefined) tournament.houseRules = houseRules;
 
     tournament = await tournament.save();
     await tournament.populate('organizer');
