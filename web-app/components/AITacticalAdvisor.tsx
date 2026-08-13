@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMatchWebSocket } from '@/hooks/useMatchWebSocket';
 import styles from './AITacticalAdvisor.module.css';
 
@@ -17,12 +17,34 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
   token,
   isLive
 }) => {
-  const { isConnected, error, aiInsights, connectedUsers } = useMatchWebSocket({
+  const { isConnected, error, aiInsights: liveInsights, connectedUsers } = useMatchWebSocket({
     matchId,
     userId,
     token,
     enabled: isLive
   });
+
+  // The socket only pushes a fresh insight after the *next* ball is recorded, so opening this
+  // tab mid-match with nobody scoring right now left it spinning forever. Fetch the current
+  // snapshot once on mount via the REST endpoint; the socket then keeps it fresh as balls land.
+  const [initialInsights, setInitialInsights] = useState<typeof liveInsights>(null);
+  const [initialLoadFailed, setInitialLoadFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isLive) return;
+    let cancelled = false;
+    fetch(`/api/matches/${matchId}/ai-insights`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.success) setInitialInsights(data.aiInsights);
+      })
+      .catch(() => {
+        if (!cancelled) setInitialLoadFailed(true);
+      });
+    return () => { cancelled = true; };
+  }, [matchId, isLive]);
+
+  const aiInsights = liveInsights || initialInsights;
 
   if (!isLive) {
     return null;
@@ -36,11 +58,18 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
     );
   }
 
-  if (!isConnected || !aiInsights) {
+  if (!aiInsights) {
+    if (initialLoadFailed) {
+      return (
+        <div className={styles.errorContainer}>
+          <p className={styles.errorText}>Could not load AI insights. Try again shortly.</p>
+        </div>
+      );
+    }
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
-        <p>{!isConnected ? 'Connecting to live updates...' : 'Loading AI insights...'}</p>
+        <p>Loading AI insights...</p>
       </div>
     );
   }

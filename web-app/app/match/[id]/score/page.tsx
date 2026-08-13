@@ -8,7 +8,7 @@ import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import Button from '@/components/ui/Button';
 import { inputClass, labelClass } from '@/components/ui/formStyles';
-import { resolveRefName } from '@/lib/resolveRef';
+import { resolveRefId, resolveRefName } from '@/lib/resolveRef';
 
 interface PlayerDoc {
   _id: string;
@@ -28,6 +28,7 @@ interface MatchDoc {
   team1: TeamDoc;
   team2: TeamDoc;
   createdBy: { _id: string; name: string };
+  umpires?: ({ _id: string; name: string } | string)[];
   status: string;
   tournament: string | null;
 }
@@ -125,10 +126,22 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
     );
   }
 
-  if (user.id !== match.createdBy._id) {
+  // Scoring is open to whoever created the match, any appointed umpire, or anyone actually
+  // rostered on either playing team - not just the creator. Mirrors canManageMatch() on the
+  // backend, which is the real enforcement; this is just so the UI doesn't show the scoring
+  // form to someone who'll get a 403 the moment they try to use it.
+  const myPlayer = players.find(p => resolveRefId(p.user) === user.id);
+  const isCreator = user.id === match.createdBy._id;
+  const isUmpire = (match.umpires || []).some(u => (typeof u === 'string' ? u : u._id) === user.id);
+  const isRostered = !!myPlayer && (match.team1.players.includes(myPlayer._id) || match.team2.players.includes(myPlayer._id));
+  const canScore = isCreator || isUmpire || isRostered;
+
+  if (!canScore) {
     return (
       <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
-        <p className="text-ink-secondary">Only {match.createdBy.name}, who created this match, can score it.</p>
+        <p className="text-ink-secondary">
+          Only players from {match.team1.name} or {match.team2.name}, an appointed umpire, or {match.createdBy.name} (who created this match) can score it.
+        </p>
       </main>
     );
   }
@@ -143,6 +156,15 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
     if (!battingTeamId || !strikerId || !nonStrikerId || !bowlerId || strikerId === nonStrikerId) return;
     setInningsIndex(battingTeamId === match.team1._id ? 0 : 1);
     setInningsData(buildInnings(battingRoster, bowlingRoster, strikerId, nonStrikerId, bowlerId));
+    // Nothing else in the app ever flips the match to Live - it's created as Scheduled and
+    // stayed that way even while balls were being recorded, which is what left the AI Insights
+    // tab and the "Live" badge elsewhere unable to tell a match had actually started.
+    if (match.status === 'Scheduled') {
+      apiFetch(`/api/matches/${match._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'Live' }),
+      }).catch(() => { /* scoring can proceed even if this call fails; next load will retry */ });
+    }
   };
 
   const handleBallRecorded = async (updated: InningsState, ballEvent: BallEvent) => {

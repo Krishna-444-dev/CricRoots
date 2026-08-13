@@ -1,5 +1,6 @@
 const Match = require('../models/Match');
 const Team = require('../models/Team');
+const Player = require('../models/Player');
 const Tournament = require('../models/Tournament');
 const AIService = require('../utils/aiService');
 const { getMatchCharts } = require('../services/matchCharts');
@@ -21,6 +22,28 @@ const MAN_OF_THE_MATCH_POPULATE = { path: 'manOfTheMatch', populate: { path: 'us
 // bowled at, defaulting to the first when neither has (freshly started match).
 function currentInningsIndex(match) {
   return match.innings[1]?.balls?.length > 0 ? 1 : 0;
+}
+
+// Who's allowed to score/manage a match: the organizer who created it, an appointed umpire,
+// or anyone actually rostered on either playing team - previously only createdBy could, which
+// meant a single person had to score an entire match alone with no way to hand off. Umpire
+// appointment itself stays creator-only (see addUmpire/removeUmpire) so this pool can't grow
+// itself; being on it doesn't include the power to add more officials.
+async function canManageMatch(match, userId) {
+  if (match.createdBy.toString() === userId) return true;
+  if ((match.umpires || []).some((u) => u.toString() === userId)) return true;
+
+  const playerProfile = await Player.findOne({ user: userId });
+  if (!playerProfile) return false;
+
+  const [team1, team2] = await Promise.all([
+    Team.findById(match.team1).select('players'),
+    Team.findById(match.team2).select('players'),
+  ]);
+  const playerId = playerProfile._id.toString();
+  const inTeam1 = team1?.players?.some((p) => p.toString() === playerId);
+  const inTeam2 = team2?.players?.some((p) => p.toString() === playerId);
+  return Boolean(inTeam1 || inTeam2);
 }
 
 // @desc    Create a new match
@@ -120,6 +143,7 @@ exports.getAllMatches = async (req, res) => {
       .populate('team1')
       .populate('team2')
       .populate(MAN_OF_THE_MATCH_POPULATE)
+      .populate({ path: 'umpires', select: 'name' })
       .sort({ scheduledDate: -1 });
 
     res.status(200).json({
@@ -144,7 +168,8 @@ exports.getMatch = async (req, res) => {
       .populate('team1')
       .populate('team2')
       .populate(MAN_OF_THE_MATCH_POPULATE)
-      .populate('createdBy');
+      .populate('createdBy')
+      .populate({ path: 'umpires', select: 'name' });
 
     if (!match) {
       return res.status(404).json({
@@ -179,7 +204,7 @@ exports.updateMatch = async (req, res) => {
       });
     }
 
-    if (match.createdBy.toString() !== req.user.id) {
+    if (!(await canManageMatch(match, req.user.id))) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this match'
@@ -285,7 +310,7 @@ exports.recordBall = async (req, res) => {
       });
     }
 
-    if (match.createdBy.toString() !== req.user.id) {
+    if (!(await canManageMatch(match, req.user.id))) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this match'
@@ -395,7 +420,7 @@ exports.applyInterruption = async (req, res) => {
     if (!match) {
       return res.status(404).json({ success: false, message: 'Match not found' });
     }
-    if (match.createdBy.toString() !== req.user.id) {
+    if (!(await canManageMatch(match, req.user.id))) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this match' });
     }
     if (match.innings.length < 2 || !match.innings[0] || match.innings[0].runs === undefined) {
@@ -663,5 +688,64 @@ exports.deleteMatch = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Appoint an umpire for a match - grants them the same scoring/status-management
+//          rights as the match creator (see canManageMatch above), without giving them the
+//          ability to appoint further umpires or delete the match.
+// @route   POST /api/matches/:id/umpires
+// @access  Private (match creator only)
+exports.addUmpire = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Please provide a userId' });
+    }
+
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (match.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the match creator can appoint umpires' });
+    }
+    if (match.createdBy.toString() === userId) {
+      return res.status(400).json({ success: false, message: 'The match creator already has full scoring access' });
+    }
+    if ((match.umpires || []).some((u) => u.toString() === userId)) {
+      return res.status(400).json({ success: false, message: 'This person is already an umpire for this match' });
+    }
+
+    match.umpires.push(userId);
+    await match.save();
+    await match.populate({ path: 'umpires', select: 'name' });
+
+    res.status(200).json({ success: true, umpires: match.umpires });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Remove an umpire from a match
+// @route   DELETE /api/matches/:id/umpires/:userId
+// @access  Private (match creator only)
+exports.removeUmpire = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (match.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the match creator can remove umpires' });
+    }
+
+    match.umpires = (match.umpires || []).filter((u) => u.toString() !== req.params.userId);
+    await match.save();
+    await match.populate({ path: 'umpires', select: 'name' });
+
+    res.status(200).json({ success: true, umpires: match.umpires });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

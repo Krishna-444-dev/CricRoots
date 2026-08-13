@@ -151,7 +151,15 @@ const matchSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
-  }
+  },
+  // Officials appointed to run the match - distinct from createdBy (the organizer who set the
+  // fixture up) and from either team's roster. Referenced by User, not Player, since umpiring
+  // doesn't require a player profile. See canManageMatch() in matchController.js for how this
+  // combines with createdBy/roster membership to decide who may record balls or change status.
+  umpires: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 }, {
   timestamps: true
 });

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
+import { apiFetch } from '@/lib/apiFetch';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
 import ManhattanChart from '@/components/insights/ManhattanChart';
 import WormChart from '@/components/insights/WormChart';
@@ -67,11 +68,18 @@ interface Match {
     balls: Ball[];
   }>;
   manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
+  createdBy?: { _id: string; name: string };
+  umpires?: ({ _id: string; name: string } | string)[];
 }
 
 interface PlayerDirectoryEntry {
   _id: string;
-  user?: { name?: string } | string;
+  user?: { _id: string; name?: string } | string;
+}
+
+interface UserOption {
+  userId: string;
+  name: string;
 }
 
 /** All players in this match's directory that appear as a batsman or bowler on any ball -
@@ -116,6 +124,10 @@ export default function MatchPage() {
   const [chartsInnings, setChartsInnings] = useState<ChartInnings[]>([]);
   const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([]);
   const [playerDirectory, setPlayerDirectory] = useState<Map<string, string>>(new Map());
+  const [userOptions, setUserOptions] = useState<UserOption[]>([]);
+  const [umpireToAdd, setUmpireToAdd] = useState('');
+  const [umpireBusy, setUmpireBusy] = useState(false);
+  const [umpireError, setUmpireError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'scorecard' | 'ai-insights'>('scorecard');
@@ -144,11 +156,14 @@ export default function MatchPage() {
       if (data.success) {
         const entries: PlayerDirectoryEntry[] = data.players;
         const map = new Map<string, string>();
+        const userMap = new Map<string, string>();
         for (const p of entries) {
-          const name = typeof p.user === 'string' ? null : p.user?.name;
-          if (name) map.set(p._id, name);
+          if (typeof p.user === 'string' || !p.user) continue;
+          if (p.user.name) map.set(p._id, p.user.name);
+          if (p.user.name) userMap.set(p.user._id, p.user.name);
         }
         setPlayerDirectory(map);
+        setUserOptions([...userMap.entries()].map(([userId, name]) => ({ userId, name })).sort((a, b) => a.name.localeCompare(b.name)));
       }
     } catch (err) {
       console.error(err);
@@ -198,6 +213,44 @@ export default function MatchPage() {
     }
   };
 
+  const handleAddUmpire = async () => {
+    if (!umpireToAdd || umpireBusy) return;
+    setUmpireBusy(true);
+    setUmpireError(null);
+    try {
+      const res = await apiFetch(`/api/matches/${matchId}/umpires`, {
+        method: 'POST',
+        body: JSON.stringify({ userId: umpireToAdd }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUmpireToAdd('');
+        fetchMatch();
+      } else {
+        setUmpireError(data.message || 'Could not add umpire');
+      }
+    } finally {
+      setUmpireBusy(false);
+    }
+  };
+
+  const handleRemoveUmpire = async (userId: string) => {
+    if (umpireBusy) return;
+    setUmpireBusy(true);
+    setUmpireError(null);
+    try {
+      const res = await apiFetch(`/api/matches/${matchId}/umpires/${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        fetchMatch();
+      } else {
+        setUmpireError(data.message || 'Could not remove umpire');
+      }
+    } finally {
+      setUmpireBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.container}>
@@ -239,6 +292,11 @@ export default function MatchPage() {
           <Link href={`/match/${matchId}/scouting`} className="block mt-3 text-sm font-medium text-gold-500 hover:text-gold-400 transition-colors">
             📋 Scouting Report &rarr;
           </Link>
+          {(match.status === 'Scheduled' || match.status === 'Live') && user && (
+            <Link href={`/match/${matchId}/score`} className="block mt-2 text-sm font-medium text-pitch-400 hover:text-pitch-300 transition-colors">
+              🏏 Score this match &rarr;
+            </Link>
+          )}
           {match.manOfTheMatch?.user?.name && (
             <p className="mt-2 text-sm font-medium text-gold-500">
               🏆 Man of the Match: {match.manOfTheMatch.user.name}
@@ -246,6 +304,60 @@ export default function MatchPage() {
           )}
         </div>
       </div>
+
+      {user?.id === match.createdBy?._id && (
+        <div className="max-w-[1200px] mx-auto px-5 mt-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <h3 className="text-sm font-bold text-ink mb-1">Umpires</h3>
+            <p className="text-xs text-ink-muted mb-3">
+              Umpires can score this match the same way you can, without needing to be on either team's roster.
+            </p>
+            {(match.umpires || []).length > 0 && (
+              <ul className="mb-3 space-y-1.5">
+                {(match.umpires || []).map((u) => {
+                  const uid = typeof u === 'string' ? u : u._id;
+                  const name = typeof u === 'string' ? uid : u.name;
+                  return (
+                    <li key={uid} className="flex items-center justify-between text-sm">
+                      <span className="text-ink-secondary">{name}</span>
+                      <button
+                        onClick={() => handleRemoveUmpire(uid)}
+                        disabled={umpireBusy}
+                        className="text-xs text-wicket-400 hover:underline disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div className="flex gap-2">
+              <select
+                value={umpireToAdd}
+                onChange={(e) => setUmpireToAdd(e.target.value)}
+                className="flex-1 min-w-0 text-sm bg-surface-alt border border-border-strong rounded-lg px-3 py-1.5 text-ink"
+              >
+                <option value="">Select a person...</option>
+                {userOptions
+                  .filter((o) => !(match.umpires || []).some((u) => (typeof u === 'string' ? u : u._id) === o.userId))
+                  .filter((o) => o.userId !== match.createdBy?._id)
+                  .map((o) => (
+                    <option key={o.userId} value={o.userId}>{o.name}</option>
+                  ))}
+              </select>
+              <button
+                onClick={handleAddUmpire}
+                disabled={!umpireToAdd || umpireBusy}
+                className="text-sm px-3 py-1.5 bg-pitch-500 text-[#06170D] font-medium rounded-lg disabled:opacity-50"
+              >
+                Add
+              </button>
+            </div>
+            {umpireError && <p className="mt-2 text-xs text-wicket-400">{umpireError}</p>}
+          </div>
+        </div>
+      )}
 
       {/* Predict the Winner */}
       <div className="max-w-[1200px] mx-auto px-5 mt-4">
