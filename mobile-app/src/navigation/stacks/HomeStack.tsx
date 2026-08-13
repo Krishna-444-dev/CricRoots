@@ -7,6 +7,7 @@ import NewsScreen from '../../screens/NewsScreen';
 import MarketplaceScreen from '../../screens/MarketplaceScreen';
 import CartScreen from '../../screens/CartScreen';
 import OrdersScreen from '../../screens/OrdersScreen';
+import CalendarScreen from '../../screens/CalendarScreen';
 import { navScreenOptions } from '../screenOptions';
 
 const Stack = createNativeStackNavigator();
@@ -21,6 +22,7 @@ export default function HomeStack() {
       <Stack.Screen name="Marketplace" component={MarketplaceScreen} />
       <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="Orders" component={OrdersScreen} />
+      <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />
     </Stack.Navigator>
   );
 }

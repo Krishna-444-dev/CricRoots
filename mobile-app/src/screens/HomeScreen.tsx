@@ -19,6 +19,7 @@ const QUICK_LINKS: QuickLink[] = [
   { label: 'Matches', icon: 'baseball', mdiIcon: 'cricket', screen: 'MatchesList', tab: 'Matches' },
   { label: 'Teams', icon: 'people', screen: 'TeamsList', tab: 'Teams' },
   { label: 'Tournaments', icon: 'trophy', screen: 'TournamentsList', tab: 'Tournaments' },
+  { label: 'Calendar', icon: 'calendar', screen: 'Calendar', tab: 'Home' },
   { label: 'Network', icon: 'person-add', screen: 'Network', tab: 'Home' },
   { label: 'Learn', icon: 'book', screen: 'Learn', tab: 'Home' },
   { label: 'News', icon: 'newspaper', screen: 'News', tab: 'Home' },
