@@ -9,6 +9,7 @@ const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
 const { generateMatchArticle } = require('../services/matchArticleGenerator');
 const { getMatchPerformanceReport } = require('../services/tendencyAnalytics');
+const { resourcePercent, revisedTarget } = require('../services/rainRuleCalculator');
 
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
@@ -20,7 +21,7 @@ const MAN_OF_THE_MATCH_POPULATE = { path: 'manOfTheMatch', populate: { path: 'us
 // @access  Private
 exports.createMatch = async (req, res) => {
   try {
-    const { title, team1Id, team2Id, matchType, venue, scheduledDate, pitchType, tournamentId } = req.body;
+    const { title, team1Id, team2Id, matchType, venue, scheduledDate, pitchType, tournamentId, totalOvers } = req.body;
 
     if (!title || !team1Id || !team2Id || !venue || !scheduledDate) {
       return res.status(400).json({
@@ -50,6 +51,14 @@ exports.createMatch = async (req, res) => {
       }
     }
 
+    // No implicit per-matchType over count is enforced anywhere else in this codebase (club
+    // "T20" games don't always mean exactly 20 overs, and 'Friendly'/'Test' have no fixed
+    // count) - only used as a fallback default when the creator doesn't specify totalOvers
+    // explicitly, primarily so the rain-rule calculator always has a real reference to
+    // normalize against.
+    const DEFAULT_OVERS_BY_TYPE = { T20: 20, ODI: 50, Test: 90, Friendly: 20 };
+    const resolvedTotalOvers = totalOvers || DEFAULT_OVERS_BY_TYPE[matchType] || 20;
+
     const match = await Match.create({
       title,
       team1: team1Id,
@@ -58,6 +67,7 @@ exports.createMatch = async (req, res) => {
       venue,
       pitchType: pitchType || 'unknown',
       scheduledDate,
+      totalOvers: resolvedTotalOvers,
       createdBy: req.user.id,
       tournament: tournament ? tournament._id : null,
       innings: [
@@ -355,6 +365,64 @@ exports.recordBall = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Apply a rain/stoppage interruption, reducing innings[1] (the chasing team)'s
+//          overs and computing a revised target - see rainRuleCalculator.js for the
+//          calculation and its real accuracy/scope caveats (an approximation, not the
+//          licensed official DLS algorithm; only covers the single most common scenario of
+//          team 1 having completed their full original allocation and team 2's overs being
+//          reduced, not arbitrary multi-interruption chains).
+// @route   POST /api/matches/:id/apply-interruption
+// @access  Private (match owner only)
+exports.applyInterruption = async (req, res) => {
+  try {
+    const { revisedOvers } = req.body;
+
+    if (!revisedOvers || revisedOvers <= 0) {
+      return res.status(400).json({ success: false, message: 'revisedOvers must be a positive number' });
+    }
+
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (match.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this match' });
+    }
+    if (match.innings.length < 2 || !match.innings[0] || match.innings[0].runs === undefined) {
+      return res.status(400).json({ success: false, message: 'First innings must exist before applying an interruption to the chase' });
+    }
+
+    const chase = match.innings[1];
+    const oversBowled = chase.overs || 0;
+    const wicketsLost = chase.wickets || 0;
+
+    if (revisedOvers <= oversBowled) {
+      return res.status(400).json({ success: false, message: `Revised overs (${revisedOvers}) must be greater than overs already bowled (${oversBowled})` });
+    }
+
+    const oversRemainingAfterReduction = revisedOvers - oversBowled;
+    const resourcePercentRemaining = resourcePercent(oversRemainingAfterReduction, wicketsLost, match.totalOvers);
+    const { parScore, target } = revisedTarget(match.innings[0].runs, 100, resourcePercentRemaining);
+
+    match.interruption = {
+      revisedOvers,
+      oversBowledAtInterruption: oversBowled,
+      wicketsLostAtInterruption: wicketsLost,
+      resourcePercentRemaining: Math.round(resourcePercentRemaining * 100) / 100,
+      parScore,
+      target,
+      appliedAt: new Date()
+    };
+    await match.save();
+
+    req.io.emit('match-interruption', { matchId: match._id, interruption: match.interruption });
+
+    res.status(200).json({ success: true, match, interruption: match.interruption });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

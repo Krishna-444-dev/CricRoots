@@ -11,6 +11,7 @@ const {
   getAIInsights,
   getKeyMomentsForMatch,
   getPlayerPerformanceReport,
+  applyInterruption,
   deleteMatch
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/auth');
@@ -28,6 +29,7 @@ router.get('/:matchId/performance-report/:playerId', getPlayerPerformanceReport)
 router.post('/', protect, createMatch);
 router.put('/:id', protect, updateMatch);
 router.post('/:id/record-ball', protect, recordBall);
+router.post('/:id/apply-interruption', protect, applyInterruption);
 router.delete('/:id', protect, deleteMatch);
 
 module.exports = router;

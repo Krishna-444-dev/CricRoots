@@ -43,6 +43,30 @@ const matchSchema = new mongoose.Schema({
     ref: 'Tournament',
     default: null
   },
+  // The match's original overs-per-side allocation. Not derived from matchType (T20 doesn't
+  // always mean exactly 20 at club level, and 'Friendly'/other formats have no implied
+  // count) - explicit so the rain-rule calculator has a real reference to normalize against.
+  totalOvers: {
+    type: Number,
+    default: 20
+  },
+  // Set when the second innings' overs get reduced mid-match (rain/other stoppage) - see
+  // backend/src/services/rainRuleCalculator.js for the calculation and its real scope/
+  // accuracy caveats. Deliberately only covers the single most common club-cricket case
+  // (team 2's innings shortened, team 1 completed their full original allocation) - null
+  // when no interruption has been applied.
+  interruption: {
+    type: {
+      revisedOvers: Number,
+      oversBowledAtInterruption: Number,
+      wicketsLostAtInterruption: Number,
+      resourcePercentRemaining: Number,
+      parScore: Number,
+      target: Number,
+      appliedAt: Date
+    },
+    default: null
+  },
   innings: [{
     team: {
       type: mongoose.Schema.Types.ObjectId,
