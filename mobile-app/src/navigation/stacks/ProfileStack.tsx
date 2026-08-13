@@ -9,6 +9,7 @@ import MessageThreadScreen from '../../screens/MessageThreadScreen';
 import GroupsScreen from '../../screens/GroupsScreen';
 import CreateGroupScreen from '../../screens/CreateGroupScreen';
 import GroupDetailScreen from '../../screens/GroupDetailScreen';
+import AssistantScreen from '../../screens/AssistantScreen';
 import { navScreenOptions } from '../screenOptions';
 
 export type ProfileStackParamList = {
@@ -21,6 +22,7 @@ export type ProfileStackParamList = {
   Groups: undefined;
   CreateGroup: undefined;
   GroupDetail: { groupId: string; name?: string };
+  Assistant: undefined;
 };
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
@@ -37,6 +39,7 @@ export default function ProfileStack() {
       <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Groups' }} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'New Group' }} />
       <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Group' }} />
+      <Stack.Screen name="Assistant" component={AssistantScreen} options={{ title: 'Assistant' }} />
     </Stack.Navigator>
   );
 }
