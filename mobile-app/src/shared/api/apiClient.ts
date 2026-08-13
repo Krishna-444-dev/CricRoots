@@ -43,7 +43,12 @@ export interface ApiResponse<T = any> {
 async function apiFetch<T = any>(
   path: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-  body?: any
+  body?: any,
+  // allowFailureResponse: for endpoints where a non-2xx / success:false response is an expected,
+  // meaningful outcome the caller needs the full body of (not just a thrown Error's `.message`) -
+  // e.g. the scoring lock's 409 response carries `activeScorer` alongside `success: false`, which
+  // a thrown Error would discard. Everywhere else, throwing on failure (the default) is right.
+  opts?: { allowFailureResponse?: boolean }
 ): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
@@ -64,6 +69,7 @@ async function apiFetch<T = any>(
   }));
 
   if (!response.ok || data.success === false) {
+    if (opts?.allowFailureResponse) return data as T;
     throw new Error(data.message || `Request failed: ${response.status}`);
   }
 
@@ -182,9 +188,12 @@ export const matchesAPI = {
 // open (e.g. every 30s); the server auto-expires a held lock after 2 minutes without renewal,
 // so a dropped session doesn't block the match indefinitely - release explicitly on the way out.
 export const scoringLockAPI = {
+  // Passes allowFailureResponse so a 409 (someone else already holds the lock) comes back as a
+  // normal `{success:false, activeScorer}` value the caller can branch on, instead of apiFetch's
+  // default of throwing an Error that would discard `activeScorer.name`.
   acquire: (matchId: string) =>
     apiFetch<{ success: true; activeScorer: { user: string; name: string; lastActiveAt: string } } | { success: false; message: string; activeScorer?: { name: string; lastActiveAt: string } }>(
-      `/matches/${matchId}/scoring-lock`, 'POST'
+      `/matches/${matchId}/scoring-lock`, 'POST', undefined, { allowFailureResponse: true }
     ),
   release: (matchId: string) => apiFetch<{ success: true }>(`/matches/${matchId}/scoring-lock`, 'DELETE'),
 };

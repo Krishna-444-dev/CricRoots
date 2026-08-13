@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
-import { api } from '../shared/api/apiClient';
+import { api, scoringLockAPI } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
-import { Match, Player, BallEvent } from '../shared/types';
+import { Match, Player, BallEvent, LiveState } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import LiveMatchupPanel from '../components/LiveMatchupPanel';
 
@@ -113,6 +113,132 @@ function bowlingStatsFor(balls: BallEvent[], playerId: string) {
   return { legalBalls, runsConceded, wickets, overs, economy };
 }
 
+// Filtering to just this bowler's own deliveries (in order) reconstructs their overs correctly
+// even though other bowlers' balls are interleaved in the full innings list - each individual
+// over is always bowled entirely by one bowler, so every run of 6 legal deliveries pulled from
+// just their balls is exactly one of their completed overs.
+function maidenOversFor(balls: BallEvent[], playerId: string): number {
+  let maidens = 0;
+  let runsThisOver = 0;
+  let legalInOver = 0;
+  for (const b of balls) {
+    if (b.bowlerId !== playerId) continue;
+    if (!(b.isExtra && (b.extraType === 'bye' || b.extraType === 'leg-bye'))) runsThisOver += b.runs;
+    if (isLegalDelivery(b)) {
+      legalInOver += 1;
+      if (legalInOver === 6) {
+        if (runsThisOver === 0) maidens += 1;
+        runsThisOver = 0;
+        legalInOver = 0;
+      }
+    }
+  }
+  return maidens;
+}
+
+// Full cross-platform liveState shape - matches web-app's InningsData (BallByBallScoring.tsx)
+// and what MatchDetailScreen/AtTheCrease/FieldingPlan already expect to read from
+// match.innings[i].liveState (see shared/types/index.ts's LiveState/BatsmanScorecardEntry/
+// BowlerScorecardEntry). Built fresh from the ball log on every record-ball call using the
+// stats helpers above, rather than tracked as running state, since this screen already
+// re-derives everything from match.innings[idx].balls after every ball anyway - merged
+// alongside ScoringSnapshot's lighter picks-only fields (this screen's own resume-read only
+// looks at those specific keys, so the extra fields here are additive, not a breaking change).
+function buildFullLiveState(
+  balls: BallEvent[],
+  snapshot: ScoringSnapshot,
+  battingRoster: UiPlayer[],
+  bowlingRoster: UiPlayer[],
+  playersById: Map<string, Player>
+) {
+  const roleFor = (playerId: string): string => playersById.get(playerId)?.specialization ?? 'Batsman';
+  const toLiveStatePlayer = (p: UiPlayer) => ({ id: p.id, name: p.name, role: roleFor(p.id) });
+  const facedIds = new Set(balls.map((b) => b.batsmanId));
+  const outSet = new Set(snapshot.outPlayerIds);
+
+  const battingScorecard = battingRoster.map((p) => {
+    const stats = battingStatsFor(balls, p.id);
+    const isOut = outSet.has(p.id);
+    const wicketBall = isOut ? balls.find((b) => b.isWicket && b.batsmanId === p.id) : undefined;
+    return {
+      player: toLiveStatePlayer(p),
+      runs: stats.runs,
+      balls: stats.ballsFaced,
+      fours: stats.fours,
+      sixes: stats.sixes,
+      strikeRate: stats.strikeRate,
+      status: isOut ? 'out' : facedIds.has(p.id) ? 'not out' : 'yet to bat',
+      outMethod: wicketBall?.wicketType ?? null,
+      outBowler: wicketBall ? { id: wicketBall.bowlerId, name: wicketBall.bowlerName ?? 'Bowler', role: roleFor(wicketBall.bowlerId) } : null,
+      outFielder: wicketBall?.fielderId ? { id: wicketBall.fielderId, name: wicketBall.fielderName ?? 'Fielder', role: 'Fielder' } : null,
+    };
+  });
+
+  const bowlingScorecard = bowlingRoster.map((p) => {
+    const stats = bowlingStatsFor(balls, p.id);
+    const legalInCurrentOver = stats.legalBalls % 6;
+    return {
+      player: toLiveStatePlayer(p),
+      overs: Math.floor(stats.legalBalls / 6),
+      balls: legalInCurrentOver,
+      maidens: maidenOversFor(balls, p.id),
+      runs: stats.runsConceded,
+      wickets: stats.wickets,
+      economy: stats.economy,
+    };
+  });
+
+  const strikerPlayer = battingRoster.find((p) => p.id === snapshot.strikerId);
+  const nonStrikerPlayer = battingRoster.find((p) => p.id === snapshot.nonStrikerId);
+  const bowlerPlayer = bowlingRoster.find((p) => p.id === snapshot.bowlerId);
+
+  return {
+    currentBatsmen: [
+      strikerPlayer ? toLiveStatePlayer(strikerPlayer) : null,
+      nonStrikerPlayer ? toLiveStatePlayer(nonStrikerPlayer) : null,
+    ],
+    currentBowler: bowlerPlayer ? toLiveStatePlayer(bowlerPlayer) : null,
+    battingScorecard,
+    bowlingScorecard,
+  };
+}
+
+// --- Broadened scoring authorization - mirrors canManageMatch() on the backend (the real
+// enforcement; this is just so the UI doesn't invite someone into a flow they'll get a 403 the
+// moment they try to use it). Scoring is open to whoever created the match, any appointed
+// umpire, or anyone actually rostered on either playing team - not just the creator. Plain
+// function (not a hook) so it can be called both above and below this screen's early returns
+// without violating the Rules of Hooks. ---
+function computeCanScore(
+  match: Match | null,
+  userId: string | null | undefined,
+  playersById: Map<string, Player>
+): { isOwner: boolean; canScore: boolean } {
+  if (!match || !userId) return { isOwner: false, canScore: false };
+  const ownerId = resolveUserId(match.createdBy);
+  const isOwner = !!ownerId && ownerId === userId;
+  const isUmpire = (match.umpires || []).some((u) => resolveUserId(u) === userId);
+  const myPlayer = Array.from(playersById.values()).find((p) => resolveUserId(p.user) === userId);
+  const isRostered =
+    !!myPlayer && (rosterIds(match.team1).includes(myPlayer._id) || rosterIds(match.team2).includes(myPlayer._id));
+  return { isOwner, canScore: isOwner || isUmpire || isRostered };
+}
+
+// Persisted verbatim to match.innings[i].liveState on every record-ball call (see
+// api.matches.recordBall's comment) so a resumed session - this device later, or a different
+// scorer/umpire after a dropped session - can rehydrate instead of restarting the innings setup
+// from scratch. Deliberately lighter than web's InningsData snapshot: mobile always re-fetches
+// `match` (and therefore match.innings[idx].balls) after every ball, so batting/bowling figures
+// are already derived fresh from the server rather than tracked twice - only the picks that
+// live purely in local state need to round-trip.
+interface ScoringSnapshot {
+  battingTeamId: string;
+  strikerId: string;
+  nonStrikerId: string;
+  bowlerId: string;
+  outPlayerIds: string[];
+}
+
 // Generic tap-to-select chip group, reused for every selection surface in this screen (teams,
 // players, wicket type, delivery tagging) instead of building a native <select> equivalent per
 // field - keeps the whole scoring flow to one visual language.
@@ -170,16 +296,42 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   const [playersById, setPlayersById] = useState<Map<string, Player>>(new Map());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // GET /matches/:id's `powerplayOvers` is a top-level sibling of `match`, not part of the
+  // match document itself - see matchesAPI.getMatchById's comment.
+  const [powerplayOvers, setPowerplayOvers] = useState<number | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
     setLoadError(null);
     Promise.all([api.matches.getMatchById(matchId), api.players.getPlayers()])
       .then(([matchRes, playersRes]) => {
-        setMatch(matchRes.match);
+        const m: Match = matchRes.match;
+        setMatch(m);
+        setPowerplayOvers(matchRes.powerplayOvers ?? null);
         const map = new Map<string, Player>();
         (playersRes.players as Player[]).forEach((p) => map.set(p._id, p));
         setPlayersById(map);
+
+        // Resume scoring in progress instead of always restarting from "Start Innings" - a
+        // previous scorer's session may have ended abruptly (phone died, app closed) without
+        // finishing the innings, and re-picking striker/non-striker/bowler from scratch would
+        // both lose who's actually on strike right now and risk duplicate/conflicting ball
+        // numbers once new balls are recorded. Mirrors web-app/app/match/[id]/score/page.tsx.
+        const idx: 0 | 1 = (m.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0;
+        // The persisted object is ScoringSnapshot's fields merged with the full cross-platform
+        // LiveState shape (see buildFullLiveState) - only the ScoringSnapshot fields matter here.
+        // Cast through unknown since Innings.liveState's static type (LiveState) and
+        // ScoringSnapshot don't share required fields, even though the real object has both.
+        const saved = m.innings[idx]?.liveState as unknown as (ScoringSnapshot & Partial<LiveState>) | null | undefined;
+        if (saved) {
+          setInningsIndex(idx);
+          setBattingTeamId(saved.battingTeamId);
+          setStrikerId(saved.strikerId);
+          setNonStrikerId(saved.nonStrikerId);
+          setBowlerId(saved.bowlerId);
+          setOutPlayerIds(new Set(saved.outPlayerIds));
+          setInningsStarted(true);
+        }
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : 'Failed to load match'))
       .finally(() => setLoading(false));
@@ -199,11 +351,32 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   const [outPlayerIds, setOutPlayerIds] = useState<Set<string>>(new Set());
   const [bowlerPickerOpen, setBowlerPickerOpen] = useState(false);
 
+  // --- "Who bowls next over" prompt - nothing previously let the scorer change bowler after
+  // an over completed; currentBowler just stayed whoever was picked at Start Innings for the
+  // whole match. The just-completed ball is recorded immediately with its correct (outgoing)
+  // bowler; only the FOLLOWING ball needs the newly-picked one, so scoring stays blocked until
+  // this modal is confirmed. Mirrors web-app/components/scoring/BallByBallScoring.tsx's
+  // showBowlerModal/pendingOverChange/handleConfirmNextBowler. ---
+  const [overCompleteModalVisible, setOverCompleteModalVisible] = useState(false);
+  const [justFinishedBowlerId, setJustFinishedBowlerId] = useState<string | null>(null);
+  const [nextBowlerId, setNextBowlerId] = useState<string | null>(null);
+
+  // --- Full scorecard (all players' batting/bowling figures for this innings, not just the
+  // two current batsmen and current bowler) - toggled inline rather than a separate screen. ---
+  const [scorecardOpen, setScorecardOpen] = useState(false);
+
+  // --- Umpire management (match creator only) ---
+  const [umpirePickerOpen, setUmpirePickerOpen] = useState(false);
+  const [umpireActionLoading, setUmpireActionLoading] = useState(false);
+  const [umpireError, setUmpireError] = useState<string | null>(null);
+
   // --- Pending ball being built ---
   const [pendingType, setPendingType] = useState<'normal' | 'extra' | 'wicket'>('normal');
   const [pendingRuns, setPendingRuns] = useState(0);
   const [pendingExtraType, setPendingExtraType] = useState<BallEvent['extraType']>('wide');
-  const [pendingExtraRuns, setPendingExtraRuns] = useState(1);
+  // Always "additional runs beyond the automatic 1" for wide/no-ball (see handleRecordNormalOrExtra),
+  // and the plain total for bye/leg-bye/penalty - defaulting to 0 for both cases.
+  const [pendingExtraRuns, setPendingExtraRuns] = useState(0);
   const [detailExpanded, setDetailExpanded] = useState(false);
   const [line, setLine] = useState<string>('unknown');
   const [length, setLength] = useState<string>('unknown');
@@ -248,6 +421,56 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     }
   }
 
+  // Computed fresh every render (not a hook) so it's safe to use both above and below this
+  // screen's early-return guards further down.
+  const { isOwner, canScore } = computeCanScore(match, user?.id, playersById);
+
+  // --- Single active scorer lock - opening scoring up to every rostered player plus umpires
+  // means two people could otherwise submit conflicting balls simultaneously. Claim the lock as
+  // soon as this user is known to be allowed to score, renew it periodically while this screen
+  // stays open, and release it on the way out. A held-but-abandoned lock expires server-side on
+  // its own, so a dropped session can't block the match indefinitely - that's what makes this
+  // safe to combine with the resume-scoring feature above. Depends on match._id/status rather
+  // than the whole `match` object because `match` is replaced after every single ball recorded
+  // (see handleRecordNormalOrExtra/handleConfirmWicket) - depending on the object itself would
+  // re-claim the lock, and briefly flash the "checking scoring status" screen, after every ball. ---
+  const [lockState, setLockState] = useState<'idle' | 'acquiring' | 'held' | 'locked'>('idle');
+  const [lockedByName, setLockedByName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!match || !canScore || match.status === 'Completed' || match.status === 'Cancelled') return;
+    const currentMatchId = match._id;
+    let cancelled = false;
+
+    const claim = async () => {
+      setLockState((prev) => (prev === 'held' ? prev : 'acquiring'));
+      try {
+        const res = await scoringLockAPI.acquire(currentMatchId);
+        if (cancelled) return;
+        if (res.success) {
+          setLockState('held');
+          setLockedByName(null);
+        } else {
+          setLockState('locked');
+          setLockedByName(res.activeScorer?.name ?? null);
+        }
+      } catch {
+        if (!cancelled) setLockState('locked');
+      }
+    };
+
+    claim();
+    // Renew while held, and keep retrying while locked-by-someone-else in case they finish.
+    const interval = setInterval(claim, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      scoringLockAPI.release(currentMatchId).catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match?._id, match?.status, canScore]);
+
   const team1Roster = useMemo(
     () =>
       rosterIds(match?.team1)
@@ -278,6 +501,54 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     [playersById]
   );
 
+  // Candidate list for umpire appointment - every distinct user behind a registered Player,
+  // minus whoever's already an umpire. There's no general "list all users" endpoint, so this
+  // reuses the same players registry (api.players.getPlayers()) this screen already loads for
+  // roster lookups, same as how striker/bowler pickers are built from it.
+  const umpireCandidates = useMemo(() => {
+    const existing = new Set((match?.umpires || []).map((u) => resolveUserId(u)).filter((id): id is string => !!id));
+    const seen = new Set<string>();
+    const list: { id: string; label: string }[] = [];
+    playersById.forEach((p) => {
+      const uid = resolveUserId(p.user);
+      if (!uid || seen.has(uid) || existing.has(uid)) return;
+      seen.add(uid);
+      list.push({ id: uid, label: typeof p.user === 'string' ? 'Player' : p.user.name });
+    });
+    return list;
+  }, [match, playersById]);
+
+  async function handleAddUmpire(userId: string) {
+    if (!match || umpireActionLoading) return;
+    setUmpireActionLoading(true);
+    setUmpireError(null);
+    try {
+      const res = await api.matches.addUmpire(match._id, userId);
+      if (res.match) setMatch(res.match);
+      else load();
+      setUmpirePickerOpen(false);
+    } catch (e) {
+      setUmpireError(e instanceof Error ? e.message : 'Could not appoint umpire');
+    } finally {
+      setUmpireActionLoading(false);
+    }
+  }
+
+  async function handleRemoveUmpire(userId: string) {
+    if (!match || umpireActionLoading) return;
+    setUmpireActionLoading(true);
+    setUmpireError(null);
+    try {
+      const res = await api.matches.removeUmpire(match._id, userId);
+      if (res.match) setMatch(res.match);
+      else load();
+    } catch (e) {
+      setUmpireError(e instanceof Error ? e.message : 'Could not remove umpire');
+    } finally {
+      setUmpireActionLoading(false);
+    }
+  }
+
   const canStart =
     !!battingTeamId && !!strikerId && !!nonStrikerId && !!bowlerId && strikerId !== nonStrikerId;
 
@@ -292,7 +563,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     setPendingType('normal');
     setPendingRuns(0);
     setPendingExtraType('wide');
-    setPendingExtraRuns(1);
+    setPendingExtraRuns(0);
     setWicketType('bowled');
     setFielderId(null);
     setFielderPosition(null);
@@ -306,15 +577,6 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
 
   const currentBalls = match?.innings[inningsIndex]?.balls ?? [];
 
-  function rotateStrikeIfNeeded(overCompletes: boolean, runs: number, isWideExtra: boolean) {
-    if (overCompletes || (!isWideExtra && runs % 2 === 1)) {
-      setStrikerId((prevStriker) => {
-        setNonStrikerId(prevStriker);
-        return nonStrikerId;
-      });
-    }
-  }
-
   async function handleRecordNormalOrExtra() {
     if (!match || !strikerId || !nonStrikerId || !bowlerId || submitting) return;
     setSubmitting(true);
@@ -322,7 +584,11 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
 
     const isExtra = pendingType === 'extra';
     const extraType: BallEvent['extraType'] = isExtra ? pendingExtraType : 'none';
-    const runs = pendingType === 'normal' ? pendingRuns : pendingExtraRuns;
+    const isWideOrNoBall = isExtra && (extraType === 'wide' || extraType === 'no-ball');
+    // A wide/no-ball always carries its automatic 1-run penalty even when nothing else happened
+    // on the delivery - pendingExtraRuns is "additional runs beyond that 1" for those two extra
+    // types (see the extras ChipGroup below), so it must never be used as the total by itself.
+    const runs = pendingType === 'normal' ? pendingRuns : isWideOrNoBall ? 1 + pendingExtraRuns : pendingExtraRuns;
     const legalBefore = currentBalls.filter(isLegalDelivery).length;
     const thisLegal = isLegalDelivery({ isExtra, extraType });
     const overCompletes = thisLegal && (legalBefore + 1) % 6 === 0;
@@ -347,15 +613,35 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
       bowlerName: nameFor(bowlerId),
     };
 
+    const rotates = overCompletes || (!isWideExtra && runs % 2 === 1);
+    const nextStrikerId = rotates ? nonStrikerId : strikerId;
+    const nextNonStrikerId = rotates ? strikerId : nonStrikerId;
+    // liveState rides along so another scorer/device can resume this exact innings if this
+    // session drops - see ScoringSnapshot's comment and api.matches.recordBall's. Built from
+    // currentBalls + this ballEvent (not just currentBalls) so the persisted scorecards already
+    // reflect this delivery, matching the innings.runs/overs the backend computes by appending
+    // the same ball server-side.
+    const snapshot: ScoringSnapshot = {
+      battingTeamId: battingTeamId!,
+      strikerId: nextStrikerId,
+      nonStrikerId: nextNonStrikerId,
+      bowlerId,
+      outPlayerIds: Array.from(outPlayerIds),
+    };
+    const liveState = {
+      ...snapshot,
+      ...buildFullLiveState([...currentBalls, ballEvent], snapshot, battingRoster, bowlingRoster, playersById),
+    };
+
     try {
-      const res = await api.matches.recordBall(matchId, { inningsIndex, ...ballEvent });
+      const res = await api.matches.recordBall(matchId, { inningsIndex, ...ballEvent, liveState });
       setMatch(res.match);
+      setStrikerId(nextStrikerId);
+      setNonStrikerId(nextNonStrikerId);
       if (overCompletes) {
-        setStrikerId(nonStrikerId);
-        setNonStrikerId(strikerId);
-      } else if (!isWideExtra && runs % 2 === 1) {
-        setStrikerId(nonStrikerId);
-        setNonStrikerId(strikerId);
+        setJustFinishedBowlerId(bowlerId);
+        setNextBowlerId(null);
+        setOverCompleteModalVisible(true);
       }
       resetPendingState();
     } catch (e) {
@@ -415,18 +701,44 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
       fielderName: needsFielder ? nameFor(fielderId) : undefined,
     };
 
-    try {
-      const res = await api.matches.recordBall(matchId, { inningsIndex, ...ballEvent });
-      setMatch(res.match);
-      setOutPlayerIds((prev) => new Set(prev).add(strikerId));
+    const nextOutPlayerIds = new Set(outPlayerIds).add(strikerId);
+    let nextStrikerId = strikerId;
+    let nextNonStrikerId = nonStrikerId;
+    if (newBatsmanId) {
+      if (overCompletes) {
+        nextStrikerId = nonStrikerId;
+        nextNonStrikerId = newBatsmanId;
+      } else {
+        nextStrikerId = newBatsmanId;
+      }
+    }
+    const snapshot: ScoringSnapshot = {
+      battingTeamId: battingTeamId!,
+      strikerId: nextStrikerId,
+      nonStrikerId: nextNonStrikerId,
+      bowlerId,
+      outPlayerIds: Array.from(nextOutPlayerIds),
+    };
+    const liveState = {
+      ...snapshot,
+      ...buildFullLiveState([...currentBalls, ballEvent], snapshot, battingRoster, bowlingRoster, playersById),
+    };
 
-      if (newBatsmanId) {
-        if (overCompletes) {
-          setStrikerId(nonStrikerId);
-          setNonStrikerId(newBatsmanId);
-        } else {
-          setStrikerId(newBatsmanId);
-        }
+    try {
+      const res = await api.matches.recordBall(matchId, { inningsIndex, ...ballEvent, liveState });
+      setMatch(res.match);
+      setOutPlayerIds(nextOutPlayerIds);
+      setStrikerId(nextStrikerId);
+      setNonStrikerId(nextNonStrikerId);
+
+      // Only prompt for a next bowler if the innings is actually continuing - if this wicket
+      // left no batsmen available, availableNewBatsmen.length was already 0 and newBatsmanId
+      // stayed null (canConfirmWicket allows confirming without one in that case), so there's
+      // no next over to bowl.
+      if (overCompletes && newBatsmanId) {
+        setJustFinishedBowlerId(bowlerId);
+        setNextBowlerId(null);
+        setOverCompleteModalVisible(true);
       }
       setNewBatsmanId(null);
       setWicketModalVisible(false);
@@ -485,15 +797,14 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     );
   }
 
-  const ownerId = resolveUserId(match.createdBy);
-  const isOwner = !!user && !!ownerId && ownerId === user.id;
-
-  if (!isOwner) {
+  if (!canScore) {
+    const creatorName = typeof match.createdBy === 'string' ? 'its creator' : match.createdBy.name;
     return (
       <View style={styles.centered}>
         <Text style={styles.errorTitle}>Not authorized</Text>
         <Text style={styles.muted}>
-          Only the user who created this match can score it.
+          Only players from {teamNameOf(match.team1)} or {teamNameOf(match.team2)}, an appointed
+          umpire, or {creatorName} (who created this match) can score it.
         </Text>
       </View>
     );
@@ -504,6 +815,28 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
       <View style={styles.centered}>
         <Text style={styles.errorTitle}>Match {match.status.toLowerCase()}</Text>
         <Text style={styles.muted}>This match is no longer live and can&apos;t be scored.</Text>
+      </View>
+    );
+  }
+
+  if (lockState === 'idle' || lockState === 'acquiring') {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.pitch400} />
+        <Text style={[styles.muted, { marginTop: 10 }]}>Checking scoring status...</Text>
+      </View>
+    );
+  }
+
+  if (lockState === 'locked') {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorTitle}>Match is being scored</Text>
+        <Text style={styles.muted}>
+          {lockedByName ?? 'Someone'} is currently scoring this match. Only one person can score at
+          a time - this will unlock automatically if their session goes idle, or check back once
+          they&apos;re done.
+        </Text>
       </View>
     );
   }
@@ -584,6 +917,11 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
           <Text style={styles.scoreSummaryOvers}>  ({(innings?.overs ?? 0).toFixed(1)} ov)</Text>
         </Text>
         <Text style={styles.mutedSmall}>Extras: {extrasTotal}</Text>
+        {powerplayOvers != null && (innings?.overs ?? 0) < powerplayOvers && (
+          <View style={styles.powerplayBadge}>
+            <Text style={styles.powerplayBadgeText}>⚡ Powerplay - overs 1-{powerplayOvers}</Text>
+          </View>
+        )}
       </View>
 
       {/* Rain-rule interruption - rare-use, collapsed by default. See
@@ -718,7 +1056,9 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
                 onPress={() => {
                   setPendingType('extra');
                   setPendingExtraType(et.id);
-                  setPendingExtraRuns(et.id === 'wide' || et.id === 'no-ball' ? 1 : 0);
+                  // Always 0 here - for wide/no-ball this means "no additional runs beyond the
+                  // automatic 1" (added in handleRecordNormalOrExtra), not "0 runs total".
+                  setPendingExtraRuns(0);
                 }}
               >
                 <Text style={[styles.chipLabel, selected && styles.extraChipLabelSelected]}>{et.label}</Text>
@@ -727,12 +1067,23 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
           })}
         </View>
         {pendingType === 'extra' && (
-          <ChipGroup
-            label="Total runs on this delivery"
-            options={[0, 1, 2, 3, 4].map((n) => ({ id: String(n), label: String(n) }))}
-            value={String(pendingExtraRuns)}
-            onChange={(v) => setPendingExtraRuns(Number(v))}
-          />
+          <>
+            <ChipGroup
+              label={
+                pendingExtraType === 'wide' || pendingExtraType === 'no-ball'
+                  ? 'Additional runs (plus automatic 1)'
+                  : 'Total runs on this delivery'
+              }
+              options={[0, 1, 2, 3, 4].map((n) => ({ id: String(n), label: String(n) }))}
+              value={String(pendingExtraRuns)}
+              onChange={(v) => setPendingExtraRuns(Number(v))}
+            />
+            {(pendingExtraType === 'wide' || pendingExtraType === 'no-ball') && (
+              <Text style={styles.mutedSmall}>
+                = {1 + pendingExtraRuns} run{1 + pendingExtraRuns === 1 ? '' : 's'} total
+              </Text>
+            )}
+          </>
         )}
       </View>
 
@@ -773,18 +1124,114 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
       {ballError && <Text style={styles.errorTextInline}>{ballError}</Text>}
 
       <View style={styles.section}>
-        <TouchableOpacity style={styles.wicketButton} onPress={openWicketModal}>
+        <TouchableOpacity
+          style={[styles.wicketButton, overCompleteModalVisible && styles.buttonDisabled]}
+          disabled={overCompleteModalVisible}
+          onPress={openWicketModal}
+        >
           <Text style={styles.wicketButtonText}>Wicket</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.primaryButton, (submitting || pendingType === 'wicket') && styles.buttonDisabled]}
-          disabled={submitting || pendingType === 'wicket'}
+          style={[
+            styles.primaryButton,
+            (submitting || pendingType === 'wicket' || overCompleteModalVisible) && styles.buttonDisabled,
+          ]}
+          disabled={submitting || pendingType === 'wicket' || overCompleteModalVisible}
           onPress={handleRecordNormalOrExtra}
         >
           <Text style={styles.primaryButtonText}>{submitting ? 'Recording...' : 'Record Ball'}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Full batting/bowling scorecard for this innings - everyone's figures, not just the two
+          current batsmen and current bowler. Pure display over data already derived from
+          match.innings[idx].balls, no extra API call. Mirrors web-app's ScorecardView.tsx. */}
+      <View style={styles.section}>
+        <TouchableOpacity style={styles.scorecardToggle} onPress={() => setScorecardOpen((v) => !v)}>
+          <Text style={styles.scorecardToggleText}>{scorecardOpen ? '▼' : '▶'} Full Scorecard</Text>
+        </TouchableOpacity>
+        {scorecardOpen && (
+          <View style={styles.scorecardBox}>
+            <Text style={styles.scorecardSectionTitle}>Batting</Text>
+            {battingRoster.map((p) => {
+              const stats = battingStatsFor(currentBalls, p.id);
+              const isBatting = p.id === strikerId || p.id === nonStrikerId;
+              const isOut = outPlayerIds.has(p.id);
+              const yetToBat = !isBatting && !isOut && stats.ballsFaced === 0;
+              return (
+                <View key={p.id} style={styles.scorecardRow}>
+                  <Text style={[styles.scorecardName, isBatting && styles.scorecardNameCurrent]}>
+                    {p.name}
+                    {p.id === strikerId ? ' *' : ''}
+                  </Text>
+                  <Text style={styles.scorecardStat}>
+                    {yetToBat
+                      ? 'yet to bat'
+                      : `${stats.runs} (${stats.ballsFaced}) 4s:${stats.fours} 6s:${stats.sixes} SR:${stats.strikeRate.toFixed(1)}`}
+                  </Text>
+                </View>
+              );
+            })}
+            <Text style={[styles.scorecardSectionTitle, { marginTop: 12 }]}>Bowling</Text>
+            {bowlingRoster
+              .filter((p) => currentBalls.some((b) => b.bowlerId === p.id))
+              .map((p) => {
+                const stats = bowlingStatsFor(currentBalls, p.id);
+                const maidens = maidenOversFor(currentBalls, p.id);
+                return (
+                  <View key={p.id} style={styles.scorecardRow}>
+                    <Text style={[styles.scorecardName, p.id === bowlerId && styles.scorecardNameCurrent]}>
+                      {p.name}
+                    </Text>
+                    <Text style={styles.scorecardStat}>
+                      {stats.overs.toFixed(1)}-{maidens}-{stats.runsConceded}-{stats.wickets} (Econ{' '}
+                      {stats.economy.toFixed(2)})
+                    </Text>
+                  </View>
+                );
+              })}
+          </View>
+        )}
+      </View>
+
+      {/* Umpire appointment - creator-only. Umpires get full scoring rights (see canScore)
+          without needing to be on either team's roster. */}
+      {isOwner && (
+        <View style={styles.section}>
+          <View style={styles.umpireHeaderRow}>
+            <Text style={styles.sectionTitle}>Umpires</Text>
+            <TouchableOpacity onPress={() => setUmpirePickerOpen((v) => !v)}>
+              <Text style={styles.linkButtonText}>{umpirePickerOpen ? 'Cancel' : '+ Add umpire'}</Text>
+            </TouchableOpacity>
+          </View>
+          {match.umpires && match.umpires.length > 0 ? (
+            match.umpires.map((u) => {
+              const uid = resolveUserId(u);
+              const uname = typeof u === 'string' ? 'Umpire' : u.name;
+              return (
+                <View key={uid ?? uname} style={styles.playerRow}>
+                  <Text style={styles.playerNameSecondary}>{uname}</Text>
+                  <TouchableOpacity disabled={umpireActionLoading || !uid} onPress={() => uid && handleRemoveUmpire(uid)}>
+                    <Text style={styles.linkButtonText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.mutedSmall}>No umpires appointed.</Text>
+          )}
+          {umpirePickerOpen && (
+            <ChipGroup
+              options={umpireCandidates}
+              value={null}
+              onChange={handleAddUmpire}
+              emptyLabel="No other registered users available to appoint."
+            />
+          )}
+          {umpireError && <Text style={styles.errorTextInline}>{umpireError}</Text>}
+        </View>
+      )}
 
       <View style={styles.footerRow}>
         <TouchableOpacity style={styles.secondaryButton} onPress={handleEndInnings}>
@@ -798,6 +1245,35 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
           <Text style={styles.dangerOutlineButtonText}>{finishing ? 'Finishing...' : 'Finish Match'}</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal visible={overCompleteModalVisible} animationType="slide" transparent onRequestClose={() => {}}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.sectionTitle}>Over complete</Text>
+            <Text style={styles.mutedSmall}>Who&apos;s bowling the next over?</Text>
+            <ChipGroup
+              options={bowlingRoster
+                .filter((p) => p.id !== justFinishedBowlerId)
+                .map((p) => ({ id: p.id, label: p.name }))}
+              value={nextBowlerId}
+              onChange={setNextBowlerId}
+            />
+            <TouchableOpacity
+              style={[styles.primaryButton, !nextBowlerId && styles.buttonDisabled]}
+              disabled={!nextBowlerId}
+              onPress={() => {
+                if (!nextBowlerId) return;
+                setBowlerId(nextBowlerId);
+                setOverCompleteModalVisible(false);
+                setJustFinishedBowlerId(null);
+                setNextBowlerId(null);
+              }}
+            >
+              <Text style={styles.primaryButtonText}>Confirm Bowler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={wicketModalVisible} animationType="slide" transparent onRequestClose={closeWicketModal}>
         <View style={styles.modalBackdrop}>
@@ -1054,4 +1530,54 @@ const styles = StyleSheet.create({
     padding: 16,
     maxHeight: '90%',
   },
+
+  powerplayBadge: {
+    marginTop: 8,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.3)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  powerplayBadgeText: { color: colors.gold400, fontSize: 11, fontWeight: '700' },
+
+  scorecardToggle: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  scorecardToggleText: { color: colors.pitch400, fontSize: 13, fontWeight: '700' },
+  scorecardBox: {
+    marginTop: 8,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+  },
+  scorecardSectionTitle: {
+    color: colors.inkMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  scorecardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: 8,
+  },
+  scorecardName: { color: colors.inkSecondary, fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  scorecardNameCurrent: { color: colors.ink, fontWeight: '800' },
+  scorecardStat: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600' },
+
+  umpireHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
 });

@@ -140,6 +140,10 @@ export interface Match {
   result?: { winningTeam: string | null; margin: string; marginValue: number };
   manOfTheMatch?: Player | string | null;
   createdBy: User | string;
+  // Appointed umpires - full scoring rights alongside the creator and rostered players. Creator-
+  // only to appoint/remove (POST/DELETE /matches/:id/umpires). Populated as {_id,name} objects
+  // from GET /matches/:id.
+  umpires?: (User | string)[];
 }
 
 export interface TournamentStanding {
