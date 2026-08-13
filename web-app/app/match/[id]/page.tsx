@@ -39,6 +39,16 @@ interface Ball {
   commentary?: string;
 }
 
+interface Interruption {
+  revisedOvers: number;
+  oversBowledAtInterruption: number;
+  wicketsLostAtInterruption: number;
+  resourcePercentRemaining: number;
+  parScore: number;
+  target: number;
+  appliedAt: string;
+}
+
 interface Match {
   _id: string;
   title: string;
@@ -47,6 +57,8 @@ interface Match {
   status: string;
   venue: string;
   matchType: string;
+  totalOvers?: number;
+  interruption?: Interruption | null;
   innings: Array<{
     team: string;
     runs: number;
@@ -208,7 +220,7 @@ export default function MatchPage() {
   }
 
   const currentInnings = match.innings[match.status === 'Live' ? 1 : 0];
-  const targetScore = match.innings[0]?.runs || 0;
+  const targetScore = match.interruption ? match.interruption.target : (match.innings[0]?.runs || 0);
 
   return (
     <div className={styles.container}>
@@ -294,10 +306,24 @@ export default function MatchPage() {
               </div>
 
               <div className={styles.targetContainer}>
-                <p className={styles.targetLabel}>Target Score</p>
+                <p className={styles.targetLabel}>{match.interruption ? 'Revised Target' : 'Target Score'}</p>
                 <p className={styles.targetValue}>{targetScore} runs</p>
               </div>
             </div>
+
+            {match.interruption && (
+              <div className="mt-3 bg-gold-500/10 border border-gold-500/30 rounded-lg p-3 text-xs text-ink-secondary">
+                <p className="font-semibold text-gold-400 mb-1">
+                  Rain rule applied — revised to {match.interruption.revisedOvers} overs
+                </p>
+                <p>
+                  Par score {match.interruption.parScore} ({match.interruption.resourcePercentRemaining}% resources
+                  remaining at the point of interruption, {match.interruption.wicketsLostAtInterruption} wicket(s) down).
+                  This is an approximate rain-rule estimate inspired by the Duckworth-Lewis-Stern method, not the
+                  official licensed calculation — treat it as a guide, not a binding result.
+                </p>
+              </div>
+            )}
 
             {/* Player Performance Reports */}
             {playersWhoAppeared(match.innings).length > 0 && (

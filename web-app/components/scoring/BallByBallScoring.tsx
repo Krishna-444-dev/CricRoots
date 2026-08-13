@@ -9,6 +9,7 @@ import {
 import VoiceBallInput from './VoiceBallInput';
 import { ParsedBall } from '@/lib/voiceBallParser';
 import LiveMatchupPanel from './LiveMatchupPanel';
+import RainRuleControl from './RainRuleControl';
 
 interface Player {
   id: string;
@@ -556,6 +557,8 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         bowlerId={bowler?.id}
         refreshKey={`${inningsData.overs}.${inningsData.balls}`}
       />
+
+      <RainRuleControl matchId={matchId} />
 
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-ink mb-2">Match Status</h3>
