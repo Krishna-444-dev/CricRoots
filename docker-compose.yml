@@ -41,6 +41,7 @@ services:
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb:27017/cricsync?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key_change_in_production}
       JWT_EXPIRE: ${JWT_EXPIRE:-30d}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_ENGINE_URL: http://ai-engine:5001
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     ports:

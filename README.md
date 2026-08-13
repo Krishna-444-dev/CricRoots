@@ -33,6 +33,13 @@ This repository contains the complete CricRoots ecosystem, including:
 - **Awards**: one-click computation of winner/runner-up/third place (from the points table) and MVP/best batsman/best bowler (from tournament-scoped stats).
 - **Announcements**: real-time organizer-to-followers announcement chat per tournament.
 - **Calendar**: a month-view calendar of scheduled matches and tournament date ranges.
+- **House rules**: organizers can set free-text custom playing conditions for their tournament, which the in-app assistant (below) prioritizes over generic cricket rules when answering questions in that context.
+
+### 👥 Team Management
+- **Role-based admin**: every team has a captain, who can delegate day-to-day roster management (add/remove players, edit team details) to a vice-captain and any number of coaches — deleting the team and reassigning roles stays captain-only, so admin access can't be used to lock out the captain.
+
+### 🤖 In-App Assistant
+- **App help & cricket rules chatbot**: Claude API (Haiku 4.5), grounded in the app's own real feature set and a plain-English cricket rules summary via prompt caching — answers "I don't know" rather than guessing when a question isn't covered. Only appears once `ANTHROPIC_API_KEY` is set (see `.env.example`).
 
 ### 📊 Player Stats & Wagon Wheels
 - **Career stats**: batting/bowling/fielding averages, strike rate, economy, computed live from every completed match a player appears in — including wicketkeeper stats (catches/run-outs/stumpings) that most club-scoring tools don't track.
@@ -221,6 +228,10 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 ### News (`/api/news`)
 - Standard `GET /` / `GET /:id` / `POST /` (protected, organizer/admin) / `DELETE /:id` (protected) CRUD, `?tournament=` filter
 - `GET /feed` (protected) - general news plus articles for every tournament you're registered in
+
+### In-App Assistant (`/api/assistant`) - Claude API (Haiku 4.5), all protected
+- `GET /status` - whether `ANTHROPIC_API_KEY` is configured; the frontend widget only renders when true
+- `POST /ask` - app-help and cricket-rules Q&A, grounded in `backend/src/data/*.md` reference content (cached via prompt caching, not re-billed per query) plus a tournament's own `houseRules` when scoped to one. Answers "I don't know" rather than guessing when the question isn't covered by the reference material.
 
 ### Marketplace (`/api/products`, `/api/orders`)
 - Standard `GET /` / `GET /:id` / `POST /` (protected) / `DELETE /:id` (protected) CRUD, plus `GET /api/orders/my` and `GET /api/orders/selling` for buyer/seller order views and `PUT /api/orders/:id/status` for fulfillment tracking.
