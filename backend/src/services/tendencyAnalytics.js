@@ -262,73 +262,120 @@ async function getFieldingStats(fielderId) {
 const NON_BOWLER_WICKET_TYPES = ['run out', 'retired hurt', 'retired out'];
 
 /**
- * Full career stats for a single player, computed directly from Match ball data
- * rather than the separate (unpopulated) PlayerStats collection - matches are the
- * source of truth. Batting/bowling are aggregated per match first so per-innings
- * figures like highest score and not-outs come out right.
+ * Accumulates one player's batting/bowling figures from a single match's `innings`
+ * array - the shared per-match ball-accumulation logic behind getMatchByMatchBreakdown
+ * (one call per match, across a player's whole history) and getMatchPerformanceReport
+ * (a single specific match's numbers, applied directly to one already-loaded match
+ * document instead of re-querying). Mirrors the extras rules exactly: wides don't
+ * count as a legal ball faced, wides/no-balls don't count as a legal ball bowled,
+ * byes/leg-byes aren't runs conceded by the bowler. Also surfaces the ball that
+ * dismissed this player as batsman, if any - the report's tactical tie-back needs the
+ * dismissing bowler/line/length, which nothing else here computes.
  */
-async function getCareerStats(playerId) {
+function accumulateMatchFigures(innings, playerId) {
+  let battingEntry = null;
+  let bowlingEntry = null;
+  let battedForTeam = null;
+  let bowledAgainstTeam = null;
+  const dismissals = [];
+
+  for (const inn of innings) {
+    for (const ball of inn.balls) {
+      if (ball.batsmanId && ball.batsmanId.toString() === playerId.toString()) {
+        battingEntry = battingEntry || { runs: 0, balls: 0, fours: 0, sixes: 0, out: false };
+        battingEntry.runs += ball.runs || 0;
+        if (!(ball.isExtra && ball.extraType === 'wide')) battingEntry.balls += 1;
+        if (!ball.isExtra && ball.runs === 4) battingEntry.fours += 1;
+        if (!ball.isExtra && ball.runs === 6) battingEntry.sixes += 1;
+        if (ball.isWicket) {
+          battingEntry.out = true;
+          dismissals.push({
+            bowlerId: ball.bowlerId ? ball.bowlerId.toString() : null,
+            wicketType: ball.wicketType,
+            line: ball.line,
+            length: ball.length
+          });
+        }
+        battedForTeam = inn.team ? inn.team.toString() : battedForTeam;
+      }
+      if (ball.bowlerId && ball.bowlerId.toString() === playerId.toString()) {
+        bowlingEntry = bowlingEntry || { balls: 0, runs: 0, wickets: 0 };
+        const isLegal = !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
+        if (isLegal) bowlingEntry.balls += 1;
+        if (!(ball.isExtra && ['bye', 'leg-bye'].includes(ball.extraType))) bowlingEntry.runs += ball.runs || 0;
+        if (ball.isWicket && !NON_BOWLER_WICKET_TYPES.includes(ball.wicketType)) bowlingEntry.wickets += 1;
+        bowledAgainstTeam = inn.team ? inn.team.toString() : bowledAgainstTeam;
+      }
+    }
+  }
+
+  return { battingEntry, bowlingEntry, battedForTeam, bowledAgainstTeam, dismissals };
+}
+
+/**
+ * Chronological match-by-match breakdown for a single player: one entry per completed
+ * match they batted and/or bowled in (batted-only and bowled-only matches both
+ * included, with the other side null), oldest to newest by scheduledDate. This is the
+ * exact building block getCareerStats needs for its aggregate totals (extracted here so
+ * it calls this instead of duplicating the ball loop) and what recent-form-trend /
+ * this-match-vs-history features need directly - a real per-match sequence, not just an
+ * aggregate.
+ */
+async function getMatchByMatchBreakdown(playerId) {
   const matches = await Match.find({
     status: 'Completed',
     $or: [
       { 'innings.balls.batsmanId': oid(playerId) },
       { 'innings.balls.bowlerId': oid(playerId) }
     ]
-  }).select('innings result manOfTheMatch');
+  }).select('innings result manOfTheMatch scheduledDate').sort('scheduledDate');
 
-  const battingByMatch = new Map();
-  const bowlingByMatch = new Map();
+  return matches.map((match) => {
+    const { battingEntry, bowlingEntry, battedForTeam, bowledAgainstTeam } =
+      accumulateMatchFigures(match.innings, playerId);
+
+    // Infer which team the player was on: the team they batted for, or the
+    // opponent of the team they bowled against. Left null if neither can be
+    // determined (e.g. fielded only) - the win/loss count is skipped for this match.
+    const playerTeam = battedForTeam || (bowledAgainstTeam
+      ? match.innings.find((i) => i.team && i.team.toString() !== bowledAgainstTeam)?.team?.toString()
+      : null);
+
+    return {
+      matchId: match._id.toString(),
+      scheduledDate: match.scheduledDate,
+      playerTeam: playerTeam || null,
+      winningTeam: match.result?.winningTeam ? match.result.winningTeam.toString() : null,
+      isManOfTheMatch: !!(match.manOfTheMatch && match.manOfTheMatch.toString() === playerId.toString()),
+      batting: battingEntry,
+      bowling: bowlingEntry
+    };
+  });
+}
+
+/**
+ * Full career stats for a single player, computed directly from Match ball data
+ * rather than the separate (unpopulated) PlayerStats collection - matches are the
+ * source of truth. Batting/bowling are aggregated per match first so per-innings
+ * figures like highest score and not-outs come out right.
+ */
+async function getCareerStats(playerId) {
+  const breakdown = await getMatchByMatchBreakdown(playerId);
+
   let manOfTheMatchCount = 0;
   let wins = 0;
   let matchesWithKnownResult = 0;
 
-  for (const match of matches) {
-    const matchId = match._id.toString();
-    let battedForTeam = null;
-    let bowledAgainstTeam = null;
-
-    for (const innings of match.innings) {
-      for (const ball of innings.balls) {
-        if (ball.batsmanId && ball.batsmanId.toString() === playerId.toString()) {
-          const entry = battingByMatch.get(matchId) || { runs: 0, balls: 0, fours: 0, sixes: 0, out: false };
-          entry.runs += ball.runs || 0;
-          if (!(ball.isExtra && ball.extraType === 'wide')) entry.balls += 1;
-          if (!ball.isExtra && ball.runs === 4) entry.fours += 1;
-          if (!ball.isExtra && ball.runs === 6) entry.sixes += 1;
-          if (ball.isWicket) entry.out = true;
-          battingByMatch.set(matchId, entry);
-          battedForTeam = innings.team ? innings.team.toString() : battedForTeam;
-        }
-        if (ball.bowlerId && ball.bowlerId.toString() === playerId.toString()) {
-          const entry = bowlingByMatch.get(matchId) || { balls: 0, runs: 0, wickets: 0 };
-          const isLegal = !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
-          if (isLegal) entry.balls += 1;
-          if (!(ball.isExtra && ['bye', 'leg-bye'].includes(ball.extraType))) entry.runs += ball.runs || 0;
-          if (ball.isWicket && !NON_BOWLER_WICKET_TYPES.includes(ball.wicketType)) entry.wickets += 1;
-          bowlingByMatch.set(matchId, entry);
-          bowledAgainstTeam = innings.team ? innings.team.toString() : bowledAgainstTeam;
-        }
-      }
-    }
-
-    if (match.manOfTheMatch && match.manOfTheMatch.toString() === playerId.toString()) {
-      manOfTheMatchCount += 1;
-    }
-
-    // Infer which team the player was on: the team they batted for, or the
-    // opponent of the team they bowled against. Skip the win/loss count for
-    // this match if neither can be determined (e.g. fielded only).
-    const playerTeam = battedForTeam || (bowledAgainstTeam
-      ? match.innings.find((i) => i.team && i.team.toString() !== bowledAgainstTeam)?.team?.toString()
-      : null);
-    if (playerTeam && match.result?.winningTeam) {
+  for (const entry of breakdown) {
+    if (entry.isManOfTheMatch) manOfTheMatchCount += 1;
+    if (entry.playerTeam && entry.winningTeam) {
       matchesWithKnownResult += 1;
-      if (match.result.winningTeam.toString() === playerTeam) wins += 1;
+      if (entry.winningTeam === entry.playerTeam) wins += 1;
     }
   }
 
-  const battingEntries = [...battingByMatch.values()];
-  const bowlingEntries = [...bowlingByMatch.values()];
+  const battingEntries = breakdown.filter((e) => e.batting).map((e) => e.batting);
+  const bowlingEntries = breakdown.filter((e) => e.bowling).map((e) => e.bowling);
 
   const totalRuns = battingEntries.reduce((s, e) => s + e.runs, 0);
   const totalBallsFaced = battingEntries.reduce((s, e) => s + e.balls, 0);
@@ -341,7 +388,7 @@ async function getCareerStats(playerId) {
 
   const fielding = await getFieldingStats(playerId);
 
-  const involvedMatches = new Set([...battingByMatch.keys(), ...bowlingByMatch.keys()]).size;
+  const involvedMatches = breakdown.length;
 
   return {
     batting: {
@@ -510,6 +557,287 @@ async function getAchievements(playerId, precomputedCareerStats) {
     earned: counts[def.key] > 0,
     count: counts[def.key]
   }));
+}
+
+/**
+ * Best bowling figures comparator: more wickets wins outright; on equal wickets,
+ * fewer runs conceded wins - standard "career-best bowling figures" convention.
+ */
+function isBetterBowlingFigures(a, b) {
+  if (a.wickets !== b.wickets) return a.wickets > b.wickets;
+  return a.runs < b.runs;
+}
+
+/**
+ * Scans a single match's innings for this player's single-innings-scoped milestones
+ * (century/half-century, five-wicket haul, hat-trick, golden duck) - the same
+ * definitions getAchievements uses (ACHIEVEMENT_DEFS), but evaluated against just this
+ * match's balls rather than a whole career, so getMatchPerformanceReport can say
+ * plainly which badges *this specific performance* satisfies. Reimplements the small
+ * hat-trick/golden-duck sequence scan (rather than calling getAchievements, which is
+ * career-cumulative and can't attribute a badge to one match) but keeps every rule -
+ * consecutive-in-own-legal-ball-sequence hat-tricks, first-ball-of-innings golden
+ * ducks, non-bowler wicket types excluded - identical to getAchievements.
+ */
+function getMatchMilestoneFlags(innings, playerId, thisMatchBatting, thisMatchBowling) {
+  let goldenDuck = false;
+  let hatTrick = false;
+
+  for (const inn of innings) {
+    let sawFirstBattingBall = false;
+    const bowlerLegalWicketSeq = [];
+
+    for (const ball of inn.balls) {
+      const isBatsman = ball.batsmanId && ball.batsmanId.toString() === playerId.toString();
+      const isBowler = ball.bowlerId && ball.bowlerId.toString() === playerId.toString();
+
+      if (isBatsman && !sawFirstBattingBall) {
+        sawFirstBattingBall = true;
+        if (ball.isWicket && (ball.runs || 0) === 0) goldenDuck = true;
+      }
+
+      if (isBowler) {
+        const isLegal = !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
+        if (isLegal) {
+          const credited = ball.isWicket && !NON_BOWLER_WICKET_TYPES.includes(ball.wicketType);
+          bowlerLegalWicketSeq.push(credited);
+        }
+      }
+    }
+
+    let streak = 0;
+    for (const wasWicket of bowlerLegalWicketSeq) {
+      if (wasWicket) {
+        streak += 1;
+        if (streak >= 3) hatTrick = true;
+      } else {
+        streak = 0;
+      }
+    }
+  }
+
+  return {
+    'century-maker': !!thisMatchBatting && thisMatchBatting.runs >= 100,
+    'half-century-hero': !!thisMatchBatting && thisMatchBatting.runs >= 50 && thisMatchBatting.runs < 100,
+    'five-wicket-haul': !!thisMatchBowling && thisMatchBowling.wickets >= 5,
+    'hat-trick-hero': hatTrick,
+    'golden-duck': goldenDuck
+  };
+}
+
+/**
+ * The post-match player performance report - the differentiated feature tying
+ * together everything else in this file for one player in one match:
+ *
+ * 1. This match's own batting/bowling figures, computed directly from the single
+ *    already-loaded match document (accumulateMatchFigures) rather than the full
+ *    career aggregation, since only one match's worth of balls is needed.
+ * 2. A comparison of this match's numbers against the player's career averages
+ *    (getCareerStats - which, now that this match is presumably saved/Completed,
+ *    includes it; not worth excluding for a negligible effect on the average).
+ * 3. A recent-form trend: the last 5 matches' batting runs / bowling wickets, in
+ *    chronological order, from getMatchByMatchBreakdown.
+ * 4. New personal bests this match (highest score / best bowling figures compared
+ *    against every OTHER match) and which named achievement badges (getAchievements'
+ *    definitions) this match's performance alone satisfies.
+ * 5. The tactical tie-back: for each dismissal in this match, whether the dismissing
+ *    ball's (line, length) falls in the top-3 highest-dismissal-rate buckets of the
+ *    hierarchical matchup plan (getMatchupPlan) for this batter against the bowler
+ *    who got them out - the one section of this report no generic stat card could
+ *    produce, since it depends on the shrinkage-blended matchup engine.
+ */
+async function getMatchPerformanceReport(matchId, playerId) {
+  const match = await Match.findById(matchId).select('innings scheduledDate title status');
+  if (!match) return null;
+
+  const player = await Player.findById(playerId).populate('user', 'name');
+  if (!player) return null;
+
+  const { battingEntry, bowlingEntry, dismissals } = accumulateMatchFigures(match.innings, playerId);
+  const participated = !!(battingEntry || bowlingEntry);
+
+  const playerSummary = {
+    _id: player._id,
+    name: player.user?.name ?? 'Unknown',
+    specialization: player.specialization
+  };
+
+  if (!participated) {
+    return {
+      matchId,
+      player: playerSummary,
+      participated: false,
+      message: 'This player neither batted nor bowled in this match - nothing to report.'
+    };
+  }
+
+  const thisMatch = {
+    batting: battingEntry ? {
+      runs: battingEntry.runs,
+      balls: battingEntry.balls,
+      fours: battingEntry.fours,
+      sixes: battingEntry.sixes,
+      out: battingEntry.out,
+      strikeRate: battingEntry.balls > 0 ? round((battingEntry.runs / battingEntry.balls) * 100) : 0
+    } : null,
+    bowling: bowlingEntry ? {
+      balls: bowlingEntry.balls,
+      overs: `${Math.floor(bowlingEntry.balls / 6)}.${bowlingEntry.balls % 6}`,
+      runs: bowlingEntry.runs,
+      wickets: bowlingEntry.wickets,
+      economy: bowlingEntry.balls > 0 ? round((bowlingEntry.runs / bowlingEntry.balls) * 6) : 0
+    } : null
+  };
+
+  const [careerStats, breakdown, achievements] = await Promise.all([
+    getCareerStats(playerId),
+    getMatchByMatchBreakdown(playerId),
+    getAchievements(playerId)
+  ]);
+
+  // --- Career-average comparison ---------------------------------------------
+  const careerComparison = {};
+  if (thisMatch.batting) {
+    const hasEnoughHistory = careerStats.batting.matches > 1;
+    const runsDelta = round(thisMatch.batting.runs - careerStats.batting.average);
+    const srDelta = round(thisMatch.batting.strikeRate - careerStats.batting.strikeRate);
+    careerComparison.batting = {
+      careerAverage: careerStats.batting.average,
+      careerStrikeRate: careerStats.batting.strikeRate,
+      runsDelta,
+      strikeRateDelta: srDelta,
+      hasEnoughHistory,
+      message: hasEnoughHistory
+        ? `${Math.abs(runsDelta)} run${Math.abs(runsDelta) === 1 ? '' : 's'} ${runsDelta >= 0 ? 'above' : 'below'} your career average of ${careerStats.batting.average}, at a strike rate ${Math.abs(srDelta)} point${Math.abs(srDelta) === 1 ? '' : 's'} ${srDelta >= 0 ? 'above' : 'below'} your career strike rate of ${careerStats.batting.strikeRate}.`
+        : 'Not enough batting history yet for a meaningful career comparison - this is one of your first tracked innings.'
+    };
+  }
+  if (thisMatch.bowling) {
+    const hasEnoughHistory = careerStats.bowling.matches > 1;
+    const careerAvgWicketsPerMatch = careerStats.bowling.matches > 0
+      ? round(careerStats.bowling.wickets / careerStats.bowling.matches) : 0;
+    const wicketsDelta = round(thisMatch.bowling.wickets - careerAvgWicketsPerMatch);
+    const econDelta = round(thisMatch.bowling.economy - careerStats.bowling.economyRate);
+    careerComparison.bowling = {
+      careerAverageWicketsPerMatch: careerAvgWicketsPerMatch,
+      careerEconomyRate: careerStats.bowling.economyRate,
+      wicketsDelta,
+      economyDelta: econDelta,
+      hasEnoughHistory,
+      message: hasEnoughHistory
+        ? `${thisMatch.bowling.wickets} wicket${thisMatch.bowling.wickets === 1 ? '' : 's'} vs your career average of ${careerAvgWicketsPerMatch} per match, conceding runs at an economy ${Math.abs(econDelta)} ${econDelta >= 0 ? 'above (more expensive than)' : 'below (tighter than)'} your career economy of ${careerStats.bowling.economyRate}.`
+        : 'Not enough bowling history yet for a meaningful career comparison - this is one of your first tracked spells.'
+    };
+  }
+
+  // --- Recent-form trend: last 5 matches, chronological, this match included ---
+  const recentForm = breakdown.slice(-5).map((entry) => ({
+    matchId: entry.matchId,
+    scheduledDate: entry.scheduledDate,
+    isThisMatch: entry.matchId === String(matchId),
+    runs: entry.batting ? entry.batting.runs : null,
+    wickets: entry.bowling ? entry.bowling.wickets : null
+  }));
+
+  // --- New personal bests / milestones ----------------------------------------
+  const otherEntries = breakdown.filter((e) => e.matchId !== String(matchId));
+  const priorHighestScore = otherEntries.reduce((max, e) => (e.batting ? Math.max(max, e.batting.runs) : max), null);
+  const isCareerBestBatting = !!thisMatch.batting &&
+    (priorHighestScore === null || thisMatch.batting.runs > priorHighestScore);
+
+  let priorBestBowling = null;
+  for (const e of otherEntries) {
+    if (e.bowling && (!priorBestBowling || isBetterBowlingFigures(e.bowling, priorBestBowling))) {
+      priorBestBowling = e.bowling;
+    }
+  }
+  const isCareerBestBowling = !!thisMatch.bowling &&
+    (!priorBestBowling || isBetterBowlingFigures(thisMatch.bowling, priorBestBowling));
+
+  const milestoneFlags = getMatchMilestoneFlags(match.innings, playerId, thisMatch.batting, thisMatch.bowling);
+  const badgesThisMatch = ACHIEVEMENT_DEFS
+    .filter((def) => milestoneFlags[def.key])
+    .map((def) => ({ key: def.key, label: def.label, description: def.description }));
+
+  const milestones = {
+    isCareerBestBatting,
+    priorHighestScore,
+    battingMessage: thisMatch.batting
+      ? (isCareerBestBatting
+        ? (priorHighestScore === null
+          ? 'This is your first tracked innings - nothing to compare yet.'
+          : `New career-best score! Previous best was ${priorHighestScore}.`)
+        : `Not a career best - your highest score remains ${priorHighestScore}.`)
+      : null,
+    isCareerBestBowling,
+    priorBestBowlingFigures: priorBestBowling ? `${priorBestBowling.wickets}/${priorBestBowling.runs}` : null,
+    bowlingMessage: thisMatch.bowling
+      ? (isCareerBestBowling
+        ? (priorBestBowling === null
+          ? 'This is your first tracked bowling spell - nothing to compare yet.'
+          : `New career-best bowling figures! Previous best was ${priorBestBowling.wickets}/${priorBestBowling.runs}.`)
+        : `Not a career best - your best bowling figures remain ${priorBestBowling.wickets}/${priorBestBowling.runs}.`)
+      : null,
+    badgesThisMatch,
+    careerAchievements: achievements
+  };
+
+  // --- Tactical tie-back: dismissal(s) vs the hierarchical matchup plan --------
+  const tacticalTieBack = { dismissals: [] };
+  for (const d of dismissals) {
+    if (!d.bowlerId) {
+      tacticalTieBack.dismissals.push({
+        ...d,
+        note: 'No bowler recorded for this dismissal (e.g. run out) - nothing to cross-reference against a bowling matchup.'
+      });
+      continue;
+    }
+    if (d.line === 'unknown' || d.length === 'unknown') {
+      tacticalTieBack.dismissals.push({
+        ...d,
+        note: "This dismissal's line/length wasn't tagged, so it can't be checked against the tactical model."
+      });
+      continue;
+    }
+
+    const plan = await getMatchupPlan(playerId, d.bowlerId);
+    if (!plan || plan.buckets.every((b) => b.blendedDismissalRate === null)) {
+      tacticalTieBack.dismissals.push({
+        ...d,
+        note: 'Not enough matchup data anywhere yet to say whether this was a flagged risk zone.'
+      });
+      continue;
+    }
+
+    const topRisk = plan.buckets.filter((b) => b.blendedDismissalRate !== null).slice(0, 3);
+    const rank = topRisk.findIndex((b) => b.line === d.line && b.length === d.length);
+    const matched = rank !== -1;
+
+    tacticalTieBack.dismissals.push({
+      ...d,
+      matchedRiskZone: matched,
+      topRiskBuckets: topRisk,
+      note: matched
+        ? `This dismissal came from a ${d.length.replace(/-/g, ' ')} ball ${d.line.replace(/-/g, ' ')} - exactly the zone the data flagged as a top risk area for you against this bowling style (ranked #${rank + 1} of the highest-dismissal-rate zones, based on ${topRisk[rank].basedOn}).`
+        : `This dismissal came from outside the identifiable risk pattern (${d.length.replace(/-/g, ' ')}, ${d.line.replace(/-/g, ' ')}) - well bowled regardless of the model. The model's top risk zones for you against this bowler were ${topRisk.map((b) => `${b.length.replace(/-/g, ' ')} ${b.line.replace(/-/g, ' ')}`).join(', ')}.`
+    });
+  }
+  if (dismissals.length === 0) {
+    tacticalTieBack.message = thisMatch.batting
+      ? 'Not out this match - no dismissal to cross-reference against the matchup model.'
+      : "Didn't bat this match - no dismissal to cross-reference.";
+  }
+
+  return {
+    matchId,
+    player: playerSummary,
+    participated: true,
+    thisMatch,
+    careerComparison,
+    recentForm,
+    milestones,
+    tacticalTieBack
+  };
 }
 
 /**
@@ -782,6 +1110,8 @@ module.exports = {
   getLiveMatchupPlan,
   getFieldingStats,
   getCareerStats,
+  getMatchByMatchBreakdown,
+  getMatchPerformanceReport,
   getAchievements,
   getBattingLeaderboard,
   getBowlingLeaderboard,

@@ -29,6 +29,8 @@ interface KeyMoment {
 
 interface Ball {
   ballNumber: number;
+  batsmanId?: string;
+  bowlerId?: string;
   runs: number;
   isWicket: boolean;
   wicketType: string | null;
@@ -53,6 +55,27 @@ interface Match {
     balls: Ball[];
   }>;
   manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
+}
+
+interface PlayerDirectoryEntry {
+  _id: string;
+  user?: { name?: string } | string;
+}
+
+/** All players in this match's directory that appear as a batsman or bowler on any ball -
+ * the roster for the "Player Performance Reports" links below. Derived from ball data rather
+ * than team.players (which isn't reliably populated with real rosters in this codebase yet)
+ * so every player who actually appeared in the match gets a link, not just whoever was added
+ * to the team via the separate add-player flow. */
+function playersWhoAppeared(innings: Match['innings']): string[] {
+  const ids = new Set<string>();
+  for (const inn of innings) {
+    for (const ball of inn.balls) {
+      if (ball.batsmanId) ids.add(ball.batsmanId);
+      if (ball.bowlerId) ids.add(ball.bowlerId);
+    }
+  }
+  return [...ids];
 }
 
 /** Over.ball notation, derived the same filtered-legal-balls way the backend computes overs -
@@ -80,6 +103,7 @@ export default function MatchPage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [chartsInnings, setChartsInnings] = useState<ChartInnings[]>([]);
   const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([]);
+  const [playerDirectory, setPlayerDirectory] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'scorecard' | 'ai-insights'>('scorecard');
@@ -88,6 +112,7 @@ export default function MatchPage() {
     fetchMatch();
     fetchCharts();
     fetchKeyMoments();
+    fetchPlayerDirectory();
     const interval = setInterval(() => {
       fetchMatch();
       fetchCharts();
@@ -95,6 +120,28 @@ export default function MatchPage() {
     }, 10000);
     return () => clearInterval(interval);
   }, [matchId]);
+
+  // Names for the batsman/bowler IDs recorded on each ball - GET /api/players is the one
+  // endpoint that populates the player -> user name relationship, unlike the team roster
+  // endpoints (see playersWhoAppeared above), so it's fetched once here for the "Player
+  // Performance Reports" links below.
+  const fetchPlayerDirectory = async () => {
+    try {
+      const response = await fetch('/api/players');
+      const data = await response.json();
+      if (data.success) {
+        const entries: PlayerDirectoryEntry[] = data.players;
+        const map = new Map<string, string>();
+        for (const p of entries) {
+          const name = typeof p.user === 'string' ? null : p.user?.name;
+          if (name) map.set(p._id, name);
+        }
+        setPlayerDirectory(map);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchMatch = async () => {
     try {
@@ -251,6 +298,27 @@ export default function MatchPage() {
                 <p className={styles.targetValue}>{targetScore} runs</p>
               </div>
             </div>
+
+            {/* Player Performance Reports */}
+            {playersWhoAppeared(match.innings).length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-base font-bold text-ink mb-1">Player Performance Reports</h3>
+                <p className="text-xs text-ink-muted mb-3">
+                  This match&apos;s numbers vs. career average, recent form, and a tactical read on every dismissal.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {playersWhoAppeared(match.innings).map((playerId) => (
+                    <Link
+                      key={playerId}
+                      href={`/match/${matchId}/report/${playerId}`}
+                      className="text-sm px-3 py-1.5 bg-surface border border-border rounded-full text-ink-secondary hover:text-pitch-400 hover:border-pitch-500/40 transition-colors"
+                    >
+                      {playerDirectory.get(playerId) ?? 'View report'} &rarr;
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Recent Balls */}
             <div className={styles.ballsSection}>
