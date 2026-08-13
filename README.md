@@ -27,6 +27,7 @@ This repository contains the complete CricRoots ecosystem, including:
 - **Real match lifecycle**: create teams/rosters, create a match (optionally linked to a tournament), start an innings, score it live, finish the match — result and margin are auto-derived from the innings totals.
 - **AI tactical insights**: win-probability and aggressive/balanced/defensive tactical advice during a live match (Python AI engine, self-healing on load failure), plus shot advice / bowling plans / fielding placement derived from the batsman's or bowler's own tagged-ball history where enough data exists, falling back to a wider player-pool average otherwise.
 - **Key Moments**: ranks a completed chase's deliveries by win-probability swing (the same idea as baseball's Win Probability Added) to auto-surface the match's biggest turning points.
+- **Rain-rule target revision**: report a stoppage during a chase and get a revised target immediately, using a resource-based model in the spirit of Duckworth-Lewis-Stern — explicitly an independent approximation, not the official ICC-licensed calculation (the real parameter tables have been commercially confidential since the 1998 paper), clearly labeled as such everywhere it's shown. See `backend/src/services/rainRuleCalculator.js`.
 
 ### 🏆 Tournament Management
 - **Full lifecycle**: create a tournament, register teams, auto-generate a round-robin or knockout fixture list, score the matches, get an auto-computed points table (W/L/T/NR, points, net run rate) after every completed match.
@@ -65,6 +66,7 @@ This repository contains the complete CricRoots ecosystem, including:
 - **Docker Deployment**: Easy containerization and scaling
 - **Nginx Proxy**: Load balancing and SSL/TLS support
 - **Terms of Service & Privacy Policy**: real, published legal pages (`/terms`, `/privacy`) covering data handling, age/consent rules, and the prediction game's "not gambling" framing.
+- **ReDoS-safe input validation**: email validation uses a deliberately simple, linear-time pattern — a prior catastrophic-backtracking regex was found and fixed (2026-08-13) after direct measurement showed a ~35-character crafted email could hang the single-threaded backend indefinitely for every user, not just the request that sent it.
 
 ## Technology Stack
 
@@ -201,6 +203,7 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /:id/scorecard` · `GET /:id/ai-insights` · `GET /:id/charts` - Manhattan/Worm chart data
 - `GET /:id/key-moments` - deliveries ranked by win-probability swing (chasing innings only)
 - `GET /:id/performance-report/:playerId` - this match's numbers vs. career average, a recent-form trend, milestones, and a tactical tie-back cross-referencing each dismissal against the matchup-shrinkage engine's flagged risk zones
+- `POST /:id/apply-interruption` (protected, match owner only) - reports a rain/stoppage during the chase and returns a revised target (an approximate rain-rule estimate, not the official DLS calculation - see `backend/src/services/rainRuleCalculator.js`)
 
 ### Predictions (`/api/predictions`) — free points-based prediction game, not real-money betting
 - `POST /` (protected) - submit/update a winner (+ optional Man of the Match) prediction; locks once the match leaves Scheduled
