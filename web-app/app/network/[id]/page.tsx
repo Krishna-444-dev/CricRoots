@@ -97,6 +97,18 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       </Card>
 
       {playerId && <PlayerStatsDashboard playerId={playerId} />}
+
+      {isSelf && !playerId && (
+        <Card className="text-center">
+          <p className="text-ink-secondary mb-3">
+            You don&apos;t have a player profile yet - it&apos;s needed to create a team, show up in
+            career stats, or get added to a roster.
+          </p>
+          <Link href="/players/complete-profile" className={buttonVariants('primary')}>
+            Complete Your Player Profile
+          </Link>
+        </Card>
+      )}
     </main>
   );
 }

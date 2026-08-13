@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import Card from '@/components/ui/Card';
@@ -50,7 +51,19 @@ export default function NewTeamPage() {
       <Card padding="lg" className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-ink mb-2">New Team</h1>
         <p className="text-sm text-ink-secondary mb-6">You&apos;ll automatically be set as captain.</p>
-        {error && <div className={`${errorBoxClass} mb-4`}>{error}</div>}
+        {error && (
+          <div className={`${errorBoxClass} mb-4`}>
+            {error}
+            {error.toLowerCase().includes('player profile') && (
+              <>
+                {' '}
+                <Link href="/players/complete-profile?redirect=/teams/new" className="underline font-medium">
+                  Complete it now &rarr;
+                </Link>
+              </>
+            )}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="name" className={labelClass}>Team Name</label>
