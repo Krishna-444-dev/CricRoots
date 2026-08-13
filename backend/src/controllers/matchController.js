@@ -8,6 +8,7 @@ const { generateCommentary } = require('../services/commentaryGenerator');
 const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
 const { generateMatchArticle } = require('../services/matchArticleGenerator');
+const { getMatchPerformanceReport } = require('../services/tendencyAnalytics');
 
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
@@ -481,6 +482,32 @@ exports.getKeyMomentsForMatch = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Post-match performance report for a single player in a single match:
+//          this match's batting/bowling figures, a comparison against career
+//          averages, a recent-form trend across the last 5 matches, any new
+//          personal bests / achievement badges this match satisfies, and - the
+//          differentiated part - whether each dismissal this match came from a
+//          zone the hierarchical matchup-shrinkage engine (getMatchupPlan) had
+//          already flagged as high-risk for this batter against that bowler.
+//          Computed fully on demand, nothing pre-computed/stored - matches every
+//          other analytics endpoint in this codebase.
+// @route   GET /api/matches/:matchId/performance-report/:playerId
+// @access  Public
+exports.getPlayerPerformanceReport = async (req, res) => {
+  try {
+    const { matchId, playerId } = req.params;
+    const report = await getMatchPerformanceReport(matchId, playerId);
+
+    if (!report) {
+      return res.status(404).json({ success: false, message: 'Match or player not found' });
+    }
+
+    res.status(200).json({ success: true, ...report });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

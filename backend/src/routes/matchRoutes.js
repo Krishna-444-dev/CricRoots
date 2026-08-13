@@ -10,6 +10,7 @@ const {
   getMatchCharts,
   getAIInsights,
   getKeyMomentsForMatch,
+  getPlayerPerformanceReport,
   deleteMatch
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/auth');
@@ -21,6 +22,7 @@ router.get('/:id/scorecard', getScorecard);
 router.get('/:id/charts', getMatchCharts);
 router.get('/:id/ai-insights', getAIInsights);
 router.get('/:id/key-moments', getKeyMomentsForMatch);
+router.get('/:matchId/performance-report/:playerId', getPlayerPerformanceReport);
 
 // Protected routes
 router.post('/', protect, createMatch);
