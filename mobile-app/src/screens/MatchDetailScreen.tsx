@@ -450,9 +450,18 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {/* Player Performance Reports - mobile port of web-app's per-player report links.
-          Additive/self-contained block; intentionally not touching scorecard rendering
-          elsewhere in this file. */}
+      {/* Scouting report / matchup finder - see ScoutingReportScreen, mirrors web-app's
+          /match/[id]/scouting page. */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={styles.scoutingButton}
+          onPress={() => navigation.navigate('ScoutingReport', { matchId: match._id })}
+        >
+          <Text style={styles.scoutingButtonText}>Scouting Report &rarr;</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Player Performance Reports - mobile port of web-app's per-player report links. */}
       {playersWhoAppeared(match.innings).length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Player Performance Reports</Text>
@@ -700,6 +709,16 @@ const styles = StyleSheet.create({
 
   section: { marginTop: 22, paddingHorizontal: 16 },
   sectionTitle: { color: colors.ink, fontSize: 15, fontWeight: '700', marginBottom: 10 },
+
+  scoutingButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.gold500,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  scoutingButtonText: { color: colors.gold400, fontWeight: '700', fontSize: 13 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minWidth: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },

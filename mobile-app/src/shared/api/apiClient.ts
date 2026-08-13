@@ -174,6 +174,15 @@ export const insightsAPI = {
   getBowlingPlan: (playerId: string) => apiFetch(`/insights/batsman/${playerId}/bowling-plan`),
   getFieldingPlan: (playerId: string) => apiFetch(`/insights/batsman/${playerId}/fielding-plan`),
   getBowlerScouting: (teamId: string) => apiFetch(`/insights/teams/${teamId}/bowler-scouting`),
+  // Hierarchical matchup-shrinkage bowling plan for a specific batter-vs-bowler pair - see
+  // documentation/hierarchical-matchup-shrinkage-research.md. Pre-match/static: backs off through
+  // exact matchup -> batter-vs-archetype -> archetype-vs-archetype -> global pool.
+  getMatchupPlan: (batsmanId: string, bowlerId: string) =>
+    apiFetch(`/insights/matchup/${batsmanId}/${bowlerId}/bowling-plan`),
+  // Live in-match version of the same plan - blends the historical estimate with this batter's
+  // deliveries so far in this specific match, so the recommendation shifts as the innings unfolds.
+  getLiveMatchupPlan: (batsmanId: string, bowlerId: string, matchId: string) =>
+    apiFetch(`/insights/matchup/${batsmanId}/${bowlerId}/live-bowling-plan?matchId=${matchId}`),
 };
 
 // --- Edtech lessons (backend/src/routes/lessonRoutes.js) ---
