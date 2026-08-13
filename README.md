@@ -20,7 +20,9 @@ This repository contains the complete CricRoots ecosystem, including:
 
 ### 🏏 Live Scoring & Match Management
 - **Ball-by-ball scoring UI**: runs, extras, wickets, with progressive-disclosure delivery tagging (line, length, shot zone, shot type, fielder) — auto-expands on boundaries and wickets, otherwise stays out of the way for fast scoring.
-- **Voice-driven scoring**: speak a phrase like "yorker, off stump, driven for four" and it auto-fills the delivery-tagging form (never auto-submits — the scorer still confirms every ball).
+- **Voice-driven scoring**: speak a phrase like "yorker, off stump, driven for four" and it auto-fills the delivery-tagging form (never auto-submits — the scorer still confirms every ball). Supports selecting a recognition language (Hindi, Urdu, Bengali, Punjabi, Tamil, Telugu, regional English) for better accuracy on everything around the cricket terms, which stay matched in English.
+- **Matchup-aware bowling plans, pre-match and live**: a hierarchical shrinkage engine blends a specific batter-vs-bowler matchup with archetype and league-wide pools (see `documentation/hierarchical-matchup-shrinkage-research.md`), then adjusts further in real time using this match's actual deliveries so far as the innings unfolds.
+- **Post-match performance reports**: this match's numbers vs. career average, a recent-form trend across the last several matches, milestone/personal-best detection, and a tactical read cross-referencing each dismissal against the matchup engine's flagged risk zones.
 - **Auto-generated ball-by-ball commentary**: a phrase-bank generator turns the structured data captured on every delivery into readable commentary, shown live on the match page.
 - **Real match lifecycle**: create teams/rosters, create a match (optionally linked to a tournament), start an innings, score it live, finish the match — result and margin are auto-derived from the innings totals.
 - **AI tactical insights**: win-probability and aggressive/balanced/defensive tactical advice during a live match (Python AI engine, self-healing on load failure), plus shot advice / bowling plans / fielding placement derived from the batsman's or bowler's own tagged-ball history where enough data exists, falling back to a wider player-pool average otherwise.
@@ -180,8 +182,9 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /rankings/batsmen` · `GET /rankings/bowlers` - global leaderboards
 
 ### Teams (`/api/teams`)
-- `GET /` · `POST /` (protected) · `GET /:id` · `PUT /:id` (protected) · `DELETE /:id` (protected)
-- `POST /:id/add-player` (protected, captain-only) · `DELETE /:id/remove-player/:playerId`
+- `GET /` · `POST /` (protected) · `GET /:id` · `PUT /:id` (protected, admin: captain/vice-captain/coach) · `DELETE /:id` (protected, captain-only)
+- `POST /:id/add-player` (protected, admin) · `DELETE /:id/remove-player/:playerId` (protected, admin) - removing a player also strips them of vice-captain/coach status if they held it
+- `PUT /:id/vice-captain` · `POST /:id/coaches` · `DELETE /:id/coaches/:playerId` (protected, captain-only) - role assignment stays stricter than day-to-day roster management on purpose
 - `GET /:id/messages` · `POST /:id/messages` (protected) - team chat
 
 ### Matches (`/api/matches`)
@@ -190,6 +193,7 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `POST /:id/record-ball` (protected) - records a ball, generates commentary, emits WebSocket events
 - `GET /:id/scorecard` · `GET /:id/ai-insights` · `GET /:id/charts` - Manhattan/Worm chart data
 - `GET /:id/key-moments` - deliveries ranked by win-probability swing (chasing innings only)
+- `GET /:id/performance-report/:playerId` - this match's numbers vs. career average, a recent-form trend, milestones, and a tactical tie-back cross-referencing each dismissal against the matchup-shrinkage engine's flagged risk zones
 
 ### Predictions (`/api/predictions`) — free points-based prediction game, not real-money betting
 - `POST /` (protected) - submit/update a winner (+ optional Man of the Match) prediction; locks once the match leaves Scheduled
