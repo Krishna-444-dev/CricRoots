@@ -16,6 +16,13 @@ const { resourcePercent, revisedTarget } = require('../services/rainRuleCalculat
 // populate pattern used for tournament awards in tournamentController.js.
 const MAN_OF_THE_MATCH_POPULATE = { path: 'manOfTheMatch', populate: { path: 'user', select: 'name' } };
 
+// A Live match sits in its first innings until the second one actually has balls -
+// `status === 'Live'` alone can't tell those apart, so use whichever innings has been
+// bowled at, defaulting to the first when neither has (freshly started match).
+function currentInningsIndex(match) {
+  return match.innings[1]?.balls?.length > 0 ? 1 : 0;
+}
+
 // @desc    Create a new match
 // @route   POST /api/matches
 // @access  Private
@@ -466,11 +473,11 @@ exports.getScorecard = async (req, res) => {
     };
 
     // Get AI insights for current match state
-    const currentInningsIndex = match.status === 'Live' ? 1 : 0;
+    const inningsIdx = currentInningsIndex(match);
     const aiInsights = await AIService.getTacticalAdvice({
-      oversRemaining: 20 - (match.innings[currentInningsIndex]?.overs || 0),
-      wicketsDown: match.innings[currentInningsIndex]?.wickets || 0,
-      currentRunRate: match.innings[currentInningsIndex]?.runs / (match.innings[currentInningsIndex]?.overs || 1) || 0,
+      oversRemaining: 20 - (match.innings[inningsIdx]?.overs || 0),
+      wicketsDown: match.innings[inningsIdx]?.wickets || 0,
+      currentRunRate: match.innings[inningsIdx]?.runs / (match.innings[inningsIdx]?.overs || 1) || 0,
       targetScore: match.innings[0]?.runs || 150,
       oppositionStrength: 7,
       pitchType: 1
@@ -594,8 +601,7 @@ exports.getAIInsights = async (req, res) => {
     }
 
     // Determine which innings is currently active
-    const currentInningsIndex = match.status === 'Live' ? 1 : 0;
-    const innings = match.innings[currentInningsIndex];
+    const innings = match.innings[currentInningsIndex(match)];
 
     const aiInsights = await AIService.getTacticalAdvice({
       oversRemaining: 20 - (innings?.overs || 0),

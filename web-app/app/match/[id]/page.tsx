@@ -219,7 +219,9 @@ export default function MatchPage() {
     );
   }
 
-  const currentInnings = match.innings[match.status === 'Live' ? 1 : 0];
+  // A Live match sits in its first innings until the second one actually has balls -
+  // match.status alone can't tell those apart.
+  const currentInnings = match.innings[(match.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0];
   const targetScore = match.interruption ? match.interruption.target : (match.innings[0]?.runs || 0);
 
   return (

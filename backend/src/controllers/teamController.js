@@ -24,11 +24,20 @@ function isTeamAdmin(team, playerId) {
   return (team.coaches || []).some((c) => refMatches(c, playerId));
 }
 
+// Nested populate so each Player's own `user` ref resolves to a real name instead of
+// staying an unpopulated ObjectId - a bare .populate('captain') only goes one level deep.
+const PLAYER_POPULATE = { path: 'user', select: 'name' };
+const TEAM_POPULATE_FIELDS = [
+  { path: 'captain', populate: PLAYER_POPULATE },
+  { path: 'viceCaptain', populate: PLAYER_POPULATE },
+  { path: 'coaches', populate: PLAYER_POPULATE },
+  { path: 'players', populate: PLAYER_POPULATE },
+];
+
 async function populateTeam(team) {
-  await team.populate('captain');
-  await team.populate('viceCaptain');
-  await team.populate('coaches');
-  await team.populate('players');
+  for (const field of TEAM_POPULATE_FIELDS) {
+    await team.populate(field);
+  }
   return team;
 }
 
@@ -85,11 +94,7 @@ exports.createTeam = async (req, res) => {
 // @access  Public
 exports.getAllTeams = async (req, res) => {
   try {
-    const teams = await Team.find()
-      .populate('captain')
-      .populate('viceCaptain')
-      .populate('coaches')
-      .populate('players');
+    const teams = await Team.find().populate(TEAM_POPULATE_FIELDS);
 
     res.status(200).json({
       success: true,
@@ -109,11 +114,7 @@ exports.getAllTeams = async (req, res) => {
 // @access  Public
 exports.getTeam = async (req, res) => {
   try {
-    const team = await Team.findById(req.params.id)
-      .populate('captain')
-      .populate('viceCaptain')
-      .populate('coaches')
-      .populate('players');
+    const team = await Team.findById(req.params.id).populate(TEAM_POPULATE_FIELDS);
 
     if (!team) {
       return res.status(404).json({
