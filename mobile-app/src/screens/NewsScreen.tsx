@@ -8,6 +8,12 @@ import { useAuth } from '../hooks/useAuth';
 
 type FeedMode = 'public' | 'mine';
 
+// Same gate as newsController.createNewsPost's ALLOWED_ROLES (see backend/src/controllers/
+// newsController.js) - only organizers/admins can publish, so the entry point is hidden for
+// everyone else rather than leading to a dead-end "not authorized" screen. Matches
+// web-app/app/news/page.tsx's `canPost` check.
+const CAN_POST_ROLES = ['organizer', 'admin'];
+
 function authorName(author: NewsPost['author']): string {
   return typeof author === 'string' ? 'Unknown' : author.name;
 }
@@ -17,7 +23,7 @@ function formatDate(iso: string): string {
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
 }
 
-export default function NewsScreen() {
+export default function NewsScreen({ navigation }: any) {
   const { user } = useAuth();
   const [mode, setMode] = useState<FeedMode>('public');
   const [posts, setPosts] = useState<NewsPost[]>([]);
@@ -39,8 +45,19 @@ export default function NewsScreen() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
+  const canPost = !!user && CAN_POST_ROLES.includes(user.role);
+
   return (
     <View style={styles.container}>
+      {canPost ? (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>News</Text>
+          <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateNews')}>
+            <Text style={styles.createBtnText}>+ Post News</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {user ? (
         <View style={styles.toggleRow}>
           <TouchableOpacity
@@ -126,6 +143,10 @@ export default function NewsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingBottom: 0 },
+  headerTitle: { color: colors.ink, fontSize: 22, fontWeight: 'bold' },
+  createBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  createBtnText: { color: colors.background, fontWeight: '700', fontSize: 13 },
   toggleRow: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4,
   },

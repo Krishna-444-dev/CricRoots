@@ -12,7 +12,7 @@ function authorName(author: Lesson['author']): string {
   return typeof author === 'string' ? 'Unknown' : author.name;
 }
 
-export default function LearnScreen() {
+export default function LearnScreen({ navigation }: any) {
   const { user } = useAuth();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [category, setCategory] = useState('');
@@ -51,6 +51,15 @@ export default function LearnScreen() {
 
   return (
     <View style={styles.container}>
+      {user ? (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Learn</Text>
+          <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateLesson')}>
+            <Text style={styles.createBtnText}>+ New Lesson</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {user && (recLoading || recommended.length > 0) ? (
         <View style={styles.recommendedSection}>
           <View style={styles.recommendedHeaderRow}>
@@ -151,6 +160,10 @@ export default function LearnScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingBottom: 0 },
+  headerTitle: { color: colors.ink, fontSize: 22, fontWeight: 'bold' },
+  createBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  createBtnText: { color: colors.background, fontWeight: '700', fontSize: 13 },
   recommendedSection: {
     backgroundColor: colors.surfaceAlt, borderBottomWidth: 1, borderBottomColor: colors.border,
     paddingTop: 14, paddingBottom: 12,
