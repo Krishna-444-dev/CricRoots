@@ -135,13 +135,25 @@ export const teamsAPI = {
 // --- Matches (backend/src/routes/matchRoutes.js) ---
 export const matchesAPI = {
   getMatches: () => apiFetch<{ success: true; matches: any[] }>('/matches'),
-  getMatchById: (matchId: string) => apiFetch<{ success: true; match: any }>(`/matches/${matchId}`),
+  // getMatchById's response also carries a top-level `powerplayOvers` (number | null) sibling
+  // to `match` - the current over's within the powerplay window when overs < powerplayOvers.
+  getMatchById: (matchId: string) => apiFetch<{ success: true; match: any; powerplayOvers: number | null }>(`/matches/${matchId}`),
   createMatch: (data: { title: string; team1Id: string; team2Id: string; matchType?: string; venue: string; scheduledDate: string; pitchType?: string; tournamentId?: string }) =>
     apiFetch<{ success: true; match: any }>('/matches', 'POST', data),
   updateMatch: (matchId: string, data: any) => apiFetch<{ success: true; match: any }>(`/matches/${matchId}`, 'PUT', data),
+  // ballEvent should include `liveState` (the scorer's full local InningsData snapshot - both
+  // scorecards, current striker/non-striker/bowler, extras, fall of wickets) so a resumed
+  // session (this device later, or a different scorer after a dropped session) can rehydrate
+  // instead of restarting the innings from scratch. See getMatchById's `match.innings[i].liveState`.
+  // A 423 response means someone else currently holds the scoring lock (see scoringLockAPI).
   recordBall: (matchId: string, ballEvent: any) => apiFetch(`/matches/${matchId}/record-ball`, 'POST', ballEvent),
   getScorecard: (matchId: string) => apiFetch<{ success: true; scorecard: any; aiInsights: any }>(`/matches/${matchId}/scorecard`),
   getAIInsights: (matchId: string) => apiFetch(`/matches/${matchId}/ai-insights`),
+  // Real recommendation grounded in the bowling team's actual roster and the matchup-shrinkage
+  // engine (ranks candidates by likelihood of dismissing the current striker, falling back to
+  // career economy, then role) - not a synthetic model with no roster awareness. Needs
+  // `match.innings[i].liveState` to exist (at least one ball recorded through the scoring flow).
+  getNextBowlerRecommendation: (matchId: string) => apiFetch(`/matches/${matchId}/next-bowler-recommendation`),
   getCharts: (matchId: string) => apiFetch<{ success: true; innings: any[] }>(`/matches/${matchId}/charts`),
   getKeyMoments: (matchId: string) => apiFetch<{ success: true; keyMoments: any[] }>(`/matches/${matchId}/key-moments`),
   // Post-match player performance report - this match's figures vs. career average, recent
@@ -152,11 +164,29 @@ export const matchesAPI = {
   // Rain/stoppage interruption - reduces innings[1] (the chasing team)'s overs and returns a
   // revised target. See backend/src/services/rainRuleCalculator.js for the calculation and its
   // real accuracy/scope caveats (an approximation inspired by Duckworth-Lewis-Stern, not the
-  // official licensed DLS algorithm). Match-owner only.
+  // official licensed DLS algorithm). Requires holding the scoring lock, same as recordBall.
   applyInterruption: (matchId: string, revisedOvers: number) =>
     apiFetch<{ success: true; match: any; interruption: Interruption }>(
       `/matches/${matchId}/apply-interruption`, 'POST', { revisedOvers }
     ),
+  // Umpire appointment - creator-only. Umpires get the same scoring rights as the creator
+  // (see scoringLockAPI/recordBall) without needing to be on either team's roster.
+  addUmpire: (matchId: string, userId: string) => apiFetch(`/matches/${matchId}/umpires`, 'POST', { userId }),
+  removeUmpire: (matchId: string, userId: string) => apiFetch(`/matches/${matchId}/umpires/${userId}`, 'DELETE'),
+};
+
+// --- Scoring lock (backend/src/routes/matchRoutes.js) ---
+// Only one person may record balls for a match at a time - opening scoring up to every
+// rostered player plus umpires meant two people could otherwise submit conflicting balls
+// simultaneously. Claim/renew on entering the scoring screen and periodically while it stays
+// open (e.g. every 30s); the server auto-expires a held lock after 2 minutes without renewal,
+// so a dropped session doesn't block the match indefinitely - release explicitly on the way out.
+export const scoringLockAPI = {
+  acquire: (matchId: string) =>
+    apiFetch<{ success: true; activeScorer: { user: string; name: string; lastActiveAt: string } } | { success: false; message: string; activeScorer?: { name: string; lastActiveAt: string } }>(
+      `/matches/${matchId}/scoring-lock`, 'POST'
+    ),
+  release: (matchId: string) => apiFetch<{ success: true }>(`/matches/${matchId}/scoring-lock`, 'DELETE'),
 };
 
 // --- Tournaments (backend/src/routes/tournamentRoutes.js) ---
