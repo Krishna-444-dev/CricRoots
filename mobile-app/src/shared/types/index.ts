@@ -128,6 +128,7 @@ export interface Tournament {
   maxTeams: number;
   matches?: (Match | string)[];
   standings: TournamentStanding[];
+  houseRules?: string;
   awards?: {
     winner?: Team | string | null;
     runnerUp?: Team | string | null;
