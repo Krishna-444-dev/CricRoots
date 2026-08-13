@@ -121,6 +121,13 @@ export const teamsAPI = {
   deleteTeam: (teamId: string) => apiFetch(`/teams/${teamId}`, 'DELETE'),
   addPlayer: (teamId: string, playerId: string) => apiFetch(`/teams/${teamId}/add-player`, 'POST', { playerId }),
   removePlayer: (teamId: string, playerId: string) => apiFetch(`/teams/${teamId}/remove-player/${playerId}`, 'DELETE'),
+  // Role assignment - captain only server-side. Passing null/omitting playerId clears the vice-captain.
+  setViceCaptain: (teamId: string, playerId: string | null) =>
+    apiFetch<{ success: true; team: any }>(`/teams/${teamId}/vice-captain`, 'PUT', { playerId }),
+  addCoach: (teamId: string, playerId: string) =>
+    apiFetch<{ success: true; team: any }>(`/teams/${teamId}/coaches`, 'POST', { playerId }),
+  removeCoach: (teamId: string, playerId: string) =>
+    apiFetch<{ success: true; team: any }>(`/teams/${teamId}/coaches/${playerId}`, 'DELETE'),
   getMessages: (teamId: string) => apiFetch<{ success: true; messages: any[] }>(`/teams/${teamId}/messages`),
   postMessage: (teamId: string, text: string) => apiFetch(`/teams/${teamId}/messages`, 'POST', { text }),
 };

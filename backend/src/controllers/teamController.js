@@ -1,6 +1,37 @@
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 
+// team.captain/viceCaptain/coaches are unpopulated ObjectIds at the point these checks run today
+// (every check below starts from a bare Team.findById with no .populate() first), but this
+// unwraps ._id defensively in case a populated subdocument ever reaches it - matching the
+// isMember pattern in groupController.js. A populated Mongoose subdocument's .toString() does
+// NOT return its _id's hex string, only a bare ObjectId's does.
+function refMatches(ref, playerId) {
+  if (!ref) return false;
+  const id = ref._id ? ref._id : ref;
+  return id.toString() === playerId;
+}
+
+// Structural team ownership - only the captain can delete the team or reassign admin roles.
+function isTeamCaptain(team, playerId) {
+  return refMatches(team.captain, playerId);
+}
+
+// Day-to-day team management - captain, vice-captain, or any coach.
+function isTeamAdmin(team, playerId) {
+  if (isTeamCaptain(team, playerId)) return true;
+  if (refMatches(team.viceCaptain, playerId)) return true;
+  return (team.coaches || []).some((c) => refMatches(c, playerId));
+}
+
+async function populateTeam(team) {
+  await team.populate('captain');
+  await team.populate('viceCaptain');
+  await team.populate('coaches');
+  await team.populate('players');
+  return team;
+}
+
 // @desc    Create a new team
 // @route   POST /api/teams
 // @access  Private
@@ -35,8 +66,7 @@ exports.createTeam = async (req, res) => {
     });
 
     // Populate captain information
-    await team.populate('captain');
-    await team.populate('players');
+    await populateTeam(team);
 
     res.status(201).json({
       success: true,
@@ -57,6 +87,8 @@ exports.getAllTeams = async (req, res) => {
   try {
     const teams = await Team.find()
       .populate('captain')
+      .populate('viceCaptain')
+      .populate('coaches')
       .populate('players');
 
     res.status(200).json({
@@ -79,6 +111,8 @@ exports.getTeam = async (req, res) => {
   try {
     const team = await Team.findById(req.params.id)
       .populate('captain')
+      .populate('viceCaptain')
+      .populate('coaches')
       .populate('players');
 
     if (!team) {
@@ -114,9 +148,9 @@ exports.updateTeam = async (req, res) => {
       });
     }
 
-    // Check if user is team captain
+    // Admin-level action: captain, vice-captain, or any coach may update team details.
     const playerProfile = await Player.findOne({ user: req.user.id });
-    if (!playerProfile || team.captain.toString() !== playerProfile._id.toString()) {
+    if (!playerProfile || !isTeamAdmin(team, playerProfile._id.toString())) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this team'
@@ -130,8 +164,7 @@ exports.updateTeam = async (req, res) => {
     if (city) team.city = city;
 
     team = await team.save();
-    await team.populate('captain');
-    await team.populate('players');
+    await populateTeam(team);
 
     res.status(200).json({
       success: true,
@@ -168,9 +201,9 @@ exports.addPlayerToTeam = async (req, res) => {
       });
     }
 
-    // Check if user is team captain
+    // Admin-level action: captain, vice-captain, or any coach may add players.
     const playerProfile = await Player.findOne({ user: req.user.id });
-    if (!playerProfile || team.captain.toString() !== playerProfile._id.toString()) {
+    if (!playerProfile || !isTeamAdmin(team, playerProfile._id.toString())) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to add players to this team'
@@ -202,8 +235,7 @@ exports.addPlayerToTeam = async (req, res) => {
     player.teams.push(team._id);
     await player.save();
 
-    await team.populate('captain');
-    await team.populate('players');
+    await populateTeam(team);
 
     res.status(200).json({
       success: true,
@@ -234,9 +266,9 @@ exports.removePlayerFromTeam = async (req, res) => {
       });
     }
 
-    // Check if user is team captain
+    // Admin-level action: captain, vice-captain, or any coach may remove players.
     const playerProfile = await Player.findOne({ user: req.user.id });
-    if (!playerProfile || team.captain.toString() !== playerProfile._id.toString()) {
+    if (!playerProfile || !isTeamAdmin(team, playerProfile._id.toString())) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to remove players from this team'
@@ -245,6 +277,10 @@ exports.removePlayerFromTeam = async (req, res) => {
 
     // Remove player from team
     team.players = team.players.filter(p => p.toString() !== playerId);
+    // A player leaving the roster can't remain vice-captain/coach - those roles imply roster
+    // membership, and leaving stale refs would let a departed player keep admin rights.
+    if (refMatches(team.viceCaptain, playerId)) team.viceCaptain = null;
+    team.coaches = (team.coaches || []).filter(c => !refMatches(c, playerId));
     team = await team.save();
 
     // Remove team from player's teams
@@ -254,8 +290,7 @@ exports.removePlayerFromTeam = async (req, res) => {
       await player.save();
     }
 
-    await team.populate('captain');
-    await team.populate('players');
+    await populateTeam(team);
 
     res.status(200).json({
       success: true,
@@ -284,9 +319,9 @@ exports.deleteTeam = async (req, res) => {
       });
     }
 
-    // Check if user is team captain
+    // Captain-only: structural team ownership, not delegable to vice-captain/coaches.
     const playerProfile = await Player.findOne({ user: req.user.id });
-    if (!playerProfile || team.captain.toString() !== playerProfile._id.toString()) {
+    if (!playerProfile || !isTeamCaptain(team, playerProfile._id.toString())) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this team'
@@ -304,6 +339,152 @@ exports.deleteTeam = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Team deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Set (or clear) the team's vice-captain - captain only, role assignment isn't
+//          delegable to the vice-captain/coaches themselves.
+// @route   PUT /api/teams/:id/vice-captain
+// @access  Private (captain only)
+exports.setViceCaptain = async (req, res) => {
+  try {
+    const { playerId } = req.body;
+
+    let team = await Team.findById(req.params.id);
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: 'Team not found'
+      });
+    }
+
+    const playerProfile = await Player.findOne({ user: req.user.id });
+    if (!playerProfile || !isTeamCaptain(team, playerProfile._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the team captain can assign a vice-captain'
+      });
+    }
+
+    if (playerId) {
+      if (!team.players.some(p => p.toString() === playerId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Player must be on the team roster to be vice-captain'
+        });
+      }
+      team.viceCaptain = playerId;
+    } else {
+      team.viceCaptain = null;
+    }
+
+    team = await team.save();
+    await populateTeam(team);
+
+    res.status(200).json({
+      success: true,
+      team
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Add a coach to the team - captain only
+// @route   POST /api/teams/:id/coaches
+// @access  Private (captain only)
+exports.addCoach = async (req, res) => {
+  try {
+    const { playerId } = req.body;
+
+    if (!playerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide player ID'
+      });
+    }
+
+    let team = await Team.findById(req.params.id);
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: 'Team not found'
+      });
+    }
+
+    const playerProfile = await Player.findOne({ user: req.user.id });
+    if (!playerProfile || !isTeamCaptain(team, playerProfile._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the team captain can add coaches'
+      });
+    }
+
+    if (!team.players.some(p => p.toString() === playerId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Player must be on the team roster to be a coach'
+      });
+    }
+
+    if (!team.coaches.some(c => c.toString() === playerId)) {
+      team.coaches.push(playerId);
+      team = await team.save();
+    }
+
+    await populateTeam(team);
+
+    res.status(200).json({
+      success: true,
+      team
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Remove a coach from the team - captain only
+// @route   DELETE /api/teams/:id/coaches/:playerId
+// @access  Private (captain only)
+exports.removeCoach = async (req, res) => {
+  try {
+    const { id, playerId } = req.params;
+
+    let team = await Team.findById(id);
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: 'Team not found'
+      });
+    }
+
+    const playerProfile = await Player.findOne({ user: req.user.id });
+    if (!playerProfile || !isTeamCaptain(team, playerProfile._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the team captain can remove coaches'
+      });
+    }
+
+    team.coaches = (team.coaches || []).filter(c => c.toString() !== playerId);
+    team = await team.save();
+    await populateTeam(team);
+
+    res.status(200).json({
+      success: true,
+      team
     });
   } catch (error) {
     res.status(500).json({

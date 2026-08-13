@@ -51,6 +51,14 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
+  const [viceCaptainPickerOpen, setViceCaptainPickerOpen] = useState(false);
+  const [settingViceCaptainId, setSettingViceCaptainId] = useState<string | null>(null);
+  const [clearingViceCaptain, setClearingViceCaptain] = useState(false);
+  const [coachPickerOpen, setCoachPickerOpen] = useState(false);
+  const [addingCoachId, setAddingCoachId] = useState<string | null>(null);
+  const [removingCoachId, setRemovingCoachId] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState('');
+
   // null = not loaded yet / not permitted to view (team chat is member-only server-side;
   // rather than pre-computing membership client-side, we just attempt the fetch and hide
   // the whole section on a 403 instead of surfacing an error for a normal, expected case).
@@ -96,9 +104,44 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
   const captainUserId = captainPlayer ? resolveId((captainPlayer as any).user) : '';
   const isCaptain = !!user && !!captainUserId && captainUserId === user.id;
 
+  const viceCaptainId = team ? resolveId(team.viceCaptain) : '';
+  const viceCaptainPlayer = viceCaptainId
+    ? directoryById.get(viceCaptainId) || (typeof team?.viceCaptain === 'object' ? team?.viceCaptain : undefined)
+    : undefined;
+  const viceCaptainUserId = viceCaptainPlayer ? resolveId((viceCaptainPlayer as any).user) : '';
+  const isViceCaptain = !!user && !!viceCaptainUserId && viceCaptainUserId === user.id;
+
+  const coachIds = useMemo(() => new Set((team?.coaches || []).map(resolveId)), [team]);
+  const isCoach = useMemo(() => {
+    if (!user) return false;
+    return Array.from(coachIds).some(id => {
+      const player = directoryById.get(id);
+      return player && resolveId((player as any).user) === user.id;
+    });
+  }, [coachIds, directoryById, user]);
+
+  // Admin-level: day-to-day roster/team management is delegable to vice-captain/coaches.
+  // Structural actions (delete team, role assignment) stay isCaptain-only below.
+  const isAdmin = isCaptain || isViceCaptain || isCoach;
+
   const rosterIds = useMemo(() => new Set((team?.players || []).map(resolveId)), [team]);
 
   const addablePlayers = useMemo(() => directory.filter(p => !rosterIds.has(p._id)), [directory, rosterIds]);
+
+  // Roster players eligible for vice-captain/coach assignment - the captain is excluded since
+  // they already hold the senior role.
+  const roleCandidates = useMemo(
+    () => directory.filter(p => rosterIds.has(p._id) && p._id !== captainId),
+    [directory, rosterIds, captainId]
+  );
+  const coachCandidates = useMemo(
+    () => roleCandidates.filter(p => !coachIds.has(p._id)),
+    [roleCandidates, coachIds]
+  );
+  const coachPlayers = useMemo(
+    () => Array.from(coachIds).map(id => directoryById.get(id)).filter(Boolean),
+    [coachIds, directoryById]
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -133,6 +176,60 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
       setError(err instanceof Error ? err.message : 'Failed to remove player');
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const handleSetViceCaptain = async (playerId: string) => {
+    setSettingViceCaptainId(playerId);
+    setRoleError('');
+    try {
+      await api.teams.setViceCaptain(teamId, playerId);
+      setViceCaptainPickerOpen(false);
+      await refreshTeam();
+    } catch (err) {
+      setRoleError(err instanceof Error ? err.message : 'Failed to set vice-captain');
+    } finally {
+      setSettingViceCaptainId(null);
+    }
+  };
+
+  const handleClearViceCaptain = async () => {
+    setClearingViceCaptain(true);
+    setRoleError('');
+    try {
+      await api.teams.setViceCaptain(teamId, null);
+      await refreshTeam();
+    } catch (err) {
+      setRoleError(err instanceof Error ? err.message : 'Failed to remove vice-captain');
+    } finally {
+      setClearingViceCaptain(false);
+    }
+  };
+
+  const handleAddCoach = async (playerId: string) => {
+    setAddingCoachId(playerId);
+    setRoleError('');
+    try {
+      await api.teams.addCoach(teamId, playerId);
+      setCoachPickerOpen(false);
+      await refreshTeam();
+    } catch (err) {
+      setRoleError(err instanceof Error ? err.message : 'Failed to add coach');
+    } finally {
+      setAddingCoachId(null);
+    }
+  };
+
+  const handleRemoveCoach = async (playerId: string) => {
+    setRemovingCoachId(playerId);
+    setRoleError('');
+    try {
+      await api.teams.removeCoach(teamId, playerId);
+      await refreshTeam();
+    } catch (err) {
+      setRoleError(err instanceof Error ? err.message : 'Failed to remove coach');
+    } finally {
+      setRemovingCoachId(null);
     }
   };
 
@@ -191,7 +288,7 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
 
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Roster ({team.players?.length ?? 0})</Text>
-              {isCaptain && (
+              {isAdmin && (
                 <TouchableOpacity style={styles.addBtn} onPress={() => setAddPickerOpen(true)}>
                   <Text style={styles.addBtnText}>+ Add Player</Text>
                 </TouchableOpacity>
@@ -204,22 +301,72 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
             >
               <Text style={styles.groupBtnText}>Create a Group Chat for this team</Text>
             </TouchableOpacity>
+
+            {isCaptain && (
+              <View style={styles.rolesSection}>
+                {!!roleError && <Text style={styles.errorBanner}>{roleError}</Text>}
+
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>Vice Captain</Text>
+                  {!viceCaptainId && (
+                    <TouchableOpacity style={styles.addBtn} onPress={() => setViceCaptainPickerOpen(true)}>
+                      <Text style={styles.addBtnText}>+ Assign</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {viceCaptainId ? (
+                  <View style={styles.playerRow}>
+                    <Text style={[styles.playerName, { flex: 1 }]}>
+                      {viceCaptainPlayer ? playerDisplayName(viceCaptainPlayer) : 'Unknown'}
+                    </Text>
+                    <TouchableOpacity onPress={handleClearViceCaptain} disabled={clearingViceCaptain}>
+                      <Text style={styles.removeText}>{clearingViceCaptain ? 'Removing...' : 'Remove'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={styles.muted}>No vice-captain assigned.</Text>
+                )}
+
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>Coaches ({coachPlayers.length})</Text>
+                  <TouchableOpacity style={styles.addBtn} onPress={() => setCoachPickerOpen(true)}>
+                    <Text style={styles.addBtnText}>+ Add Coach</Text>
+                  </TouchableOpacity>
+                </View>
+                {coachPlayers.length === 0 ? (
+                  <Text style={styles.muted}>No coaches assigned.</Text>
+                ) : (
+                  coachPlayers.map((c: any) => (
+                    <View key={c._id} style={styles.playerRow}>
+                      <Text style={[styles.playerName, { flex: 1 }]}>{playerDisplayName(c)}</Text>
+                      <TouchableOpacity onPress={() => handleRemoveCoach(c._id)} disabled={removingCoachId === c._id}>
+                        <Text style={styles.removeText}>{removingCoachId === c._id ? 'Removing...' : 'Remove'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
           </View>
         }
         renderItem={({ item }) => {
           const id = resolveId(item);
           const player = directoryById.get(id) || (typeof item === 'object' ? item : undefined);
           const isThisCaptain = id === captainId;
+          const isThisViceCaptain = !!viceCaptainId && id === viceCaptainId;
+          const isThisCoach = coachIds.has(id);
           return (
             <View style={styles.playerRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.playerName}>
                   {playerDisplayName(player)}
                   {isThisCaptain ? '  (C)' : ''}
+                  {isThisViceCaptain ? '  (VC)' : ''}
+                  {isThisCoach ? '  (Coach)' : ''}
                 </Text>
                 {!!player?.specialization && <Text style={styles.playerMeta}>{player.specialization}</Text>}
               </View>
-              {isCaptain && !isThisCaptain && (
+              {isAdmin && !isThisCaptain && (
                 <TouchableOpacity onPress={() => handleRemovePlayer(id)} disabled={removingId === id}>
                   <Text style={styles.removeText}>{removingId === id ? 'Removing...' : 'Remove'}</Text>
                 </TouchableOpacity>
@@ -291,6 +438,74 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={viceCaptainPickerOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setViceCaptainPickerOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Assign Vice Captain</Text>
+              <TouchableOpacity onPress={() => setViceCaptainPickerOpen(false)}>
+                <Text style={styles.modalClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={roleCandidates}
+              keyExtractor={p => p._id}
+              style={{ maxHeight: 420 }}
+              ListEmptyComponent={<Text style={styles.muted}>No other roster players available.</Text>}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.pickerRow}
+                  disabled={settingViceCaptainId === item._id}
+                  onPress={() => handleSetViceCaptain(item._id)}
+                >
+                  <Text style={styles.pickerName}>{playerDisplayName(item)}</Text>
+                  <Text style={styles.pickerMeta}>{settingViceCaptainId === item._id ? 'Setting...' : item.specialization || ''}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={coachPickerOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCoachPickerOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Add Coach</Text>
+              <TouchableOpacity onPress={() => setCoachPickerOpen(false)}>
+                <Text style={styles.modalClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={coachCandidates}
+              keyExtractor={p => p._id}
+              style={{ maxHeight: 420 }}
+              ListEmptyComponent={<Text style={styles.muted}>No other roster players available to add as coach.</Text>}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.pickerRow}
+                  disabled={addingCoachId === item._id}
+                  onPress={() => handleAddCoach(item._id)}
+                >
+                  <Text style={styles.pickerName}>{playerDisplayName(item)}</Text>
+                  <Text style={styles.pickerMeta}>{addingCoachId === item._id ? 'Adding...' : item.specialization || ''}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -318,6 +533,7 @@ const styles = StyleSheet.create({
   captainRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
   captainLabel: { color: colors.gold500, fontSize: 12, fontWeight: '700', letterSpacing: 0.5, marginRight: 8 },
   captainName: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+  rolesSection: { marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 4 },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
