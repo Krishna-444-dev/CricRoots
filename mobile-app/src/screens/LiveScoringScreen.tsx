@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Modal,
   ActivityIndicator,
   Alert,
@@ -219,6 +220,33 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   const [newBatsmanId, setNewBatsmanId] = useState<string | null>(null);
 
   const [finishing, setFinishing] = useState(false);
+
+  // --- Rain-rule interruption (rare-use, collapsed by default - see RainRuleControl below) ---
+  const [rainRuleOpen, setRainRuleOpen] = useState(false);
+  const [revisedOversInput, setRevisedOversInput] = useState('');
+  const [rainRuleLoading, setRainRuleLoading] = useState(false);
+  const [rainRuleError, setRainRuleError] = useState<string | null>(null);
+  const [rainRuleResult, setRainRuleResult] = useState<{ target: number; parScore: number } | null>(null);
+
+  async function handleApplyInterruption() {
+    if (!match) return;
+    const overs = parseFloat(revisedOversInput);
+    if (!overs || overs <= 0) {
+      setRainRuleError('Enter a valid number of overs');
+      return;
+    }
+    setRainRuleLoading(true);
+    setRainRuleError(null);
+    try {
+      const res = await api.matches.applyInterruption(match._id, overs);
+      setRainRuleResult({ target: res.interruption.target, parScore: res.interruption.parScore });
+      setMatch(res.match);
+    } catch (e) {
+      setRainRuleError(e instanceof Error ? e.message : 'Could not apply interruption');
+    } finally {
+      setRainRuleLoading(false);
+    }
+  }
 
   const team1Roster = useMemo(
     () =>
@@ -558,6 +586,57 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
         <Text style={styles.mutedSmall}>Extras: {extrasTotal}</Text>
       </View>
 
+      {/* Rain-rule interruption - rare-use, collapsed by default. See
+          backend/src/services/rainRuleCalculator.js for the calculation and its real
+          accuracy/scope caveats (an approximation inspired by Duckworth-Lewis-Stern, not the
+          official licensed DLS algorithm). Mirrors web-app's RainRuleControl.tsx. */}
+      <View style={styles.rainRuleWrap}>
+        {!rainRuleOpen ? (
+          <TouchableOpacity style={styles.rainRuleToggle} onPress={() => setRainRuleOpen(true)}>
+            <Text style={styles.rainRuleToggleText}>⛈ Report rain delay / reduce overs</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.rainRuleBox}>
+            <View style={styles.rainRuleHeaderRow}>
+              <Text style={styles.rainRuleTitle}>Report a stoppage</Text>
+              <TouchableOpacity onPress={() => setRainRuleOpen(false)}>
+                <Text style={styles.linkButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.rainRuleDisclaimer}>
+              Approximate rain-rule estimate (inspired by Duckworth-Lewis-Stern, not the official
+              licensed calculation) — enter the new total overs for this chase.
+            </Text>
+
+            {rainRuleResult ? (
+              <View>
+                <Text style={styles.rainRuleResultTitle}>Revised target: {rainRuleResult.target} runs</Text>
+                <Text style={styles.mutedSmall}>Par score {rainRuleResult.parScore}.</Text>
+              </View>
+            ) : (
+              <View style={styles.rainRuleInputRow}>
+                <TextInput
+                  style={styles.rainRuleInput}
+                  keyboardType="decimal-pad"
+                  value={revisedOversInput}
+                  onChangeText={setRevisedOversInput}
+                  placeholder="e.g. 40"
+                  placeholderTextColor={colors.inkMuted}
+                />
+                <TouchableOpacity
+                  style={[styles.rainRuleApplyButton, rainRuleLoading && styles.buttonDisabled]}
+                  disabled={rainRuleLoading}
+                  onPress={handleApplyInterruption}
+                >
+                  <Text style={styles.rainRuleApplyButtonText}>{rainRuleLoading ? 'Applying...' : 'Apply'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {rainRuleError && <Text style={styles.rainRuleErrorText}>{rainRuleError}</Text>}
+          </View>
+        )}
+      </View>
+
       <View style={styles.playersCard}>
         <View style={styles.playerRow}>
           <Text style={styles.playerName}>{nameFor(strikerId)} *</Text>
@@ -850,6 +929,49 @@ const styles = StyleSheet.create({
   scoreSummaryTeam: { color: colors.inkSecondary, fontSize: 13, fontWeight: '700', marginBottom: 4 },
   scoreSummaryValue: { color: colors.ink, fontSize: 28, fontWeight: '800' },
   scoreSummaryOvers: { color: colors.inkMuted, fontSize: 14, fontWeight: '500' },
+
+  rainRuleWrap: { marginHorizontal: 16, marginBottom: 12 },
+  rainRuleToggle: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(245,166,35,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.3)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  rainRuleToggleText: { color: colors.gold400, fontSize: 12, fontWeight: '700' },
+  rainRuleBox: {
+    backgroundColor: 'rgba(245,166,35,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.3)',
+    borderRadius: 12,
+    padding: 12,
+  },
+  rainRuleHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  rainRuleTitle: { color: colors.gold400, fontSize: 13, fontWeight: '700' },
+  rainRuleDisclaimer: { color: colors.inkSecondary, fontSize: 11, marginBottom: 8, lineHeight: 15 },
+  rainRuleResultTitle: { color: colors.ink, fontSize: 14, fontWeight: '700' },
+  rainRuleInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rainRuleInput: {
+    width: 90,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: colors.ink,
+    fontSize: 14,
+  },
+  rainRuleApplyButton: {
+    backgroundColor: colors.gold500,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  rainRuleApplyButtonText: { color: colors.background, fontSize: 12, fontWeight: '700' },
+  rainRuleErrorText: { color: colors.wicket400, fontSize: 12, marginTop: 6 },
 
   playersCard: {
     marginHorizontal: 16,

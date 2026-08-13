@@ -63,6 +63,21 @@ export interface Innings {
   balls: BallEvent[];
 }
 
+// Set when the second innings' overs get reduced mid-match (rain/other stoppage) - see
+// backend/src/services/rainRuleCalculator.js for the calculation and its real scope/accuracy
+// caveats. An approximation inspired by Duckworth-Lewis-Stern, not the official licensed DLS
+// algorithm - deliberately only covers the single most common club-cricket case (team 2's
+// innings shortened, team 1 completed their full original allocation).
+export interface Interruption {
+  revisedOvers: number;
+  oversBowledAtInterruption: number;
+  wicketsLostAtInterruption: number;
+  resourcePercentRemaining: number;
+  parScore: number;
+  target: number;
+  appliedAt: string;
+}
+
 export interface Match {
   _id: string;
   title: string;
@@ -74,6 +89,9 @@ export interface Match {
   pitchType?: string;
   scheduledDate: string;
   tournament?: string | null;
+  // The match's original overs-per-side allocation - see backend/src/models/Match.js.
+  totalOvers?: number;
+  interruption?: Interruption | null;
   innings: Innings[];
   toss?: { winningTeam: string; decision: string };
   result?: { winningTeam: string | null; margin: string; marginValue: number };

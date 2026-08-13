@@ -284,6 +284,10 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const team1Pct = predictionTotal > 0 ? Math.round((team1Picks / predictionTotal) * 100) : 0;
   const team2Pct = predictionTotal > 0 ? Math.round((team2Picks / predictionTotal) * 100) : 0;
 
+  // Target score - replaced by the rain-rule revised target once match.interruption is set.
+  // Mirrors web-app's app/match/[id]/page.tsx exactly (same field, same fallback).
+  const targetScore = match.interruption ? match.interruption.target : (match.innings[0]?.runs || 0);
+
   const activeIdx = activeInningsIndex(match);
   const activeBalls = match.innings[activeIdx]?.balls ?? [];
   const recentBalls = activeBalls.slice(-12);
@@ -351,7 +355,30 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                 } won by ${match.result.marginValue} ${match.result.margin}`}
           </Text>
         )}
+
+        <View style={styles.targetRow}>
+          <Text style={styles.targetLabel}>{match.interruption ? 'Revised Target' : 'Target Score'}</Text>
+          <Text style={styles.targetValue}>{targetScore} runs</Text>
+        </View>
       </View>
+
+      {/* Rain-rule interruption callout - see backend/src/services/rainRuleCalculator.js for
+          the calculation and its real accuracy/scope caveats (an approximation inspired by
+          Duckworth-Lewis-Stern, not the official licensed DLS algorithm). Mirrors web-app's
+          app/match/[id]/page.tsx wording exactly. */}
+      {match.interruption && (
+        <View style={styles.interruptionCallout}>
+          <Text style={styles.interruptionTitle}>
+            Rain rule applied — revised to {match.interruption.revisedOvers} overs
+          </Text>
+          <Text style={styles.interruptionBody}>
+            Par score {match.interruption.parScore} ({match.interruption.resourcePercentRemaining}% resources
+            remaining at the point of interruption, {match.interruption.wicketsLostAtInterruption} wicket(s) down).
+            This is an approximate rain-rule estimate inspired by the Duckworth-Lewis-Stern method, not the
+            official licensed calculation — treat it as a guide, not a binding result.
+          </Text>
+        </View>
+      )}
 
       {canScore && (
         <TouchableOpacity
@@ -696,6 +723,28 @@ const styles = StyleSheet.create({
   scoreValue: { color: colors.ink, fontSize: 16, fontWeight: '700' },
   scoreOvers: { color: colors.inkMuted, fontSize: 12, fontWeight: '500' },
   resultText: { color: colors.gold400, fontSize: 13, fontWeight: '700', marginTop: 10, textAlign: 'center' },
+
+  targetRow: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    alignItems: 'center',
+  },
+  targetLabel: { color: colors.inkMuted, fontSize: 11, fontWeight: '600', marginBottom: 2 },
+  targetValue: { color: colors.ink, fontSize: 16, fontWeight: '800' },
+
+  interruptionCallout: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    backgroundColor: 'rgba(245,166,35,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.3)',
+    borderRadius: 12,
+    padding: 12,
+  },
+  interruptionTitle: { color: colors.gold400, fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  interruptionBody: { color: colors.inkSecondary, fontSize: 11, lineHeight: 16 },
 
   scoreButton: {
     marginHorizontal: 16,
