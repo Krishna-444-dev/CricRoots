@@ -55,7 +55,7 @@ function formatDate(d?: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type Section = 'standings' | 'matches' | 'awards' | 'announcements';
+type Section = 'standings' | 'matches' | 'awards' | 'announcements' | 'rules';
 
 interface Props {
   route: { params: { tournamentId: string } };
@@ -95,6 +95,12 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const [postingAnnouncement, setPostingAnnouncement] = useState(false);
   const [announcementError, setAnnouncementError] = useState('');
 
+  // House rules - organizer-only edit, read-only display for everyone else.
+  const [houseRulesText, setHouseRulesText] = useState('');
+  const [savingHouseRules, setSavingHouseRules] = useState(false);
+  const [houseRulesError, setHouseRulesError] = useState('');
+  const [houseRulesSaved, setHouseRulesSaved] = useState(false);
+
   const load = useCallback(() => {
     setError('');
     Promise.all([
@@ -116,6 +122,12 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setHouseRulesText(tournament?.houseRules || '');
+    setHouseRulesError('');
+    setHouseRulesSaved(false);
+  }, [tournament?._id]);
 
   useEffect(() => {
     api.tournaments
@@ -142,6 +154,24 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
       setAnnouncementError(err instanceof Error ? err.message : 'Failed to post announcement');
     } finally {
       setPostingAnnouncement(false);
+    }
+  };
+
+  const handleSaveHouseRules = async () => {
+    if (savingHouseRules) return;
+    setSavingHouseRules(true);
+    setHouseRulesError('');
+    setHouseRulesSaved(false);
+    try {
+      const { tournament: updated } = await api.tournaments.updateTournament(tournamentId, {
+        houseRules: houseRulesText,
+      });
+      setTournament(updated);
+      setHouseRulesSaved(true);
+    } catch (err) {
+      setHouseRulesError(err instanceof Error ? err.message : 'Failed to save house rules');
+    } finally {
+      setSavingHouseRules(false);
     }
   };
 
@@ -268,14 +298,14 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         {!!error && <Text style={styles.errorBanner}>{error}</Text>}
 
         <View style={styles.segmentRow}>
-          {(['standings', 'matches', 'awards', 'announcements'] as Section[]).map(s => (
+          {(['standings', 'matches', 'awards', 'announcements', 'rules'] as Section[]).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.segmentBtn, section === s && styles.segmentBtnActive]}
               onPress={() => setSection(s)}
             >
               <Text style={[styles.segmentText, section === s && styles.segmentTextActive]}>
-                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'awards' ? 'Awards' : 'Announcements'}
+                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : 'House Rules'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -414,6 +444,47 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
             )}
           </View>
         )}
+
+        {section === 'rules' && (
+          <View style={styles.sectionBody}>
+            {isOrganizer ? (
+              <>
+                <Text style={styles.muted}>
+                  Used by the in-app assistant to answer rules questions specific to your tournament - anything that
+                  differs from standard cricket laws (overs, boundary rules, wide/no-ball variants, etc.) should go here.
+                </Text>
+                <TextInput
+                  style={[styles.input, styles.textArea, { marginTop: 10 }]}
+                  value={houseRulesText}
+                  onChangeText={(t) => {
+                    setHouseRulesText(t);
+                    setHouseRulesSaved(false);
+                  }}
+                  placeholder="e.g. Boundary is 4 runs, not 6. Maximum 4 overs per bowler..."
+                  placeholderTextColor={colors.inkMuted}
+                  multiline
+                  numberOfLines={6}
+                  maxLength={5000}
+                />
+                <View style={styles.houseRulesFooterRow}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.houseRulesSaveBtn, savingHouseRules && styles.sendBtnDisabled]}
+                    onPress={handleSaveHouseRules}
+                    disabled={savingHouseRules}
+                  >
+                    <Text style={styles.actionBtnText}>{savingHouseRules ? 'Saving...' : 'Save House Rules'}</Text>
+                  </TouchableOpacity>
+                  {houseRulesSaved && <Text style={styles.savedText}>Saved</Text>}
+                </View>
+                {!!houseRulesError && <Text style={styles.errorBanner}>{houseRulesError}</Text>}
+              </>
+            ) : tournament.houseRules ? (
+              <Text style={styles.rulesText}>{tournament.houseRules}</Text>
+            ) : (
+              <Text style={styles.muted}>The organizer hasn&apos;t set any house rules for this tournament.</Text>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       <Modal visible={registerOpen} animationType="slide" transparent onRequestClose={() => setRegisterOpen(false)}>
@@ -494,6 +565,21 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: colors.pitch400 },
   sectionBody: { padding: 16 },
   muted: { color: colors.inkMuted, fontSize: 13 },
+  rulesText: { color: colors.ink, fontSize: 14, lineHeight: 20 },
+  input: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: colors.ink,
+    fontSize: 15,
+  },
+  textArea: { minHeight: 120, textAlignVertical: 'top' },
+  houseRulesFooterRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
+  houseRulesSaveBtn: { marginTop: 0, flexShrink: 1, paddingHorizontal: 20 },
+  savedText: { color: colors.pitch400, fontSize: 13, fontWeight: '600' },
   messageRow: { marginBottom: 10, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10 },
   messageSender: { color: colors.gold500, fontSize: 11, fontWeight: '700', marginBottom: 2 },
   messageText: { color: colors.ink, fontSize: 13 },

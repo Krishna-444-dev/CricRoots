@@ -44,6 +44,7 @@ interface Tournament {
   maxTeams: number;
   standings: any[];
   organizer: { _id: string; name: string };
+  houseRules?: string;
   statistics: {
     totalMatches: number;
     completedMatches: number;
@@ -75,7 +76,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'statistics' | 'announcements' | 'awards'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'statistics' | 'announcements' | 'awards' | 'rules'>('list');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [announcements, setAnnouncements] = useState<ChatMessage[]>([]);
   const [announcementText, setAnnouncementText] = useState('');
@@ -85,8 +86,18 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [generatingFixtures, setGeneratingFixtures] = useState(false);
   const [computingAwards, setComputingAwards] = useState(false);
   const [awardsError, setAwardsError] = useState('');
+  const [houseRulesText, setHouseRulesText] = useState('');
+  const [savingHouseRules, setSavingHouseRules] = useState(false);
+  const [houseRulesError, setHouseRulesError] = useState('');
+  const [houseRulesSaved, setHouseRulesSaved] = useState(false);
 
   const isOrganizer = Boolean(user && selectedTournament && selectedTournament.organizer?._id === user.id);
+
+  useEffect(() => {
+    setHouseRulesText(selectedTournament?.houseRules || '');
+    setHouseRulesError('');
+    setHouseRulesSaved(false);
+  }, [selectedTournament?._id]);
 
   useEffect(() => {
     if (activeTab === 'announcements' && selectedTournament) {
@@ -151,6 +162,32 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       setAwardsError('Failed to compute awards');
     } finally {
       setComputingAwards(false);
+    }
+  };
+
+  const handleSaveHouseRules = async () => {
+    if (!selectedTournament || savingHouseRules) return;
+    setSavingHouseRules(true);
+    setHouseRulesError('');
+    setHouseRulesSaved(false);
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ houseRules: houseRulesText }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedTournament(data.tournament);
+        setTournaments(prev => prev.map(t => (t._id === data.tournament._id ? data.tournament : t)));
+        setHouseRulesSaved(true);
+      } else {
+        setHouseRulesError(data.message || 'Failed to save house rules');
+      }
+    } catch (error) {
+      console.error('Error saving house rules:', error);
+      setHouseRulesError('Failed to save house rules');
+    } finally {
+      setSavingHouseRules(false);
     }
   };
 
@@ -294,6 +331,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
               onClick={() => setActiveTab('awards')}
             >
               🎖️ Awards
+            </button>
+            <button
+              className={`${styles.tab} ${activeTab === 'rules' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('rules')}
+            >
+              📜 House Rules
             </button>
           </>
         )}
@@ -547,6 +590,49 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                   )}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'rules' && selectedTournament && (
+          <div className={styles.card}>
+            <h2>{selectedTournament.name} - House Rules</h2>
+            {isOrganizer ? (
+              <>
+                <p className={styles.infoText}>
+                  Used by the in-app assistant to answer rules questions specific to your tournament — anything that
+                  differs from standard cricket laws (overs, boundary rules, wide/no-ball variants, etc.) should go here.
+                </p>
+                <textarea
+                  className={`${inputClass} w-full`}
+                  rows={8}
+                  maxLength={5000}
+                  value={houseRulesText}
+                  onChange={(e) => {
+                    setHouseRulesText(e.target.value);
+                    setHouseRulesSaved(false);
+                  }}
+                  placeholder="e.g. Boundary is 4 runs, not 6. Maximum 4 overs per bowler. Retired players may bat again..."
+                />
+                <div className="flex items-center gap-3 mt-3">
+                  <button
+                    className={buttonVariants('primary')}
+                    onClick={handleSaveHouseRules}
+                    disabled={savingHouseRules}
+                  >
+                    {savingHouseRules ? 'Saving...' : 'Save House Rules'}
+                  </button>
+                  <span className="text-xs text-ink-muted">{houseRulesText.length}/5000</span>
+                  {houseRulesSaved && <span className="text-sm text-pitch-500">Saved</span>}
+                </div>
+                {houseRulesError && (
+                  <p className={styles.infoText} style={{ color: '#F87171' }}>{houseRulesError}</p>
+                )}
+              </>
+            ) : selectedTournament.houseRules ? (
+              <p className={styles.infoText} style={{ whiteSpace: 'pre-wrap' }}>{selectedTournament.houseRules}</p>
+            ) : (
+              <p className={styles.infoText}>The organizer hasn&apos;t set any house rules for this tournament.</p>
             )}
           </div>
         )}
