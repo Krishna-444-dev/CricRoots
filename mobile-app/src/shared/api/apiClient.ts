@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -149,6 +149,14 @@ export const matchesAPI = {
   // model. Public, no auth needed.
   getPerformanceReport: (matchId: string, playerId: string) =>
     apiFetch<PerformanceReport>(`/matches/${matchId}/performance-report/${playerId}`),
+  // Rain/stoppage interruption - reduces innings[1] (the chasing team)'s overs and returns a
+  // revised target. See backend/src/services/rainRuleCalculator.js for the calculation and its
+  // real accuracy/scope caveats (an approximation inspired by Duckworth-Lewis-Stern, not the
+  // official licensed DLS algorithm). Match-owner only.
+  applyInterruption: (matchId: string, revisedOvers: number) =>
+    apiFetch<{ success: true; match: any; interruption: Interruption }>(
+      `/matches/${matchId}/apply-interruption`, 'POST', { revisedOvers }
+    ),
 };
 
 // --- Tournaments (backend/src/routes/tournamentRoutes.js) ---
