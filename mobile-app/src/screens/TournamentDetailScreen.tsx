@@ -55,7 +55,18 @@ function formatDate(d?: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type Section = 'standings' | 'matches' | 'awards' | 'announcements' | 'rules';
+type Section = 'standings' | 'matches' | 'statistics' | 'awards' | 'announcements' | 'rules';
+
+interface TournamentStatistics {
+  totalMatches: number;
+  completedMatches: number;
+  totalRuns: number;
+  totalWickets: number;
+  highestScore: number;
+  lowestScore: number;
+  highestIndividualScore: number;
+  bestBowlingFigures: string;
+}
 
 interface Props {
   route: { params: { tournamentId: string } };
@@ -88,6 +99,13 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   // Compute awards
   const [computing, setComputing] = useState(false);
   const [awardsError, setAwardsError] = useState('');
+
+  // Statistics - lazy-loaded the first time the tab is opened (GET /tournaments/:id/statistics
+  // is a separate endpoint from the main tournament fetch above).
+  const [statistics, setStatistics] = useState<TournamentStatistics | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsLoaded, setStatsLoaded] = useState(false);
+  const [statsError, setStatsError] = useState('');
 
   // Announcements - GET is public, POST is organizer-only (enforced server-side too)
   const [announcements, setAnnouncements] = useState<any[] | null>(null);
@@ -135,6 +153,20 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
       .then(({ messages }) => setAnnouncements(messages))
       .catch(() => setAnnouncements(null));
   }, [tournamentId]);
+
+  useEffect(() => {
+    if (section !== 'statistics' || statsLoaded) return;
+    setStatsLoading(true);
+    setStatsError('');
+    api.tournaments
+      .getStatistics(tournamentId)
+      .then((res: any) => {
+        setStatistics(res.statistics);
+        setStatsLoaded(true);
+      })
+      .catch((err: any) => setStatsError(err instanceof Error ? err.message : 'Failed to load statistics'))
+      .finally(() => setStatsLoading(false));
+  }, [section, statsLoaded, tournamentId]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -297,19 +329,19 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
         {!!error && <Text style={styles.errorBanner}>{error}</Text>}
 
-        <View style={styles.segmentRow}>
-          {(['standings', 'matches', 'awards', 'announcements', 'rules'] as Section[]).map(s => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.segmentScroll} contentContainerStyle={styles.segmentRow}>
+          {(['standings', 'matches', 'statistics', 'awards', 'announcements', 'rules'] as Section[]).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.segmentBtn, section === s && styles.segmentBtnActive]}
               onPress={() => setSection(s)}
             >
               <Text style={[styles.segmentText, section === s && styles.segmentTextActive]}>
-                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : 'House Rules'}
+                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'statistics' ? 'Statistics' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : 'House Rules'}
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         {section === 'standings' && (
           <View style={styles.sectionBody}>
@@ -376,6 +408,23 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.matchMeta}>{formatDate(m.scheduledDate)} · {m.venue}</Text>
                 </TouchableOpacity>
               ))
+            )}
+          </View>
+        )}
+
+        {section === 'statistics' && (
+          <View style={styles.sectionBody}>
+            {statsLoading ? (
+              <ActivityIndicator color={colors.pitch400} />
+            ) : statsError ? (
+              <Text style={styles.errorBanner}>{statsError}</Text>
+            ) : (
+              <View style={styles.awardsGrid}>
+                <StatBox label="Total Runs" value={statistics?.totalRuns ?? 0} />
+                <StatBox label="Total Wickets" value={statistics?.totalWickets ?? 0} />
+                <StatBox label="Highest Score" value={statistics?.highestScore ?? 0} />
+                <StatBox label="Lowest Score" value={statistics?.lowestScore ?? 0} />
+              </View>
             )}
           </View>
         )}
@@ -533,6 +582,15 @@ function AwardBox({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+function StatBox({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.awardBox}>
+      <Text style={styles.awardLabel}>{label}</Text>
+      <Text style={styles.awardValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, backgroundColor: colors.background },
@@ -558,8 +616,9 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 11, fontWeight: '700' },
   actionBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 16 },
   actionBtnText: { color: colors.background, fontWeight: '700', fontSize: 14 },
-  segmentRow: { flexDirection: 'row', marginHorizontal: 16, marginTop: 16, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 4 },
-  segmentBtn: { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },
+  segmentScroll: { marginHorizontal: 16, marginTop: 16, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  segmentRow: { flexDirection: 'row', padding: 4 },
+  segmentBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 9, alignItems: 'center' },
   segmentBtnActive: { backgroundColor: colors.pitch900 },
   segmentText: { color: colors.inkMuted, fontSize: 13, fontWeight: '600' },
   segmentTextActive: { color: colors.pitch400 },

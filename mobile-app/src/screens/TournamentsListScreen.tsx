@@ -51,6 +51,9 @@ export default function TournamentsListScreen({ navigation }: any) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Tournaments</Text>
+        <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateTournament')}>
+          <Text style={styles.createBtnText}>+ New Tournament</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -87,8 +90,10 @@ export default function TournamentsListScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { padding: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   title: { color: colors.ink, fontSize: 22, fontWeight: 'bold' },
+  createBtn: { backgroundColor: colors.pitch500, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  createBtnText: { color: colors.background, fontWeight: '700', fontSize: 13 },
   muted: { color: colors.inkMuted, padding: 16 },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
   card: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },

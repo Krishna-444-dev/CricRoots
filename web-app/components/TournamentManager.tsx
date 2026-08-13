@@ -6,9 +6,13 @@ import styles from './TournamentManager.module.css';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import { useChatSocket, ChatMessage } from '@/hooks/useChatSocket';
-import { inputClass } from '@/components/ui/formStyles';
+import { inputClass, labelClass, errorBoxClass } from '@/components/ui/formStyles';
 import { buttonVariants } from '@/components/ui/buttonStyles';
 import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+
+const TOURNAMENT_FORMATS = ['League', 'Knockout', 'Group', 'Round-Robin'] as const;
+const TOURNAMENT_MATCH_TYPES = ['T20', 'T10', 'ODI', 'Test'] as const;
 
 interface AwardTeam {
   _id: string;
@@ -90,6 +94,19 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [savingHouseRules, setSavingHouseRules] = useState(false);
   const [houseRulesError, setHouseRulesError] = useState('');
   const [houseRulesSaved, setHouseRulesSaved] = useState(false);
+
+  // Create tournament form
+  const [createName, setCreateName] = useState('');
+  const [createDescription, setCreateDescription] = useState('');
+  const [createFormat, setCreateFormat] = useState<(typeof TOURNAMENT_FORMATS)[number]>('League');
+  const [createMatchType, setCreateMatchType] = useState<(typeof TOURNAMENT_MATCH_TYPES)[number]>('T20');
+  const [createVenue, setCreateVenue] = useState('');
+  const [createStartDate, setCreateStartDate] = useState('');
+  const [createEndDate, setCreateEndDate] = useState('');
+  const [createRegistrationDeadline, setCreateRegistrationDeadline] = useState('');
+  const [createMaxTeams, setCreateMaxTeams] = useState('');
+  const [creatingTournament, setCreatingTournament] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const isOrganizer = Boolean(user && selectedTournament && selectedTournament.organizer?._id === user.id);
 
@@ -191,6 +208,61 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     }
   };
 
+  const resetCreateForm = () => {
+    setCreateName('');
+    setCreateDescription('');
+    setCreateFormat('League');
+    setCreateMatchType('T20');
+    setCreateVenue('');
+    setCreateStartDate('');
+    setCreateEndDate('');
+    setCreateRegistrationDeadline('');
+    setCreateMaxTeams('');
+    setCreateError('');
+  };
+
+  const handleCreateTournament = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (creatingTournament) return;
+    if (!createName.trim() || !createVenue.trim() || !createStartDate || !createEndDate || !createRegistrationDeadline) {
+      setCreateError('Please fill in all required fields');
+      return;
+    }
+    setCreatingTournament(true);
+    setCreateError('');
+    try {
+      const res = await apiFetch('/api/tournaments', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: createName.trim(),
+          description: createDescription.trim() || undefined,
+          format: createFormat,
+          matchType: createMatchType,
+          venue: createVenue.trim(),
+          startDate: createStartDate,
+          endDate: createEndDate,
+          registrationDeadline: createRegistrationDeadline,
+          maxTeams: createMaxTeams ? Number(createMaxTeams) : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTournaments(prev => [data.tournament, ...prev]);
+        setSelectedTournament(data.tournament);
+        setActiveTab('standings');
+        setShowCreateForm(false);
+        resetCreateForm();
+      } else {
+        setCreateError(data.message || 'Could not create tournament');
+      }
+    } catch (error) {
+      console.error('Error creating tournament:', error);
+      setCreateError('Could not reach the CricRoots server');
+    } finally {
+      setCreatingTournament(false);
+    }
+  };
+
   useChatSocket({
     scope: 'tournament',
     id: selectedTournament?._id || '',
@@ -287,8 +359,19 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       {/* Header */}
       <div className={styles.header}>
         <h1 className={styles.title}>Tournament Management</h1>
-        <button className={styles.createBtn} onClick={() => setShowCreateForm(!showCreateForm)}>
-          + Create Tournament
+        <button
+          className={styles.createBtn}
+          onClick={() => {
+            const next = !showCreateForm;
+            setShowCreateForm(next);
+            if (next) {
+              setActiveTab('list');
+            } else {
+              resetCreateForm();
+            }
+          }}
+        >
+          {showCreateForm ? 'Cancel' : '+ Create Tournament'}
         </button>
       </div>
 
@@ -344,6 +427,125 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
 
       {/* Content */}
       <div className={styles.content}>
+        {showCreateForm && (
+          <div className={styles.card} style={{ marginBottom: 24 }}>
+            <h2>Create Tournament</h2>
+            {createError && <div className={`${errorBoxClass} mb-4`}>{createError}</div>}
+            <form onSubmit={handleCreateTournament} className="space-y-4">
+              <div>
+                <label htmlFor="t-name" className={labelClass}>Tournament Name</label>
+                <input
+                  id="t-name"
+                  type="text"
+                  required
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label htmlFor="t-description" className={labelClass}>Description</label>
+                <textarea
+                  id="t-description"
+                  rows={3}
+                  value={createDescription}
+                  onChange={(e) => setCreateDescription(e.target.value)}
+                  className={`${inputClass} w-full`}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="t-format" className={labelClass}>Format</label>
+                  <select id="t-format" value={createFormat} onChange={(e) => setCreateFormat(e.target.value as typeof createFormat)} className={inputClass}>
+                    {TOURNAMENT_FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="t-matchType" className={labelClass}>Match Type</label>
+                  <select id="t-matchType" value={createMatchType} onChange={(e) => setCreateMatchType(e.target.value as typeof createMatchType)} className={inputClass}>
+                    {TOURNAMENT_MATCH_TYPES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="t-venue" className={labelClass}>Venue</label>
+                <input
+                  id="t-venue"
+                  type="text"
+                  required
+                  value={createVenue}
+                  onChange={(e) => setCreateVenue(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="t-start" className={labelClass}>Start Date</label>
+                  <input
+                    id="t-start"
+                    type="date"
+                    required
+                    value={createStartDate}
+                    onChange={(e) => setCreateStartDate(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="t-end" className={labelClass}>End Date</label>
+                  <input
+                    id="t-end"
+                    type="date"
+                    required
+                    value={createEndDate}
+                    onChange={(e) => setCreateEndDate(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="t-reg" className={labelClass}>Registration Deadline</label>
+                  <input
+                    id="t-reg"
+                    type="date"
+                    required
+                    value={createRegistrationDeadline}
+                    onChange={(e) => setCreateRegistrationDeadline(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="t-maxTeams" className={labelClass}>Max Teams</label>
+                  <input
+                    id="t-maxTeams"
+                    type="number"
+                    min={2}
+                    placeholder="8"
+                    value={createMaxTeams}
+                    onChange={(e) => setCreateMaxTeams(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={creatingTournament}>
+                  {creatingTournament ? 'Creating...' : 'Create Tournament'}
+                </Button>
+                <button
+                  type="button"
+                  className="text-sm text-ink-muted hover:underline"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    resetCreateForm();
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {activeTab === 'list' && (
           <div className={styles.tournamentsList}>
             {tournaments.length === 0 ? (
