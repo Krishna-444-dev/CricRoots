@@ -131,11 +131,18 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
   const [ballType, setBallType] = useState<'normal' | 'extra' | 'wicket'>('normal');
   const [runsScored, setRunsScored] = useState<number>(0);
   const [extraType, setExtraType] = useState<'wides' | 'noBalls' | 'byes' | 'legByes' | 'penalty'>('wides');
-  const [extraRuns, setExtraRuns] = useState<number>(1);
+  const [extraRuns, setExtraRuns] = useState<number>(0);
   const [wicketType, setWicketType] = useState<string>('bowled');
   const [fielder, setFielder] = useState<Player | null>(null);
   const [newBatsman, setNewBatsman] = useState<Player | null>(null);
   const [showWicketModal, setShowWicketModal] = useState<boolean>(false);
+  // Nothing previously prompted for a new bowler when an over ended - currentBowler just
+  // stayed whoever was picked at Start Innings for the entire match. Any ball that completes
+  // an over is held here (not yet persisted) until the scorer picks who bowls next; the same
+  // bowler can't come back for consecutive overs, matching real cricket.
+  const [showBowlerModal, setShowBowlerModal] = useState<boolean>(false);
+  const [pendingOverChange, setPendingOverChange] = useState<{ data: InningsData; event: BallEvent } | null>(null);
+  const [nextBowler, setNextBowler] = useState<Player | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Optional delivery/shot tagging (progressive disclosure)
@@ -172,12 +179,9 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
     setBallType('extra');
     setExtraType(type);
     
-    // Set default extra runs based on type
-    if (type === 'wides' || type === 'noBalls') {
-      setExtraRuns(1);
-    } else {
-      setExtraRuns(0);
-    }
+    // Default to 0 - for wides/no-balls this means "no additional runs beyond the
+    // automatic 1" (added separately in handleRecordBall), not "0 runs total".
+    setExtraRuns(0);
   };
 
   // Handle wicket button click
@@ -236,7 +240,10 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
 
     let updatedInningsData = { ...inningsData };
     const ballNumber = inningsData.overs * 6 + inningsData.balls + 1;
-    
+    // Total runs for an extra delivery, including the mandatory 1 for wides/no-balls -
+    // set inside the 'extra' branch below, read when building ballEvent further down.
+    let extraRunsTotal = extraRuns;
+
     // Find striker and bowler in scorecards
     const strikerIndex = updatedInningsData.battingScorecard.findIndex(
       entry => striker && entry.player.id === striker.id
@@ -324,11 +331,15 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         );
     } else if (ballType === 'extra') {
       let runsToAdd = extraRuns;
-      
-      // For wides and no balls, add 1 extra run plus any additional runs
+
+      // For wides and no balls, the extraRuns dropdown is "additional runs beyond the
+      // automatic 1" (see handleExtraClick's default of 0) - the mandatory run always
+      // applies even when nothing else happened on the delivery, so it's added here
+      // explicitly rather than trusting the dropdown to include it.
       if (extraType === 'wides' || extraType === 'noBalls') {
-        runsToAdd = extraRuns;
-        
+        runsToAdd = 1 + extraRuns;
+        extraRunsTotal = runsToAdd;
+
         // Update extras
         updatedInningsData.extras[extraType] += runsToAdd;
         
@@ -487,7 +498,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       ballNumber,
       batsmanId: striker?.id ?? '',
       bowlerId: bowler?.id ?? '',
-      runs: ballType === 'normal' ? runsScored : ballType === 'extra' ? extraRuns : 0,
+      runs: ballType === 'normal' ? runsScored : ballType === 'extra' ? extraRunsTotal : 0,
       isWicket: ballType === 'wicket',
       wicketType: ballType === 'wicket' ? wicketType : null,
       isExtra: ballType === 'extra',
@@ -503,14 +514,23 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       fielderName: ballType === 'wicket' ? fielder?.name : undefined
     };
 
-    // Call the callback with updated innings data and the raw event to persist
-    onBallRecorded(updatedInningsData, ballEvent);
+    // If this ball just completed an over, hold off persisting it until the scorer picks who
+    // bowls next - currentBowler needs to be right before the next ball can be recorded, and
+    // there's no other point in the flow where that selection happens.
+    if (updatedInningsData.overs > inningsData.overs) {
+      setPendingOverChange({ data: updatedInningsData, event: ballEvent });
+      setNextBowler(null);
+      setShowBowlerModal(true);
+    } else {
+      // Call the callback with updated innings data and the raw event to persist
+      onBallRecorded(updatedInningsData, ballEvent);
+    }
 
     // Reset state
     setBallType('normal');
     setRunsScored(0);
     setExtraType('wides');
-    setExtraRuns(1);
+    setExtraRuns(0);
     setWicketType('bowled');
     setFielder(null);
     setNewBatsman(null);
@@ -521,6 +541,14 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
     setShotZone(null);
     setFielderPosition(null);
     setIsProcessing(false);
+  };
+
+  const handleConfirmNextBowler = () => {
+    if (!pendingOverChange || !nextBowler) return;
+    onBallRecorded({ ...pendingOverChange.data, currentBowler: nextBowler }, pendingOverChange.event);
+    setPendingOverChange(null);
+    setNextBowler(null);
+    setShowBowlerModal(false);
   };
 
   return (
@@ -641,7 +669,9 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         </div>
         {ballType === 'extra' && (
           <div className="mt-3 flex items-center gap-3">
-            <label className="text-sm font-medium text-ink-secondary">Additional runs</label>
+            <label className="text-sm font-medium text-ink-secondary">
+              {extraType === 'wides' || extraType === 'noBalls' ? 'Additional runs run' : 'Runs'}
+            </label>
             <select
               value={extraRuns}
               onChange={(e) => setExtraRuns(parseInt(e.target.value, 10))}
@@ -651,6 +681,11 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>
+            {(extraType === 'wides' || extraType === 'noBalls') && (
+              <span className="text-xs text-ink-muted">
+                = {1 + extraRuns} run{1 + extraRuns === 1 ? '' : 's'} total
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -752,7 +787,7 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
 
       <button
         onClick={handleRecordBall}
-        disabled={isProcessing || ballType === 'wicket'}
+        disabled={isProcessing || ballType === 'wicket' || showBowlerModal}
         className="w-full py-4 rounded-lg font-bold text-background bg-pitch-500 hover:bg-pitch-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
       >
         {isProcessing ? 'Recording...' : 'Record Ball'}
@@ -876,6 +911,37 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
                 Confirm Wicket
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showBowlerModal && pendingOverChange && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-surface border border-border-strong rounded-xl p-6 w-full max-w-md shadow-card-hover">
+            <h3 className="text-lg font-bold text-ink mb-1">Over complete</h3>
+            <p className="text-sm text-ink-secondary mb-4">Who&apos;s bowling the next over?</p>
+            <select
+              value={nextBowler?.id ?? ''}
+              onChange={(e) => {
+                const selected = inningsData.bowlingScorecard.find(b => b.player.id === e.target.value);
+                setNextBowler(selected ? selected.player : null);
+              }}
+              className="w-full border border-border bg-surface-alt text-ink rounded-lg px-3 py-2 mb-6"
+            >
+              <option value="">Select bowler</option>
+              {inningsData.bowlingScorecard
+                .filter(b => b.player.id !== pendingOverChange.event.bowlerId)
+                .map(entry => (
+                  <option key={entry.player.id} value={entry.player.id}>{entry.player.name}</option>
+                ))}
+            </select>
+            <button
+              onClick={handleConfirmNextBowler}
+              disabled={!nextBowler}
+              className="w-full py-3 rounded-lg font-medium text-background bg-pitch-500 hover:bg-pitch-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            >
+              Confirm Bowler
+            </button>
           </div>
         </div>
       )}

@@ -168,7 +168,21 @@ const matchSchema = new mongoose.Schema({
   umpires: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
+  // Whoever currently holds the exclusive right to record balls - opening scoring up to
+  // every rostered player plus umpires (see canManageMatch) means two people could otherwise
+  // record conflicting balls at once. lastActiveAt drives a short expiry (see LOCK_TIMEOUT_MS
+  // in matchController.js) rather than requiring an explicit release, so a scorer whose
+  // session genuinely dies doesn't permanently lock everyone else out - the resume feature
+  // (innings.liveState) exists specifically so someone else can then pick up cleanly.
+  activeScorer: {
+    type: {
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      name: String,
+      lastActiveAt: Date
+    },
+    default: null
+  }
 }, {
   timestamps: true
 });

@@ -1,6 +1,7 @@
 const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
+const User = require('../models/User');
 const Tournament = require('../models/Tournament');
 const AIService = require('../utils/aiService');
 const { getMatchCharts } = require('../services/matchCharts');
@@ -15,6 +16,15 @@ const { resourcePercent, revisedTarget } = require('../services/rainRuleCalculat
 
 const MIN_BALLS_FOR_OWN_DATA = 6;
 
+// How long a scoring lock stays valid without renewal before it's considered abandoned and
+// up for grabs - long enough to absorb normal network blips between balls, short enough that
+// a scorer whose session actually died doesn't lock the match for the rest of the innings.
+const LOCK_TIMEOUT_MS = 2 * 60 * 1000;
+
+function isLockFresh(activeScorer) {
+  return !!activeScorer && !!activeScorer.lastActiveAt && (Date.now() - new Date(activeScorer.lastActiveAt).getTime()) < LOCK_TIMEOUT_MS;
+}
+
 // Populate helper for manOfTheMatch: the field only stores a Player ref, but
 // display needs the player's user's name - mirrors the nested Player->User
 // populate pattern used for tournament awards in tournamentController.js.
@@ -25,6 +35,26 @@ const MAN_OF_THE_MATCH_POPULATE = { path: 'manOfTheMatch', populate: { path: 'us
 // bowled at, defaulting to the first when neither has (freshly started match).
 function currentInningsIndex(match) {
   return match.innings[1]?.balls?.length > 0 ? 1 : 0;
+}
+
+// Powerplay length in overs (the first N overs of each innings, mirroring the single-block
+// model already used by Tournament.rules.powerplayOvers - not the multi-block ODI system,
+// which isn't modeled anywhere in this codebase). A tournament's own house rule wins when the
+// match belongs to one (see cricketRulesSummary.md: "check the tournament's house rules...
+// rather than assuming a fixed number"); otherwise falls back to a sensible default by
+// format. Test cricket has no fielding-restriction powerplay at all.
+const DEFAULT_POWERPLAY_OVERS_BY_TYPE = { T20: 6, ODI: 10 };
+function getPowerplayOvers(match) {
+  if (match.tournament && typeof match.tournament === 'object' && match.tournament.rules?.powerplayOvers != null) {
+    return match.tournament.rules.powerplayOvers;
+  }
+  if (match.matchType === 'Test') return null;
+  if (match.matchType in DEFAULT_POWERPLAY_OVERS_BY_TYPE) {
+    return DEFAULT_POWERPLAY_OVERS_BY_TYPE[match.matchType];
+  }
+  // Friendly/other custom formats: no fixed convention, so scale roughly with T20's 6-in-20
+  // ratio rather than applying a fixed 6, which could exceed a short match's total overs.
+  return Math.max(1, Math.round((match.totalOvers || 20) * 0.3));
 }
 
 // Who's allowed to score/manage a match: the organizer who created it, an appointed umpire,
@@ -172,7 +202,8 @@ exports.getMatch = async (req, res) => {
       .populate('team2')
       .populate(MAN_OF_THE_MATCH_POPULATE)
       .populate('createdBy')
-      .populate({ path: 'umpires', select: 'name' });
+      .populate({ path: 'umpires', select: 'name' })
+      .populate({ path: 'tournament', select: 'rules' });
 
     if (!match) {
       return res.status(404).json({
@@ -183,7 +214,8 @@ exports.getMatch = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      match
+      match,
+      powerplayOvers: getPowerplayOvers(match)
     });
   } catch (error) {
     res.status(500).json({
@@ -320,6 +352,17 @@ exports.recordBall = async (req, res) => {
       });
     }
 
+    // Only whoever currently holds the scoring lock may actually record a ball - the score
+    // page acquires this lock on load (POST .../scoring-lock) before showing the scoring UI,
+    // so reaching here without holding it means either the lock expired mid-session or
+    // someone else has since taken over.
+    if (isLockFresh(match.activeScorer) && match.activeScorer.user.toString() !== req.user.id) {
+      return res.status(423).json({
+        success: false,
+        message: `${match.activeScorer.name} is currently scoring this match`
+      });
+    }
+
     if (inningsIndex < 0 || inningsIndex >= match.innings.length) {
       return res.status(400).json({
         success: false,
@@ -368,6 +411,12 @@ exports.recordBall = async (req, res) => {
       // change detection on plain assignment - mark it explicitly so this doesn't silently
       // fail to persist.
       match.markModified(`innings.${inningsIndex}.liveState`);
+    }
+
+    // Recording a ball is itself activity - renew the lock so a scorer mid-over doesn't need
+    // to rely solely on the separate heartbeat call to stay ahead of LOCK_TIMEOUT_MS.
+    if (match.activeScorer && match.activeScorer.user.toString() === req.user.id) {
+      match.activeScorer.lastActiveAt = new Date();
     }
 
     match = await match.save();
@@ -890,6 +939,68 @@ exports.removeUmpire = async (req, res) => {
     await match.populate({ path: 'umpires', select: 'name' });
 
     res.status(200).json({ success: true, umpires: match.umpires });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Claim (or renew) the exclusive right to score this match. The score page calls
+//          this before showing the scoring UI and again periodically as a heartbeat while
+//          it stays open - see LOCK_TIMEOUT_MS for how long a lock survives without renewal.
+// @route   POST /api/matches/:id/scoring-lock
+// @access  Private (anyone canManageMatch already permits)
+exports.acquireScoringLock = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (!(await canManageMatch(match, req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not authorized to score this match' });
+    }
+
+    const heldByOther = isLockFresh(match.activeScorer) && match.activeScorer.user.toString() !== req.user.id;
+    if (heldByOther) {
+      return res.status(409).json({
+        success: false,
+        message: `${match.activeScorer.name} is currently scoring this match`,
+        activeScorer: { name: match.activeScorer.name, lastActiveAt: match.activeScorer.lastActiveAt }
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('name');
+    match.activeScorer = { user: req.user.id, name: user?.name ?? 'Someone', lastActiveAt: new Date() };
+    await match.save();
+
+    res.status(200).json({ success: true, activeScorer: match.activeScorer });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Release the scoring lock - called when a scorer explicitly finishes or navigates
+//          away. Anyone who could acquire it can release it (current holder or the match
+//          creator, as an escape hatch if a lock is stuck and nobody wants to wait out the
+//          timeout), but nobody else.
+// @route   DELETE /api/matches/:id/scoring-lock
+// @access  Private
+exports.releaseScoringLock = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+
+    const isHolder = match.activeScorer && match.activeScorer.user.toString() === req.user.id;
+    const isCreator = match.createdBy.toString() === req.user.id;
+    if (match.activeScorer && !isHolder && !isCreator) {
+      return res.status(403).json({ success: false, message: 'Only the current scorer or the match creator can release this lock' });
+    }
+
+    match.activeScorer = null;
+    await match.save();
+
+    res.status(200).json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

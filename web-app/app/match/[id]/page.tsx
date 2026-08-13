@@ -159,6 +159,7 @@ export default function MatchPage() {
   const { user, token } = useAuth();
 
   const [match, setMatch] = useState<Match | null>(null);
+  const [powerplayOvers, setPowerplayOvers] = useState<number | null>(null);
   const [chartsInnings, setChartsInnings] = useState<ChartInnings[]>([]);
   const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([]);
   const [playerDirectory, setPlayerDirectory] = useState<Map<string, string>>(new Map());
@@ -215,6 +216,7 @@ export default function MatchPage() {
 
       if (data.success) {
         setMatch(data.match);
+        setPowerplayOvers(data.powerplayOvers ?? null);
         setError(null);
       } else {
         setError('Failed to fetch match');
@@ -327,6 +329,11 @@ export default function MatchPage() {
           <span className={`${styles.status} ${styles[match.status.toLowerCase()]}`}>
             {match.status}
           </span>
+          {match.status === 'Live' && powerplayOvers != null && currentInnings.overs < powerplayOvers && (
+            <span className="ml-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gold-500/15 text-gold-400 border border-gold-500/30">
+              ⚡ Powerplay (overs 1-{powerplayOvers})
+            </span>
+          )}
           <Link href={`/match/${matchId}/scouting`} className="block mt-3 text-sm font-medium text-gold-500 hover:text-gold-400 transition-colors">
             📋 Scouting Report &rarr;
           </Link>

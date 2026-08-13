@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import BallByBallScoring, { BallEvent, InningsData } from '@/components/scoring/BallByBallScoring';
+import ScorecardView from '@/components/scoring/ScorecardView';
 import BatsmanInsights from '@/components/insights/BatsmanInsights';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
@@ -36,7 +37,7 @@ interface MatchDoc {
   createdBy: { _id: string; name: string };
   umpires?: ({ _id: string; name: string } | string)[];
   status: string;
-  tournament: string | null;
+  tournament: { _id: string; rules?: { powerplayOvers?: number } } | string | null;
   innings: MatchInningsDoc[];
 }
 
@@ -98,8 +99,10 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
   const [inningsIndex, setInningsIndex] = useState<0 | 1>(0);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showInsights, setShowInsights] = useState(false);
+  const [showScorecard, setShowScorecard] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [powerplayOvers, setPowerplayOvers] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -109,6 +112,7 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
       if (matchData.success) {
         const m: MatchDoc = matchData.match;
         setMatch(m);
+        setPowerplayOvers(matchData.powerplayOvers ?? null);
         // Resume scoring in progress instead of restarting from "Start Innings" - a previous
         // scorer's session may have ended abruptly (phone died, tab closed) without finishing
         // the innings, and re-selecting striker/non-striker/bowler from scratch would both
@@ -129,6 +133,69 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
 
   const playersById = useMemo(() => new Map(players.map(p => [p._id, p])), [players]);
 
+  // Scoring is open to whoever created the match, any appointed umpire, or anyone actually
+  // rostered on either playing team - not just the creator. Mirrors canManageMatch() on the
+  // backend, which is the real enforcement; this is just so the UI doesn't show the scoring
+  // form to someone who'll get a 403 the moment they try to use it. Computed as a memo
+  // (rather than inline further down, after early returns) so the lock-acquisition effect
+  // below - which must run unconditionally per the Rules of Hooks - can depend on it.
+  const canScore = useMemo(() => {
+    if (!match || !user) return false;
+    const myPlayer = players.find(p => resolveRefId(p.user) === user.id);
+    const isCreator = user.id === match.createdBy._id;
+    const isUmpire = (match.umpires || []).some(u => (typeof u === 'string' ? u : u._id) === user.id);
+    const isRostered = !!myPlayer && (match.team1.players.includes(myPlayer._id) || match.team2.players.includes(myPlayer._id));
+    return isCreator || isUmpire || isRostered;
+  }, [match, user, players]);
+
+  // Only one person may score a match at a time (opening scoring up to the whole roster plus
+  // umpires means two people could otherwise record conflicting balls simultaneously). Claim
+  // the lock as soon as we know this user is allowed to score, renew it periodically while
+  // this page stays open, and release it on the way out. A held-but-abandoned lock expires
+  // server-side on its own (LOCK_TIMEOUT_MS) so a dead session can't lock everyone out
+  // forever - that's what makes this safe to combine with the resume-scoring feature.
+  const [lockState, setLockState] = useState<'idle' | 'acquiring' | 'held' | 'locked'>('idle');
+  const [lockedByName, setLockedByName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!match || !canScore) return;
+    let cancelled = false;
+
+    const claim = async () => {
+      setLockState((prev) => (prev === 'held' ? prev : 'acquiring'));
+      try {
+        const res = await apiFetch(`/api/matches/${match._id}/scoring-lock`, { method: 'POST' });
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.success) {
+          setLockState('held');
+          setLockedByName(null);
+        } else {
+          setLockState('locked');
+          setLockedByName(data.activeScorer?.name ?? null);
+        }
+      } catch {
+        if (!cancelled) setLockState('locked');
+      }
+    };
+
+    claim();
+    // Renew while held, and keep retrying while locked-by-someone-else in case they finish.
+    const interval = setInterval(claim, 30000);
+
+    const release = () => {
+      apiFetch(`/api/matches/${match._id}/scoring-lock`, { method: 'DELETE' }).catch(() => {});
+    };
+    window.addEventListener('beforeunload', release);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', release);
+      release();
+    };
+  }, [match, canScore]);
+
   if (loading || authLoading) {
     return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
   }
@@ -148,21 +215,26 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
     );
   }
 
-  // Scoring is open to whoever created the match, any appointed umpire, or anyone actually
-  // rostered on either playing team - not just the creator. Mirrors canManageMatch() on the
-  // backend, which is the real enforcement; this is just so the UI doesn't show the scoring
-  // form to someone who'll get a 403 the moment they try to use it.
-  const myPlayer = players.find(p => resolveRefId(p.user) === user.id);
-  const isCreator = user.id === match.createdBy._id;
-  const isUmpire = (match.umpires || []).some(u => (typeof u === 'string' ? u : u._id) === user.id);
-  const isRostered = !!myPlayer && (match.team1.players.includes(myPlayer._id) || match.team2.players.includes(myPlayer._id));
-  const canScore = isCreator || isUmpire || isRostered;
-
   if (!canScore) {
     return (
       <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
         <p className="text-ink-secondary">
           Only players from {match.team1.name} or {match.team2.name}, an appointed umpire, or {match.createdBy.name} (who created this match) can score it.
+        </p>
+      </main>
+    );
+  }
+
+  if (lockState === 'idle' || lockState === 'acquiring') {
+    return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Checking scoring status...</p></main>;
+  }
+
+  if (lockState === 'locked') {
+    return (
+      <main className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8 text-center">
+        <p className="text-ink-secondary">
+          {lockedByName ?? 'Someone'} is currently scoring this match. Only one person can score at a time -
+          this will unlock automatically if their session goes idle, or check back once they&apos;re done.
         </p>
       </main>
     );
@@ -221,6 +293,7 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
       const data = await res.json();
       if (data.success) {
         setFinished(true);
+        apiFetch(`/api/matches/${match._id}/scoring-lock`, { method: 'DELETE' }).catch(() => {});
       } else {
         setSyncError(data.message || 'Could not finish the match');
       }
@@ -236,6 +309,11 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
       <h1 className="text-xl font-bold text-ink mb-1">{match.title}</h1>
       <p className="text-sm text-ink-secondary mb-4">
         {match.team1.name} <span className="text-ink-muted">vs</span> {match.team2.name}
+        {inningsData && powerplayOvers != null && inningsData.overs < powerplayOvers && (
+          <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gold-500/15 text-gold-400 border border-gold-500/30 align-middle">
+            ⚡ Powerplay - overs 1-{powerplayOvers}
+          </span>
+        )}
       </p>
 
       {syncError && (
@@ -307,6 +385,19 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
         </form>
       ) : (
         <>
+          <button
+            type="button"
+            onClick={() => setShowScorecard(prev => !prev)}
+            className="w-full mb-2 bg-surface border border-border rounded-xl p-3 text-left text-sm font-medium text-pitch-400 hover:bg-surface-hover transition-colors"
+          >
+            {showScorecard ? '▼' : '▶'} Full Scorecard
+          </button>
+          {showScorecard && (
+            <div className="mb-4">
+              <ScorecardView inningsData={inningsData} />
+            </div>
+          )}
+
           <button
             type="button"
             onClick={() => setShowInsights(prev => !prev)}

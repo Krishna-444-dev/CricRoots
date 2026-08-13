@@ -15,7 +15,9 @@ const {
   applyInterruption,
   deleteMatch,
   addUmpire,
-  removeUmpire
+  removeUmpire,
+  acquireScoringLock,
+  releaseScoringLock
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/auth');
 
@@ -36,6 +38,8 @@ router.post('/:id/record-ball', protect, recordBall);
 router.post('/:id/apply-interruption', protect, applyInterruption);
 router.post('/:id/umpires', protect, addUmpire);
 router.delete('/:id/umpires/:userId', protect, removeUmpire);
+router.post('/:id/scoring-lock', protect, acquireScoringLock);
+router.delete('/:id/scoring-lock', protect, releaseScoringLock);
 router.delete('/:id', protect, deleteMatch);
 
 module.exports = router;
