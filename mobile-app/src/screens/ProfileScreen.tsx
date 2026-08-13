@@ -87,6 +87,12 @@ export default function ProfileScreen({ navigation }: any) {
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Assistant')}>
+        <Ionicons name="sparkles-outline" size={20} color={colors.pitch400} />
+        <Text style={styles.rowText}>Assistant</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.row} onPress={confirmLogout}>
         <Ionicons name="log-out-outline" size={20} color={colors.wicket400} />
         <Text style={[styles.rowText, { color: colors.wicket400 }]}>Log out</Text>

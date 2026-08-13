@@ -302,6 +302,15 @@ export const groupsAPI = {
     apiUpload<{ success: true; message: GroupMessage }>(`/groups/${groupId}/attachments`, file),
 };
 
+// --- In-app assistant (backend/src/routes/assistantRoutes.js) - app-help & cricket-rules Q&A,
+//     grounded in real reference content. The client owns conversation history - no server-side
+//     chat session storage - so `ask` sends the last ~10 turns back alongside the new message. ---
+export const assistantAPI = {
+  getStatus: () => apiFetch<{ success: true; configured: boolean }>('/assistant/status'),
+  ask: (message: string, history: { role: string; content: string }[]) =>
+    apiFetch<{ success: true; configured: boolean; reply: string }>('/assistant/ask', 'POST', { message, history }),
+};
+
 export const api = {
   auth: authAPI,
   users: usersAPI,
@@ -318,6 +327,7 @@ export const api = {
   predictions: predictionsAPI,
   messages: messagesAPI,
   groups: groupsAPI,
+  assistant: assistantAPI,
 };
 
 export default api;
