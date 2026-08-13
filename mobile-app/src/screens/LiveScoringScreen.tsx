@@ -15,6 +15,7 @@ import { api } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { Match, Player, BallEvent } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
+import LiveMatchupPanel from '../components/LiveMatchupPanel';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'LiveScoring'>;
 
@@ -594,6 +595,15 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
           />
         )}
       </View>
+
+      {/* Live hierarchical-shrinkage tactical read for the current striker vs. current bowler -
+          see LiveMatchupPanel. Keyed on ball count so it refetches after every ball recorded. */}
+      <LiveMatchupPanel
+        matchId={matchId}
+        batsmanId={strikerId}
+        bowlerId={bowlerId}
+        refreshKey={currentBalls.length}
+      />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Runs</Text>
