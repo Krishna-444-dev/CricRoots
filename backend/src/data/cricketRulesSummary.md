@@ -85,6 +85,40 @@ Before the match, the two captains toss a coin; the winner chooses whether to ba
 (some tournaments use variations like a "bat/bowl choice given to the away team" — again, check
 house rules).
 
+## Common formats, roughly
+
+- **T20**: 20 overs per side, the dominant format for club/league cricket globally because a full
+  match fits in about 3 hours.
+- **ODI (One Day International) style / 40-50 over cricket**: 50 overs per side at the international
+  level; club leagues sometimes run shorter versions (30 or 40 overs) under the same "one innings
+  each, run chase" structure.
+- **T10 and other short formats**: 10 overs or fewer per side, increasingly common for quick local
+  tournaments and corporate leagues.
+- **Test / first-class cricket**: multi-day, two innings per side, no over limit - essentially never
+  used at club level, but its concepts (declaring an innings closed voluntarily, the follow-on where
+  a team batting second and far behind can be asked to bat again immediately) sometimes get asked
+  about out of general cricket curiosity even by club players.
+
+## Positions and roles, briefly
+
+- **Batting order**: the sequence in which a team's players come in to bat, set by the batting
+  team's captain before the innings (openers first, typically the most set/aggressive batters, down
+  to the tail - the least specialist batters - at the end).
+- **All-rounder**: a player capable of both batting and bowling to a useful standard, valuable
+  because they add flexibility to a team's balance.
+- **Wicketkeeper**: the fielder standing directly behind the stumps at the batting end, the only
+  fielder allowed to wear gloves and external leg guards, responsible for stumpings and a large share
+  of catches.
+- **Fielding positions**: named spots around the field (slip, gully, point, cover, mid-off, mid-on,
+  midwicket, square leg, fine leg, third man, and others) that describe where a fielder is standing
+  relative to the batter - captains and coaches move fielders between these positions to defend
+  against a specific batter's known scoring areas, which is exactly what CricRoots's own tactical
+  insights features (fielding plan, matchup finder) are built to help decide from real data rather
+  than guesswork.
+- **Economy rate (bowling)**: average runs conceded per over - lower is better for a bowler.
+- **Strike rate (batting)**: runs scored per 100 balls faced - higher generally means more
+  aggressive/faster scoring, though it's usually read alongside average, not alone.
+
 ## A closing note on variation
 
 Cricket at the club and league level varies more than international cricket in exactly these areas:

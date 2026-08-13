@@ -111,3 +111,41 @@ strategy, with a personalized "Recommended for You" section.
 Players can list cricket gear for sale, browse and add listings to a cart, and track orders as a
 buyer or seller. Payment happens directly between buyer and seller (cash, bank transfer, or in
 person) — the app is not a party to the transaction and doesn't process payments itself.
+
+## Frequently asked follow-ups
+
+**"I created an account but can't create a team - why?"** Creating a team requires a completed
+player profile (specialization, batting style), not just a login. This is most likely to trip up new
+mobile users, since mobile registration doesn't collect the player profile the way web registration
+does - complete it via the web app or the in-app player registration step first.
+
+**"Who can actually score a match?"** Only the person who created the match (the match owner) can
+record deliveries for it. If you need someone else to score, they'd need to be the one who created
+the match in the first place - there's no separate "assign a scorer" step described here.
+
+**"Can I fix a mistake after recording a ball?"** Not described in this reference - if a player asks
+about correcting or deleting an already-recorded ball, say you don't have information on an edit
+flow rather than assuming one exists.
+
+**"How is my career average calculated?"** From every completed match you've batted or bowled in,
+computed live each time it's requested - not a number stored and updated after each match, so it's
+always current as of the moment you look at it.
+
+**"What's the difference between team chat and a group?"** Team chat is automatic and tied to the
+team roster - every player on the team is in it by default. A group is opt-in and can include anyone
+you choose, whether or not they share a team, and supports polls and attachments that team chat
+doesn't.
+
+**"Why don't I see a 'join team' button anywhere?"** There isn't one by design - rosters are managed
+by the captain (or vice-captain/coach), not self-service. Ask whoever runs the team to add you.
+
+**"Does the voice scoring work on mobile?"** No - voice-driven scoring and the language selector are
+web-only features. Mobile scoring (where available) uses the tap-based delivery form.
+
+**"Can I see who else predicted the same result I did?"** You can see the overall percentage split
+of picks across both teams, not the identity of individual predictors.
+
+**"What happens if a match ends in a tie or gets abandoned?"** Tournament points tables account for
+win/loss/tie/no-result outcomes distinctly, each with their own points value the tournament
+organizer configures - the exact point values for a tie or no-result vary by tournament, so check
+that tournament's points configuration or house rules if asked for a specific number.

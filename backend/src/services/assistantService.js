@@ -44,14 +44,16 @@ function isConfigured() {
 async function buildSystemPrompt(tournamentId) {
   const blocks = [
     { type: 'text', text: SYSTEM_INSTRUCTIONS },
+    // Combined into ONE cache_control block rather than one per file: Claude Haiku
+    // models require a minimum of ~2048 tokens per individual cache-marked block to be
+    // cache-eligible at all. Each file alone is ~1,300-1,400 tokens - under the
+    // per-block minimum on its own - but comfortably over it combined. Splitting them
+    // felt more organized while writing this, but silently disabled caching entirely
+    // (confirmed via cache_write/cache_read both reading 0 in production usage logs
+    // before this fix) - a real, measured bug, not a hypothetical one.
     {
       type: 'text',
-      text: `# App Help Reference\n\n${APP_HELP_CONTENT}`,
-      cache_control: { type: 'ephemeral' }
-    },
-    {
-      type: 'text',
-      text: `# Cricket Rules Reference\n\n${CRICKET_RULES_SUMMARY}`,
+      text: `# App Help Reference\n\n${APP_HELP_CONTENT}\n\n# Cricket Rules Reference\n\n${CRICKET_RULES_SUMMARY}`,
       cache_control: { type: 'ephemeral' }
     }
   ];
@@ -105,6 +107,14 @@ async function askAssistant({ message, history = [], tournamentId }) {
   });
 
   const textBlock = response.content.find(block => block.type === 'text');
+
+  // Server-side only - lets cost be monitored via `docker logs` against the Anthropic
+  // console's billing dashboard without exposing token counts to the client.
+  const u = response.usage;
+  console.log(
+    `[assistant] input=${u.input_tokens} output=${u.output_tokens} ` +
+    `cache_write=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`
+  );
 
   return {
     configured: true,
