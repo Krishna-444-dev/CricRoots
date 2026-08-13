@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -144,6 +144,11 @@ export const matchesAPI = {
   getAIInsights: (matchId: string) => apiFetch(`/matches/${matchId}/ai-insights`),
   getCharts: (matchId: string) => apiFetch<{ success: true; innings: any[] }>(`/matches/${matchId}/charts`),
   getKeyMoments: (matchId: string) => apiFetch<{ success: true; keyMoments: any[] }>(`/matches/${matchId}/key-moments`),
+  // Post-match player performance report - this match's figures vs. career average, recent
+  // form, milestones/achievements, and the tactical-read cross-reference against the matchup
+  // model. Public, no auth needed.
+  getPerformanceReport: (matchId: string, playerId: string) =>
+    apiFetch<PerformanceReport>(`/matches/${matchId}/performance-report/${playerId}`),
 };
 
 // --- Tournaments (backend/src/routes/tournamentRoutes.js) ---

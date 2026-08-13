@@ -288,6 +288,112 @@ export interface GroupPollOption {
 // One message in a group's feed, discriminated by `type`. All three variants share the base
 // fields; the type-specific payload (`text` / `poll` / `attachment`) is only present for its
 // matching type.
+// Post-match performance report for a single player in a single match
+// (backend/src/services/tendencyAnalytics.js's getMatchPerformanceReport, via
+// GET /matches/:matchId/performance-report/:playerId). Mirrors the shape web-app's
+// app/match/[id]/report/[playerId]/page.tsx types against - see that file for the
+// authoritative field-by-field source.
+export interface PerformanceReportBatting {
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  out: boolean;
+  strikeRate: number;
+}
+
+export interface PerformanceReportBowling {
+  balls: number;
+  overs: string;
+  runs: number;
+  wickets: number;
+  economy: number;
+}
+
+export interface PerformanceCareerComparisonBatting {
+  careerAverage: number;
+  careerStrikeRate: number;
+  runsDelta: number;
+  strikeRateDelta: number;
+  hasEnoughHistory: boolean;
+  message: string;
+}
+
+export interface PerformanceCareerComparisonBowling {
+  careerAverageWicketsPerMatch: number;
+  careerEconomyRate: number;
+  wicketsDelta: number;
+  economyDelta: number;
+  hasEnoughHistory: boolean;
+  message: string;
+}
+
+export interface PerformanceRecentFormEntry {
+  matchId: string;
+  scheduledDate: string;
+  isThisMatch: boolean;
+  runs: number | null;
+  wickets: number | null;
+}
+
+export interface PerformanceBadgeDef {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface PerformanceAchievement extends PerformanceBadgeDef {
+  earned: boolean;
+  count: number;
+}
+
+export interface PerformanceMilestones {
+  isCareerBestBatting: boolean;
+  priorHighestScore: number | null;
+  battingMessage: string | null;
+  isCareerBestBowling: boolean;
+  priorBestBowlingFigures: string | null;
+  bowlingMessage: string | null;
+  badgesThisMatch: PerformanceBadgeDef[];
+  careerAchievements: PerformanceAchievement[];
+}
+
+export interface PerformanceRiskBucket {
+  line: string;
+  length: string;
+  blendedDismissalRate: number | null;
+  confidence: string;
+  basedOn: string;
+}
+
+export interface PerformanceDismissalDetail {
+  bowlerId: string | null;
+  wicketType: string;
+  line: string;
+  length: string;
+  matchedRiskZone?: boolean;
+  topRiskBuckets?: PerformanceRiskBucket[];
+  note: string;
+}
+
+export interface PerformanceTacticalTieBack {
+  dismissals: PerformanceDismissalDetail[];
+  message?: string;
+}
+
+export interface PerformanceReport {
+  success: boolean;
+  matchId: string;
+  player: { _id: string; name: string; specialization: string };
+  participated: boolean;
+  message?: string;
+  thisMatch?: { batting: PerformanceReportBatting | null; bowling: PerformanceReportBowling | null };
+  careerComparison?: { batting?: PerformanceCareerComparisonBatting; bowling?: PerformanceCareerComparisonBowling };
+  recentForm?: PerformanceRecentFormEntry[];
+  milestones?: PerformanceMilestones;
+  tacticalTieBack?: PerformanceTacticalTieBack;
+}
+
 export interface GroupMessage {
   _id: string;
   group: string;

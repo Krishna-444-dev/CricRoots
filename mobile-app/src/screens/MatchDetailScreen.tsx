@@ -30,6 +30,20 @@ function activeInningsIndex(match: Match): 0 | 1 {
   return match.innings[1]?.balls?.length ? 1 : 0;
 }
 
+// Every player (batsman or bowler) who appears anywhere in this match's ball-by-ball data -
+// the mobile port of web-app/app/match/[id]/page.tsx's playersWhoAppeared, feeding the
+// per-player "View Report" links below (see PerformanceReportScreen).
+function playersWhoAppeared(innings: Match['innings']): string[] {
+  const ids = new Set<string>();
+  for (const inn of innings) {
+    for (const ball of inn.balls) {
+      if (ball.batsmanId) ids.add(ball.batsmanId);
+      if (ball.bowlerId) ids.add(ball.bowlerId);
+    }
+  }
+  return [...ids];
+}
+
 function ballChip(ball: BallEvent): { label: string; style: any; textStyle: any } {
   if (ball.isWicket) return { label: 'W', style: styles.chipWicket, textStyle: styles.chipTextWicket };
   if (ball.isExtra) {
@@ -61,6 +75,17 @@ interface ChartInnings {
   team: any;
   overs: ChartOver[];
   cumulative: { over: number; total: number }[];
+}
+
+// Manhattan/Worm charts - dependency-free equivalent of web-app's inline-SVG
+// ManhattanChart/WormChart, built the same way as PlayerStatsScreen's wagon wheel: a column of
+// rows, each a label plus a proportionally-filled bar View. No react-native-svg or charting
+// library, per the Expo Go pilot-distribution constraint. One color per innings (batting order).
+const CHART_TEAM_COLORS = [colors.pitch500, colors.gold500];
+
+function chartTeamName(team: any, fallback: string): string {
+  if (team && typeof team === 'object' && 'name' in team) return team.name;
+  return fallback;
 }
 
 interface PredictionSplit {
@@ -99,6 +124,10 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const [keyMoments, setKeyMoments] = useState<KeyMoment[] | null>(null);
   const [prediction, setPrediction] = useState<PredictionSplit | null>(null);
   const [predicting, setPredicting] = useState(false);
+  // Player id -> display name, for the "View Report" links below - the directory endpoint
+  // doesn't come back scoped to just this match's participants, so it's fetched once here,
+  // same non-blocking pattern as web-app's fetchPlayerDirectory.
+  const [playerDirectory, setPlayerDirectory] = useState<Map<string, string>>(new Map());
 
   const load = useCallback(() => {
     api.matches
@@ -181,6 +210,29 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     };
   }, [match?._id, match?.status]);
 
+  // Player-report link directory - fetched once, independent of match state, purely to attach
+  // display names to the "View Report" chips below.
+  useEffect(() => {
+    let cancelled = false;
+    api.players
+      .getPlayers()
+      .then(({ players }) => {
+        if (cancelled) return;
+        const map = new Map<string, string>();
+        for (const p of players) {
+          const name = typeof p.user === 'string' ? null : p.user?.name;
+          if (name) map.set(p._id, name);
+        }
+        setPlayerDirectory(map);
+      })
+      .catch(() => {
+        if (!cancelled) setPlayerDirectory(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handlePredict = async (teamId: string) => {
     if (!match || !user || predicting) return;
     setPredicting(true);
@@ -241,6 +293,18 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const maxOverRuns = activeChart?.overs?.length
     ? Math.max(6, ...activeChart.overs.map((o) => o.runs))
     : 6;
+
+  // Manhattan/Worm scaling - computed across BOTH innings (not just the active one), so the
+  // two teams' bars stay comparable row-to-row.
+  const hasChartData = !!chartInnings?.some((inn) => inn.overs.some((o) => o.runs > 0 || o.wickets > 0));
+  const manhattanMaxOvers = chartInnings?.length ? Math.max(0, ...chartInnings.map((inn) => inn.overs.length)) : 0;
+  const manhattanMaxRuns = chartInnings?.length
+    ? Math.max(1, ...chartInnings.flatMap((inn) => inn.overs.map((o) => o.runs)))
+    : 1;
+  const wormMaxOvers = chartInnings?.length ? Math.max(0, ...chartInnings.map((inn) => inn.cumulative.length)) : 0;
+  const wormMaxTotal = chartInnings?.length
+    ? Math.max(1, ...chartInnings.flatMap((inn) => inn.cumulative.map((c) => c.total)))
+    : 1;
 
   return (
     <ScrollView
@@ -386,6 +450,31 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {/* Player Performance Reports - mobile port of web-app's per-player report links.
+          Additive/self-contained block; intentionally not touching scorecard rendering
+          elsewhere in this file. */}
+      {playersWhoAppeared(match.innings).length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Player Performance Reports</Text>
+          <Text style={styles.reportsHint}>
+            This match&apos;s numbers vs. career average, recent form, and a tactical read on every dismissal.
+          </Text>
+          <View style={styles.reportChipRow}>
+            {playersWhoAppeared(match.innings).map((playerId) => (
+              <TouchableOpacity
+                key={playerId}
+                style={styles.reportChip}
+                onPress={() => navigation.navigate('PerformanceReport', { matchId: match._id, playerId })}
+              >
+                <Text style={styles.reportChipText}>
+                  {playerDirectory.get(playerId) ?? 'View report'} &rarr;
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       {recentBalls.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Deliveries</Text>
@@ -457,6 +546,104 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
               ))}
             </View>
           </ScrollView>
+        </View>
+      )}
+
+      {/* Manhattan / Worm charts - additive block, dependency-free (see CHART_TEAM_COLORS
+          comment above); intentionally separate from the existing "Over-by-over" section
+          above, which only shows the currently-batting innings. These cover both innings. */}
+      {hasChartData && chartInnings && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Manhattan Chart</Text>
+          <Text style={styles.reportsHint}>Runs scored per over</Text>
+          <View style={styles.chartListCard}>
+            <ScrollView style={styles.chartListScroll} nestedScrollEnabled>
+              {Array.from({ length: manhattanMaxOvers }).map((_, overIdx) => (
+                <View key={overIdx} style={styles.chartListRow}>
+                  <Text style={styles.chartListLabel}>{overIdx + 1}</Text>
+                  <View style={styles.chartListBars}>
+                    {chartInnings.map((inn, teamIdx) => {
+                      const over = inn.overs[overIdx];
+                      const widthPct = over ? Math.max(4, (over.runs / manhattanMaxRuns) * 100) : 0;
+                      return (
+                        <View key={teamIdx} style={styles.chartMiniBarRow}>
+                          <View style={styles.chartMiniBarTrack}>
+                            <View
+                              style={[
+                                styles.chartMiniBarFill,
+                                { width: `${widthPct}%`, backgroundColor: CHART_TEAM_COLORS[teamIdx % 2] },
+                              ]}
+                            />
+                          </View>
+                          {over && over.wickets > 0 && <View style={styles.chartWicketDot} />}
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.chartListValue}>
+                    {chartInnings.map((inn) => (inn.overs[overIdx] ? inn.overs[overIdx].runs : '-')).join(' · ')}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+            <View style={styles.chartLegendRow}>
+              {chartInnings.map((inn, i) => (
+                <View key={i} style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
+                  <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
+                </View>
+              ))}
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: colors.wicket500 }]} />
+                <Text style={styles.legendText}>Wicket that over</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {hasChartData && chartInnings && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Worm Chart</Text>
+          <Text style={styles.reportsHint}>Cumulative team total after each over</Text>
+          <View style={styles.chartListCard}>
+            <ScrollView style={styles.chartListScroll} nestedScrollEnabled>
+              {Array.from({ length: wormMaxOvers }).map((_, overIdx) => (
+                <View key={overIdx} style={styles.chartListRow}>
+                  <Text style={styles.chartListLabel}>{overIdx + 1}</Text>
+                  <View style={styles.chartListBars}>
+                    {chartInnings.map((inn, teamIdx) => {
+                      const point = inn.cumulative[overIdx];
+                      const widthPct = point ? Math.max(4, (point.total / wormMaxTotal) * 100) : 0;
+                      return (
+                        <View key={teamIdx} style={styles.chartMiniBarRow}>
+                          <View style={styles.chartMiniBarTrack}>
+                            <View
+                              style={[
+                                styles.chartMiniBarFill,
+                                { width: `${widthPct}%`, backgroundColor: CHART_TEAM_COLORS[teamIdx % 2] },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.chartListValue}>
+                    {chartInnings.map((inn) => (inn.cumulative[overIdx] ? inn.cumulative[overIdx].total : '-')).join(' · ')}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+            <View style={styles.chartLegendRow}>
+              {chartInnings.map((inn, i) => (
+                <View key={i} style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
+                  <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
         </View>
       )}
 
@@ -594,4 +781,38 @@ const styles = StyleSheet.create({
   chartBarWicket: { backgroundColor: colors.wicket500 },
   chartBarRuns: { color: colors.ink, fontSize: 11, fontWeight: '700', marginTop: 4 },
   chartBarLabel: { color: colors.inkMuted, fontSize: 10, marginTop: 1 },
+
+  reportsHint: { color: colors.inkMuted, fontSize: 12, marginBottom: 10 },
+  reportChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  reportChip: {
+    backgroundColor: colors.surface, borderRadius: 999, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  reportChipText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600' },
+
+  // Manhattan/Worm chart list rows - one row per over, label + proportionally-filled bar
+  // View(s), same pattern as PlayerStatsScreen's wagon wheel rows.
+  chartListCard: {
+    backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12,
+  },
+  chartListScroll: { maxHeight: 280 },
+  chartListRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 8 },
+  chartListLabel: { color: colors.inkMuted, fontSize: 11, width: 20, textAlign: 'right' },
+  chartListBars: { flex: 1, gap: 3 },
+  chartMiniBarRow: { flexDirection: 'row', alignItems: 'center' },
+  chartMiniBarTrack: {
+    flex: 1, height: 7, backgroundColor: colors.surfaceAlt, borderRadius: 4, overflow: 'hidden',
+  },
+  chartMiniBarFill: { height: '100%', borderRadius: 4 },
+  chartWicketDot: {
+    width: 5, height: 5, borderRadius: 3, backgroundColor: colors.wicket500, marginLeft: 4,
+  },
+  chartListValue: { color: colors.inkSecondary, fontSize: 11, width: 56, textAlign: 'right' },
+  chartLegendRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { color: colors.inkSecondary, fontSize: 11 },
 });
