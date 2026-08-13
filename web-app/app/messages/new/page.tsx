@@ -5,21 +5,23 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import Card from '@/components/ui/Card';
+import { resolveRefId, resolveRefName } from '@/lib/resolveRef';
 
 interface PlayerDoc {
   _id: string;
-  user: { _id: string; name: string } | string;
+  user: { _id: string; name: string } | string | null;
   specialization: string;
 }
 
-// Both populated ({_id,name}) and unpopulated (bare id string) shapes show up for Player.user
-// depending on the endpoint - see web-app/app/groups/new/page.tsx's identical handling.
-function playerUserId(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p.user : p.user._id;
+// Player.user can be an unpopulated id string, a populated {_id,name} object, or null (the
+// referenced User was deleted) depending on the endpoint and data state - see
+// web-app/lib/resolveRef.ts.
+function playerUserId(p: PlayerDoc): string | null {
+  return resolveRefId(p.user);
 }
 
 function playerDisplayName(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p._id : p.user.name;
+  return resolveRefName(p.user, p._id);
 }
 
 export default function NewMessagePage() {
@@ -41,6 +43,7 @@ export default function NewMessagePage() {
   const filteredPlayers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allPlayers
+      .filter((p) => playerUserId(p) !== null) // orphaned player record, not a real messageable person
       .filter((p) => !user || playerUserId(p) !== user.id)
       .filter((p) => !q || playerDisplayName(p).toLowerCase().includes(q));
   }, [allPlayers, search, user]);

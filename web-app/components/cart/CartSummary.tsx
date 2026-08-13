@@ -89,7 +89,7 @@ export const CartSummary: React.FC = () => {
             value={couponCode}
             onChange={handleCouponChange}
             placeholder="Enter code"
-            className={`flex-1 px-3 py-2 bg-surface-alt border ${couponError ? 'border-wicket-500' : 'border-border-strong'} rounded-l-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-pitch-500/50 text-base`}
+            className={`flex-1 min-w-0 px-3 py-2 bg-surface-alt border ${couponError ? 'border-wicket-500' : 'border-border-strong'} rounded-l-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-pitch-500/50 text-base`}
           />
           <button
             onClick={handleApplyCoupon}

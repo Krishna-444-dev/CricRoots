@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { inputClass, errorBoxClass } from '@/components/ui/formStyles';
+import { resolveRefId, resolveRefName } from '@/lib/resolveRef';
 
 interface PlayerDoc {
   _id: string;
@@ -22,18 +23,27 @@ interface Team {
   name: string;
   city: string;
   description?: string;
-  captain: PlayerDoc;
+  // A team's captain/viceCaptain can resolve to null server-side if the referenced Player
+  // was deleted (a dangling ref, not just an unpopulated string) - captain being required at
+  // creation time doesn't guarantee it stays populatable forever.
+  captain: PlayerDoc | null;
   viceCaptain: PlayerDoc | null;
   coaches: PlayerDoc[];
   players: PlayerDoc[];
 }
 
-function playerName(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p._id : p.user.name;
+// `p` itself (not just `p.user`) can be null - a team's captain/viceCaptain/roster entry is a
+// ref to a Player that may since have been deleted, which Mongoose resolves to null rather
+// than omitting the field. Every caller here treats a null player as "removed" and shows a
+// placeholder instead of crashing.
+function playerName(p: PlayerDoc | null | undefined): string {
+  if (!p) return 'Removed player';
+  return resolveRefName(p.user, p._id);
 }
 
-function playerUserId(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p.user : p.user._id;
+function playerUserId(p: PlayerDoc | null | undefined): string | null {
+  if (!p) return null;
+  return resolveRefId(p.user);
 }
 
 export default function TeamDetailPage({ params }: { params: { id: string } }) {
@@ -86,8 +96,8 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
   const rosterIds = new Set(team.players.map(p => p._id));
   const candidates = allPlayers.filter(p => !rosterIds.has(p._id));
   const coachIds = new Set(team.coaches.map(c => c._id));
-  const viceCaptainCandidates = team.players.filter(p => p._id !== team.captain._id);
-  const coachCandidates = team.players.filter(p => p._id !== team.captain._id && !coachIds.has(p._id));
+  const viceCaptainCandidates = team.players.filter(p => p._id !== team.captain?._id);
+  const coachCandidates = team.players.filter(p => p._id !== team.captain?._id && !coachIds.has(p._id));
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,7 +237,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
             <li key={p._id} className="py-2.5 flex justify-between items-center">
               <span className="text-ink flex items-center gap-2">
                 {playerName(p)}
-                {p._id === team.captain._id && <Badge variant="gold">Captain</Badge>}
+                {p._id === team.captain?._id && <Badge variant="gold">Captain</Badge>}
                 {team.viceCaptain && p._id === team.viceCaptain._id && <Badge variant="info">Vice Captain</Badge>}
                 {coachIds.has(p._id) && <Badge variant="success">Coach</Badge>}
               </span>

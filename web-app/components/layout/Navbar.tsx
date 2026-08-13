@@ -60,7 +60,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 font-extrabold text-lg text-ink shrink-0">
             <span className="text-2xl leading-none">🏏</span>
-            <span>Cric<span className="text-pitch-500">Sync</span></span>
+            <span>Cric<span className="text-pitch-500">Roots</span></span>
           </Link>
 
           <nav className="hidden lg:flex items-center gap-1 mx-4">

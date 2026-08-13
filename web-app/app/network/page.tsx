@@ -8,10 +8,11 @@ import Card from '@/components/ui/Card';
 import PageHeader from '@/components/ui/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import { buttonVariants } from '@/components/ui/buttonStyles';
+import { resolveRefId, resolveRefName } from '@/lib/resolveRef';
 
 interface PlayerDoc {
   _id: string;
-  user: { _id: string; name: string } | string;
+  user: { _id: string; name: string } | string | null;
   specialization: string;
 }
 
@@ -29,7 +30,9 @@ export default function NetworkPage() {
     Promise.all(loads).then(([playersData, followingData]) => {
       if (playersData.success) setPlayers(playersData.players);
       if (followingData?.success) {
-        setFollowingIds(new Set(followingData.following.map((u: any) => u._id)));
+        // A followed user can have been deleted since - populate resolves that entry to null
+        // rather than dropping it from the array.
+        setFollowingIds(new Set(followingData.following.filter((u: any) => u).map((u: any) => u._id)));
       }
       setLoading(false);
     });
@@ -64,9 +67,9 @@ export default function NetworkPage() {
         <EmptyState icon="🤝" title="No registered players yet" />
       ) : (
         <div className="space-y-3">
-          {players.map(p => {
-            const uid = typeof p.user === 'string' ? p.user : p.user._id;
-            const name = typeof p.user === 'string' ? p._id : p.user.name;
+          {players.filter(p => resolveRefId(p.user) !== null).map(p => {
+            const uid = resolveRefId(p.user) as string; // filtered above, always non-null here
+            const name = resolveRefName(p.user, p._id);
             const isSelf = user?.id === uid;
             const isFollowing = followingIds.has(uid);
             return (

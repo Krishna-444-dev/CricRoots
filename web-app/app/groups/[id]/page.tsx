@@ -9,6 +9,7 @@ import { useGroupSocket, GroupMessage } from '@/hooks/useGroupSocket';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { inputClass, errorBoxClass } from '@/components/ui/formStyles';
+import { resolveRefId, resolveRefName } from '@/lib/resolveRef';
 
 interface GroupMember {
   _id: string;
@@ -27,16 +28,16 @@ interface GroupDetail {
 
 interface PlayerDoc {
   _id: string;
-  user: { _id: string; name: string } | string;
+  user: { _id: string; name: string } | string | null;
   specialization: string;
 }
 
-function playerUserId(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p.user : p.user._id;
+function playerUserId(p: PlayerDoc): string | null {
+  return resolveRefId(p.user);
 }
 
 function playerDisplayName(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p._id : p.user.name;
+  return resolveRefName(p.user, p._id);
 }
 
 export default function GroupDetailPage({ params }: { params: { id: string } }) {
@@ -112,7 +113,13 @@ export default function GroupDetailPage({ params }: { params: { id: string } }) 
 
   const isCreator = group && user ? group.createdBy._id === user.id : false;
   const memberIds = useMemo(() => new Set(group?.members.map((m) => m._id) ?? []), [group]);
-  const addableCandidates = useMemo(() => allPlayers.filter((p) => !memberIds.has(playerUserId(p))), [allPlayers, memberIds]);
+  const addableCandidates = useMemo(
+    () => allPlayers.filter((p) => {
+      const uid = playerUserId(p);
+      return uid !== null && !memberIds.has(uid); // null uid = orphaned player record, not addable
+    }),
+    [allPlayers, memberIds]
+  );
 
   if (isLoading || loading) {
     return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Loading...</p></main>;
@@ -364,7 +371,9 @@ export default function GroupDetailPage({ params }: { params: { id: string } }) 
                     <select value={addMemberId} onChange={(e) => setAddMemberId(e.target.value)} className={`flex-1 ${inputClass}`}>
                       <option value="">Add a member...</option>
                       {addableCandidates.map((p) => (
-                        <option key={p._id} value={playerUserId(p)}>{playerDisplayName(p)}</option>
+                        // Non-null: addableCandidates is already filtered to exclude orphaned
+                        // (null-uid) player records above.
+                        <option key={p._id} value={playerUserId(p)!}>{playerDisplayName(p)}</option>
                       ))}
                     </select>
                     <Button type="submit" size="sm" variant="secondary" disabled={managing || !addMemberId}>Add</Button>
@@ -469,7 +478,7 @@ export default function GroupDetailPage({ params }: { params: { id: string } }) 
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Message the group..."
-          className="flex-1 px-3 py-2 bg-surface-alt border border-border-strong rounded-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500"
+          className="flex-1 min-w-0 px-3 py-2 bg-surface-alt border border-border-strong rounded-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500"
         />
         <Button type="submit" disabled={sending || !text.trim()}>Send</Button>
       </form>

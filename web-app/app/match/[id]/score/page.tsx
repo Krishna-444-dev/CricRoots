@@ -8,10 +8,11 @@ import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
 import Button from '@/components/ui/Button';
 import { inputClass, labelClass } from '@/components/ui/formStyles';
+import { resolveRefName } from '@/lib/resolveRef';
 
 interface PlayerDoc {
   _id: string;
-  user: { _id: string; name: string } | string;
+  user: { _id: string; name: string } | string | null;
   specialization: string;
 }
 
@@ -40,7 +41,7 @@ interface UiPlayer {
 function toUiPlayer(p: PlayerDoc): UiPlayer {
   return {
     id: p._id,
-    name: typeof p.user === 'string' ? p._id : p.user.name,
+    name: resolveRefName(p.user, p._id),
     role: p.specialization,
   };
 }

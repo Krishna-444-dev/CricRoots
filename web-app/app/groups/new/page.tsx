@@ -7,10 +7,11 @@ import { apiFetch } from '@/lib/apiFetch';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { inputClass, labelClass, errorBoxClass } from '@/components/ui/formStyles';
+import { resolveRefId, resolveRefName } from '@/lib/resolveRef';
 
 interface PlayerDoc {
   _id: string;
-  user: { _id: string; name: string } | string;
+  user: { _id: string; name: string } | string | null;
   specialization: string;
 }
 
@@ -18,19 +19,19 @@ interface TeamDoc {
   _id: string;
   name: string;
   city: string;
-  captain: PlayerDoc;
+  captain: PlayerDoc | null;
   players: PlayerDoc[];
 }
 
-// Both populated ({_id,name}) and unpopulated (bare id string) shapes show up for Player.user
-// depending on the endpoint - see web-app/app/teams/page.tsx's identical handling. Either way,
-// this returns the underlying User id, which is all group membership needs.
-function playerUserId(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p.user : p.user._id;
+// Player.user can be an unpopulated id string, a populated {_id,name} object, or null (the
+// referenced User was deleted) - see web-app/lib/resolveRef.ts. Returns the underlying User
+// id, which is all group membership needs, or null for an orphaned player record.
+function playerUserId(p: PlayerDoc | null | undefined): string | null {
+  return p ? resolveRefId(p.user) : null;
 }
 
-function playerDisplayName(p: PlayerDoc): string {
-  return typeof p.user === 'string' ? p._id : p.user.name;
+function playerDisplayName(p: PlayerDoc | null | undefined): string {
+  return p ? resolveRefName(p.user, p._id) : 'Removed player';
 }
 
 export default function NewGroupPage() {
@@ -79,6 +80,7 @@ export default function NewGroupPage() {
   const filteredPlayers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allPlayers
+      .filter((p) => playerUserId(p) !== null) // orphaned player record, not a real person to add
       .filter((p) => !user || playerUserId(p) !== user.id)
       .filter((p) => !q || playerDisplayName(p).toLowerCase().includes(q));
   }, [allPlayers, search, user]);
@@ -89,7 +91,7 @@ export default function NewGroupPage() {
       const next = new Set(prev);
       selectedTeam.players.forEach((p) => {
         const uid = playerUserId(p);
-        if (!user || uid !== user.id) next.add(uid);
+        if (uid && (!user || uid !== user.id)) next.add(uid);
       });
       return next;
     });
@@ -182,6 +184,7 @@ export default function NewGroupPage() {
                 ) : (
                   filteredPlayers.map((p) => {
                     const uid = playerUserId(p);
+                    if (!uid) return null; // already excluded by filteredPlayers's filter above; guards TS narrowing
                     const checked = selectedMemberIds.has(uid);
                     return (
                       <label key={p._id} className="flex items-center justify-between gap-2 px-3 py-2 cursor-pointer hover:bg-surface-hover">

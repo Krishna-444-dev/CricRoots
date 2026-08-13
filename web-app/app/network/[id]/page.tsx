@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/apiFetch';
 import PlayerStatsDashboard from '@/components/PlayerStatsDashboard';
 import Card from '@/components/ui/Card';
 import { buttonVariants } from '@/components/ui/buttonStyles';
+import { resolveRefId } from '@/lib/resolveRef';
 
 interface Profile {
   user: { _id: string; name: string; role: string; createdAt: string };
@@ -32,12 +33,14 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     if (profileRes.success) setProfile(profileRes);
 
     if (playersRes.success) {
-      const match = playersRes.players.find((p: any) => (typeof p.user === 'string' ? p.user : p.user._id) === params.id);
+      const match = playersRes.players.find((p: any) => resolveRefId(p.user) === params.id);
       if (match) setPlayerId(match._id);
     }
 
     if (followersRes?.success) {
-      setIsFollowing(followersRes.following.some((u: any) => u._id === params.id));
+      // A followed user can have been deleted since - populate resolves that entry to null
+      // rather than dropping it from the array, so `u` itself (not just `u._id`) needs a guard.
+      setIsFollowing(followersRes.following.some((u: any) => u && u._id === params.id));
     }
 
     setLoading(false);

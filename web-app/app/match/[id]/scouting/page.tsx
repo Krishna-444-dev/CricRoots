@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
+import { resolveRefName } from '@/lib/resolveRef';
 
 interface MatchDoc {
   _id: string;
@@ -16,12 +17,12 @@ interface MatchDoc {
 
 interface RosterPlayer {
   _id: string;
-  user: { _id: string; name: string } | string;
+  user: { _id: string; name: string } | string | null;
   specialization: string;
 }
 
 function rosterPlayerName(p: RosterPlayer): string {
-  return typeof p.user === 'string' ? p._id : p.user.name;
+  return resolveRefName(p.user, p._id);
 }
 
 interface MatchupBucket {

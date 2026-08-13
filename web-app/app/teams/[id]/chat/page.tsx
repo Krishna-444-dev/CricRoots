@@ -118,7 +118,7 @@ export default function TeamChatPage({ params }: { params: { id: string } }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Message your team..."
-          className="flex-1 px-3 py-2 bg-surface-alt border border-border-strong rounded-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500"
+          className="flex-1 min-w-0 px-3 py-2 bg-surface-alt border border-border-strong rounded-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-pitch-500/50 focus:border-pitch-500"
         />
         <Button type="submit" disabled={sending || !text.trim()}>Send</Button>
       </form>
