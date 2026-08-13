@@ -52,6 +52,33 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 
+// BCP-47 locale codes for Web Speech API. Cricket-term nouns (yorker, cover drive, off
+// stump...) are kept matching against the same English vocabulary in voiceBallParser.ts
+// regardless of the selected language - real Indian/Pakistani cricket commentary is
+// famously Hinglish/Urdish, with technical cricket terms almost always spoken as English
+// loanwords even mid-vernacular-sentence. What the locale selection actually buys is
+// better recognition accuracy for everything AROUND those terms (numbers, connecting
+// words, wicket descriptions) when the scorer is more comfortable narrating in their own
+// language. A true vernacular cricket-term vocabulary (e.g. matching "यॉर्कर" the way
+// "yorker" is matched today) is a deliberate follow-up, not built here - transliteration
+// accuracy can't be verified without live audio testing, and a wrong guess at unfamiliar
+// vocabulary would silently mis-parse rather than just miss, which is worse than the
+// current honest "didn't recognize that" fallback.
+const VOICE_LANGUAGES: { code: string; label: string }[] = [
+  { code: 'en-US', label: 'English (US)' },
+  { code: 'en-IN', label: 'English (India)' },
+  { code: 'en-GB', label: 'English (UK)' },
+  { code: 'en-AU', label: 'English (Australia)' },
+  { code: 'hi-IN', label: 'हिन्दी Hindi' },
+  { code: 'ur-PK', label: 'اردو Urdu' },
+  { code: 'bn-IN', label: 'বাংলা Bengali' },
+  { code: 'pa-IN', label: 'ਪੰਜਾਬੀ Punjabi' },
+  { code: 'ta-IN', label: 'தமிழ் Tamil' },
+  { code: 'te-IN', label: 'తెలుగు Telugu' },
+];
+
+const VOICE_LANG_STORAGE_KEY = 'cricroots_voice_lang';
+
 interface VoiceBallInputProps {
   onParsed: (parsed: ParsedBall, transcript: string) => void;
 }
@@ -61,13 +88,21 @@ export default function VoiceBallInput({ onParsed }: VoiceBallInputProps) {
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState('');
   const [heard, setHeard] = useState<{ transcript: string; summary: string } | null>(null);
+  const [lang, setLang] = useState('en-US');
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     setSupported(getSpeechRecognitionConstructor() !== null);
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(VOICE_LANG_STORAGE_KEY) : null;
+    if (saved && VOICE_LANGUAGES.some(l => l.code === saved)) setLang(saved);
   }, []);
 
   if (!supported) return null;
+
+  const handleLangChange = (code: string) => {
+    setLang(code);
+    localStorage.setItem(VOICE_LANG_STORAGE_KEY, code);
+  };
 
   const startListening = () => {
     const Ctor = getSpeechRecognitionConstructor();
@@ -76,7 +111,7 @@ export default function VoiceBallInput({ onParsed }: VoiceBallInputProps) {
     const recognition = new Ctor();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = lang;
 
     let finalTranscript = '';
     recognition.onresult = (event) => {
@@ -117,6 +152,22 @@ export default function VoiceBallInput({ onParsed }: VoiceBallInputProps) {
 
   return (
     <div className="mb-4 flex flex-col items-center gap-2">
+      <select
+        value={lang}
+        onChange={(e) => handleLangChange(e.target.value)}
+        disabled={listening}
+        className="text-xs bg-surface-alt border border-border rounded-md px-2 py-1 text-ink-secondary self-end"
+        aria-label="Voice input language"
+      >
+        {VOICE_LANGUAGES.map(l => (
+          <option key={l.code} value={l.code}>{l.label}</option>
+        ))}
+      </select>
+      {!lang.startsWith('en') && (
+        <p className="text-[11px] text-ink-muted text-center -mt-1 px-2">
+          Cricket terms (yorker, cover drive, off stump...) still work best said in English within your sentence.
+        </p>
+      )}
       <button
         type="button"
         onMouseDown={startListening}
