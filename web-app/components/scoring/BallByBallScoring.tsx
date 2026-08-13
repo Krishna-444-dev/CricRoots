@@ -60,6 +60,10 @@ interface BowlerScorecard {
   balls: number;
   maidens: number;
   runs: number;
+  // Runs conceded in the over currently being bowled - separate from `runs` (the innings-
+  // long total) purely so maiden-over detection has something to reset each over without
+  // zeroing out the cumulative figure a scoreboard actually needs to show.
+  runsThisOver: number;
   wickets: number;
   economy: number;
   wides: number;
@@ -262,27 +266,32 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       
       // Update bowler stats
       updatedInningsData.bowlingScorecard[bowlerIndex].runs += runsScored;
+      updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver += runsScored;
       updatedInningsData.bowlingScorecard[bowlerIndex].balls += 1;
-      
+
       // Update innings stats
       updatedInningsData.totalRuns += runsScored;
       updatedInningsData.balls += 1;
-      
+
       // Check if over is complete
       if (updatedInningsData.balls === 6) {
         updatedInningsData.overs += 1;
         updatedInningsData.balls = 0;
-        
-        // Update bowler overs
+
+        // Update bowler overs - `balls` mirrors the innings-level counter above: it's balls
+        // bowled in the *current* incomplete over (0-5), not a running total, so it resets
+        // here too. Without this, a bowler's second-and-later overs double-count in the
+        // "overs + balls/6" economy formula and the X.Y over-ball display.
         updatedInningsData.bowlingScorecard[bowlerIndex].overs += 1;
-        
+        updatedInningsData.bowlingScorecard[bowlerIndex].balls = 0;
+
         // Check if maiden over
-        if (updatedInningsData.bowlingScorecard[bowlerIndex].runs === 0) {
+        if (updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver === 0) {
           updatedInningsData.bowlingScorecard[bowlerIndex].maidens += 1;
         }
-        
-        // Reset bowler runs for next over
-        updatedInningsData.bowlingScorecard[bowlerIndex].runs = 0;
+
+        // Reset this-over counter only - `runs` stays the innings-long cumulative total
+        updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver = 0;
         
         // Swap batsmen at end of over
         updatedInningsData.currentBatsmen = [
@@ -325,7 +334,8 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         
         // Update bowler stats
         updatedInningsData.bowlingScorecard[bowlerIndex].runs += runsToAdd;
-        
+        updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver += runsToAdd;
+
         if (extraType === 'wides') {
           updatedInningsData.bowlingScorecard[bowlerIndex].wides += runsToAdd;
         } else {
@@ -347,10 +357,18 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
         if (updatedInningsData.balls === 6) {
           updatedInningsData.overs += 1;
           updatedInningsData.balls = 0;
-          
-          // Update bowler overs
+
+          // Update bowler overs (balls resets to 0 - see the normal-ball branch above for why)
           updatedInningsData.bowlingScorecard[bowlerIndex].overs += 1;
-          
+          updatedInningsData.bowlingScorecard[bowlerIndex].balls = 0;
+
+          // Check if maiden over (byes/leg-byes still count against it, matching the extras
+          // already folded into runsThisOver above)
+          if (updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver === 0) {
+            updatedInningsData.bowlingScorecard[bowlerIndex].maidens += 1;
+          }
+          updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver = 0;
+
           // Swap batsmen at end of over
           updatedInningsData.currentBatsmen = [
             updatedInningsData.currentBatsmen[1],
@@ -424,10 +442,17 @@ const BallByBallScoring: React.FC<BallByBallScoringProps> = ({
       if (updatedInningsData.balls === 6) {
         updatedInningsData.overs += 1;
         updatedInningsData.balls = 0;
-        
-        // Update bowler overs
+
+        // Update bowler overs (balls resets to 0 - see the normal-ball branch above for why)
         updatedInningsData.bowlingScorecard[bowlerIndex].overs += 1;
-        
+        updatedInningsData.bowlingScorecard[bowlerIndex].balls = 0;
+
+        // Check if maiden over (a wicket with no runs off the bat/extras still counts)
+        if (updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver === 0) {
+          updatedInningsData.bowlingScorecard[bowlerIndex].maidens += 1;
+        }
+        updatedInningsData.bowlingScorecard[bowlerIndex].runsThisOver = 0;
+
         // Swap non-striker to strike
         updatedInningsData.currentBatsmen = [
           updatedInningsData.currentBatsmen[1],

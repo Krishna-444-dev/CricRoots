@@ -153,24 +153,13 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
           </div>
         </div>
 
-        {/* Key Recommendations */}
-        <div className={styles.section}>
-          <h3 className={styles.sectionTitle}>Key Recommendations</h3>
-          <div className={styles.recommendationsGrid}>
-            <div className={styles.recommendationCard}>
-              <p className={styles.recommendationLabel}>Next Batsman</p>
-              <p className={styles.recommendationValue}>
-                Player #{aiInsights.key_recommendations.batsman}
-              </p>
-            </div>
-            <div className={styles.recommendationCard}>
-              <p className={styles.recommendationLabel}>Next Bowler</p>
-              <p className={styles.recommendationValue}>
-                Player #{aiInsights.key_recommendations.bowler}
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* "Key Recommendations" (next batsman/bowler) intentionally omitted here - the
+        underlying model is trained purely on match-state features (run rate, wickets,
+        overs, pitch) with no roster input at all, so its output is an arbitrary synthetic
+        class label with no correspondence to any real player in this or any match. Showing
+        it as "Player #149" looked like a broken name lookup; it isn't fixable with a name
+        lookup because there's nothing real for the number to refer to. Win probability and
+        tactical advice above are genuinely grounded in this match's real state and stay. */}
 
         {/* Footer */}
         <div className={styles.footer}>

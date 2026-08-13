@@ -75,6 +75,15 @@ const matchSchema = new mongoose.Schema({
     runs: { type: Number, default: 0 },
     wickets: { type: Number, default: 0 },
     overs: { type: Number, default: 0 },
+    // Full snapshot of the scorer's client-side InningsData (current striker/non-striker/
+    // bowler, per-player scorecards, partnerships, fall of wickets, extras breakdown) after
+    // the most recently recorded ball - saved verbatim so a second device/scorer picking up
+    // this match (previous scorer's phone died, handed off mid-over, etc.) can resume exactly
+    // where the innings left off instead of re-deriving "who's on strike" from the ball log,
+    // which is ambiguous (a non-striker who hasn't yet faced a ball this innings never
+    // appears in it). Opaque to the schema on purpose - shape is owned by the frontend
+    // (see web-app/components/scoring/BallByBallScoring.tsx's InningsData type).
+    liveState: { type: mongoose.Schema.Types.Mixed, default: null },
     balls: [{
       ballNumber: Number,
       batsmanId: mongoose.Schema.Types.ObjectId,

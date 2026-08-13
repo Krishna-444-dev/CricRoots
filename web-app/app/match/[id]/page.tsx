@@ -40,6 +40,42 @@ interface Ball {
   commentary?: string;
 }
 
+interface ScoreboardPlayer {
+  id: string;
+  name: string;
+  role: string;
+}
+
+interface BatsmanScorecardEntry {
+  player: ScoreboardPlayer;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  strikeRate: number;
+  status: string;
+}
+
+interface BowlerScorecardEntry {
+  player: ScoreboardPlayer;
+  overs: number;
+  balls: number;
+  runs: number;
+  wickets: number;
+  economy: number;
+}
+
+// Snapshot of who's currently batting/bowling and their live figures - saved by the scorer's
+// client on every ball (see innings.liveState in the backend Match model) so this can be
+// shown here without a separate endpoint. Absent on older matches scored before this existed,
+// or if the current innings hasn't started yet.
+interface LiveState {
+  currentBatsmen: [ScoreboardPlayer | null, ScoreboardPlayer | null];
+  currentBowler: ScoreboardPlayer | null;
+  battingScorecard: BatsmanScorecardEntry[];
+  bowlingScorecard: BowlerScorecardEntry[];
+}
+
 interface Interruption {
   revisedOvers: number;
   oversBowledAtInterruption: number;
@@ -66,6 +102,7 @@ interface Match {
     wickets: number;
     overs: number;
     balls: Ball[];
+    liveState?: LiveState | null;
   }>;
   manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
   createdBy?: { _id: string; name: string };
@@ -436,6 +473,48 @@ export default function MatchPage() {
                   This is an approximate rain-rule estimate inspired by the Duckworth-Lewis-Stern method, not the
                   official licensed calculation — treat it as a guide, not a binding result.
                 </p>
+              </div>
+            )}
+
+            {/* At the Crease - live striker/non-striker/bowler figures, Cricbuzz-style */}
+            {match.status === 'Live' && currentInnings.liveState && (
+              <div className="mt-4 bg-surface border border-border rounded-xl p-4">
+                <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wide text-ink-muted">At the Crease</h3>
+                <div className="space-y-2">
+                  {currentInnings.liveState.currentBatsmen.map((batsman, i) => {
+                    if (!batsman) return null;
+                    const stats = currentInnings.liveState!.battingScorecard.find((e) => e.player.id === batsman.id);
+                    const isStriker = i === 0;
+                    return (
+                      <div key={batsman.id} className="flex items-center justify-between text-sm">
+                        <span className={isStriker ? 'font-semibold text-ink' : 'text-ink-secondary'}>
+                          {batsman.name}{isStriker ? ' *' : ''}
+                        </span>
+                        <span className="font-mono tabular-nums text-ink-secondary">
+                          {stats ? `${stats.runs} (${stats.balls})` : '0 (0)'}
+                          {stats && stats.balls > 0 && (
+                            <span className="text-ink-muted ml-2 text-xs">SR {stats.strikeRate.toFixed(1)}</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {currentInnings.liveState.currentBowler && (() => {
+                  const bowler = currentInnings.liveState!.currentBowler!;
+                  const stats = currentInnings.liveState!.bowlingScorecard.find((e) => e.player.id === bowler.id);
+                  return (
+                    <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-sm">
+                      <span className="text-ink-secondary">{bowler.name}</span>
+                      <span className="font-mono tabular-nums text-ink-secondary">
+                        {stats ? `${stats.wickets}-${stats.runs} (${stats.overs}.${stats.balls})` : '0-0 (0.0)'}
+                        {stats && (
+                          <span className="text-ink-muted ml-2 text-xs">Econ {stats.economy.toFixed(2)}</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

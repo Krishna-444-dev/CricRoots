@@ -298,7 +298,7 @@ exports.recordBall = async (req, res) => {
       inningsIndex, ballNumber, batsmanId, bowlerId, runs, isWicket, wicketType,
       isExtra, extraType,
       line, length, shotType, shotZone, fielderId, fielderPosition,
-      batsmanName, bowlerName, fielderName
+      batsmanName, bowlerName, fielderName, liveState
     } = req.body;
 
     let match = await Match.findById(req.params.id);
@@ -358,6 +358,14 @@ exports.recordBall = async (req, res) => {
       b => !(b.isExtra && ['wide', 'no-ball'].includes(b.extraType))
     ).length;
     match.innings[inningsIndex].overs = Math.floor(legalBalls / 6) + (legalBalls % 6) / 10;
+
+    if (liveState) {
+      match.innings[inningsIndex].liveState = liveState;
+      // Mixed-type paths inside a DocumentArray element aren't always picked up by Mongoose's
+      // change detection on plain assignment - mark it explicitly so this doesn't silently
+      // fail to persist.
+      match.markModified(`innings.${inningsIndex}.liveState`);
+    }
 
     match = await match.save();
     await match.populate('team1');

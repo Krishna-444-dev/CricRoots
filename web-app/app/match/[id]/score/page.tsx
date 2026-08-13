@@ -22,6 +22,12 @@ interface TeamDoc {
   players: string[]; // unpopulated Player ObjectIds from GET /api/matches/:id
 }
 
+interface MatchInningsDoc {
+  team: string;
+  balls: unknown[];
+  liveState?: InningsData | null;
+}
+
 interface MatchDoc {
   _id: string;
   title: string;
@@ -31,6 +37,7 @@ interface MatchDoc {
   umpires?: ({ _id: string; name: string } | string)[];
   status: string;
   tournament: string | null;
+  innings: MatchInningsDoc[];
 }
 
 interface UiPlayer {
@@ -71,7 +78,7 @@ function buildInnings(battingRoster: UiPlayer[], bowlingRoster: UiPlayer[], stri
       outBowler: null, outFielder: null, outMethod: null,
     })),
     bowlingScorecard: bowlingRoster.map(player => ({
-      player, overs: 0, balls: 0, maidens: 0, runs: 0, wickets: 0, economy: 0, wides: 0, noBalls: 0,
+      player, overs: 0, balls: 0, maidens: 0, runs: 0, runsThisOver: 0, wickets: 0, economy: 0, wides: 0, noBalls: 0,
     })),
   };
 }
@@ -99,7 +106,22 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
       fetch(`/api/matches/${params.id}`).then(r => r.json()),
       fetch('/api/players').then(r => r.json()),
     ]).then(([matchData, playersData]) => {
-      if (matchData.success) setMatch(matchData.match);
+      if (matchData.success) {
+        const m: MatchDoc = matchData.match;
+        setMatch(m);
+        // Resume scoring in progress instead of restarting from "Start Innings" - a previous
+        // scorer's session may have ended abruptly (phone died, tab closed) without finishing
+        // the innings, and re-selecting striker/non-striker/bowler from scratch would both
+        // lose the actual live state (partnerships, fall of wickets, who's on strike right
+        // now) and risk duplicate/conflicting ball numbers once new balls are recorded.
+        const idx: 0 | 1 = (m.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0;
+        const savedState = m.innings[idx]?.liveState;
+        if (savedState) {
+          setInningsIndex(idx);
+          setBattingTeamId(m.innings[idx].team);
+          setInningsData(savedState);
+        }
+      }
       if (playersData.success) setPlayers(playersData.players);
       setLoading(false);
     });
@@ -173,7 +195,10 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
     try {
       const res = await apiFetch(`/api/matches/${match._id}/record-ball`, {
         method: 'POST',
-        body: JSON.stringify({ inningsIndex, ...ballEvent }),
+        // liveState rides along on every ball so another scorer/device can resume this exact
+        // innings (current striker/non-striker/bowler, scorecards, partnerships) if this
+        // session drops - see the innings.liveState comment in the backend Match model.
+        body: JSON.stringify({ inningsIndex, ...ballEvent, liveState: updated }),
       });
       const data = await res.json();
       if (!data.success) {
