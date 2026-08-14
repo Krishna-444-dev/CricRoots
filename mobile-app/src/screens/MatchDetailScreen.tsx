@@ -12,7 +12,7 @@ import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId } from '../shared/utils/resolveRef';
 import { computeCanScore } from '../shared/utils/matchAuth';
-import { battingStatsFor, bowlingStatsFor, maidenOversFor } from '../shared/utils/matchStats';
+import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
 
@@ -659,11 +659,17 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                 </View>
                 {battingOrder.map((playerId) => {
                   const stats = battingStatsFor(innings.balls, playerId);
+                  const dismissal = dismissalFor(innings.balls, playerId, (id) => (id ? playerDirectory.get(id) : undefined));
                   return (
                     <View key={playerId} style={styles.scorecardRow}>
-                      <Text style={[styles.scorecardCell, styles.scorecardNameCol]} numberOfLines={1}>
-                        {playerDirectory.get(playerId) ?? 'Player'}
-                      </Text>
+                      <View style={[styles.scorecardNameCol, { flexShrink: 1 }]}>
+                        <Text style={styles.scorecardNameText} numberOfLines={1}>
+                          {playerDirectory.get(playerId) ?? 'Player'}
+                        </Text>
+                        <Text style={styles.scorecardDismissal} numberOfLines={1}>
+                          {dismissal ?? 'not out'}
+                        </Text>
+                      </View>
                       <Text style={styles.scorecardCell}>{stats.runs}</Text>
                       <Text style={styles.scorecardCell}>{stats.ballsFaced}</Text>
                       <Text style={styles.scorecardCell}>{stats.fours}</Text>
@@ -1066,6 +1072,8 @@ const styles = StyleSheet.create({
   scorecardRow: { flexDirection: 'row', paddingVertical: 4 },
   scorecardCell: { flex: 1, color: colors.inkSecondary, fontSize: 12, textAlign: 'right' },
   scorecardNameCol: { flex: 3, textAlign: 'left' },
+  scorecardNameText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600', textAlign: 'left' },
+  scorecardDismissal: { color: colors.inkMuted, fontSize: 10, textAlign: 'left', marginTop: 1 },
 
   reportsHint: { color: colors.inkMuted, fontSize: 12, marginBottom: 10 },
   reportChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

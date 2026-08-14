@@ -40,6 +40,43 @@ export function bowlingStatsFor(balls: BallEvent[], playerId: string) {
   return { legalBalls, runsConceded, wickets, overs, economy };
 }
 
+// How a batsman got out, in standard scorecard shorthand ("c Fielder b Bowler", "lbw b Bowler",
+// "run out (Fielder)", ...) - null if they haven't been dismissed. Prefers the names baked onto
+// the wicket ball itself (batsmanName/bowlerName/fielderName, sent by the client at record time -
+// see BallEvent) and falls back to a roster lookup for older balls recorded before those fields
+// existed.
+export function dismissalFor(
+  balls: BallEvent[],
+  playerId: string,
+  nameFor: (id: string | null | undefined) => string | undefined
+): string | null {
+  const wicketBall = balls.find((b) => b.isWicket && b.batsmanId === playerId);
+  if (!wicketBall) return null;
+  const bowlerName = wicketBall.bowlerName || nameFor(wicketBall.bowlerId) || 'Bowler';
+  const fielderName = wicketBall.fielderName || nameFor(wicketBall.fielderId) || 'Fielder';
+  switch (wicketBall.wicketType) {
+    case 'bowled':
+      return `b ${bowlerName}`;
+    case 'lbw':
+      return `lbw b ${bowlerName}`;
+    case 'caught':
+      return wicketBall.fielderId && wicketBall.fielderId === wicketBall.bowlerId
+        ? `c & b ${bowlerName}`
+        : `c ${fielderName} b ${bowlerName}`;
+    case 'stumped':
+      return `st ${fielderName} b ${bowlerName}`;
+    case 'hit wicket':
+      return `hit wicket b ${bowlerName}`;
+    case 'run out':
+      return wicketBall.fielderId ? `run out (${fielderName})` : 'run out';
+    case 'retired hurt':
+    case 'retired out':
+      return wicketBall.wicketType;
+    default:
+      return wicketBall.wicketType || 'out';
+  }
+}
+
 // Filtering to just this bowler's own deliveries (in order) reconstructs their overs correctly
 // even though other bowlers' balls are interleaved in the full innings list - each individual
 // over is always bowled entirely by one bowler, so every run of 6 legal deliveries pulled from

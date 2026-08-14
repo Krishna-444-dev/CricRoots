@@ -19,7 +19,7 @@ import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import LiveMatchupPanel from '../components/LiveMatchupPanel';
 import { resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId, rosterIds } from '../shared/utils/matchAuth';
-import { isLegalDelivery, battingStatsFor, bowlingStatsFor, maidenOversFor } from '../shared/utils/matchStats';
+import { isLegalDelivery, battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'LiveScoring'>;
 
@@ -1114,12 +1114,17 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
               const isBatting = p.id === strikerId || p.id === nonStrikerId;
               const isOut = outPlayerIds.has(p.id);
               const yetToBat = !isBatting && !isOut && stats.ballsFaced === 0;
+              const dismissal = isOut ? dismissalFor(currentBalls, p.id, nameFor) : null;
               return (
                 <View key={p.id} style={styles.scorecardRow}>
-                  <Text style={[styles.scorecardName, isBatting && styles.scorecardNameCurrent]}>
-                    {p.name}
-                    {p.id === strikerId ? ' *' : ''}
-                  </Text>
+                  <View style={{ flexShrink: 1 }}>
+                    <Text style={[styles.scorecardName, isBatting && styles.scorecardNameCurrent]}>
+                      {p.name}
+                      {p.id === strikerId ? ' *' : ''}
+                    </Text>
+                    {dismissal && <Text style={styles.scorecardDismissal}>{dismissal}</Text>}
+                    {isBatting && !dismissal && <Text style={styles.scorecardDismissal}>not out</Text>}
+                  </View>
                   <Text style={styles.scorecardStat}>
                     {yetToBat
                       ? 'yet to bat'
@@ -1533,6 +1538,7 @@ const styles = StyleSheet.create({
   scorecardName: { color: colors.inkSecondary, fontSize: 13, fontWeight: '600', flexShrink: 1 },
   scorecardNameCurrent: { color: colors.ink, fontWeight: '800' },
   scorecardStat: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600' },
+  scorecardDismissal: { color: colors.inkMuted, fontSize: 11, marginTop: 1 },
 
   umpireHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
 });
