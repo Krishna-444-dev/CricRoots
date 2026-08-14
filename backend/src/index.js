@@ -68,6 +68,7 @@ app.use('/api/player-stats', require('./routes/playerStatsRoutes'));
 app.use('/api/teams', require('./routes/teamRoutes'));
 app.use('/api/matches', require('./routes/matchRoutes'));
 app.use('/api/tournaments', require('./routes/tournamentRoutes'));
+app.use('/api/leagues', require('./routes/leagueRoutes'));
 app.use('/api/lessons', require('./routes/lessonRoutes'));
 app.use('/api/news', require('./routes/newsRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));

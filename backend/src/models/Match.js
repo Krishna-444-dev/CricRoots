@@ -43,6 +43,21 @@ const matchSchema = new mongoose.Schema({
     ref: 'Tournament',
     default: null
   },
+  // Which of the tournament's groups this match belongs to (the group's `name`, e.g. "Group A") -
+  // null for matches that aren't part of a group stage (no groups assigned, or a knockout match).
+  group: {
+    type: String,
+    default: null
+  },
+  // Which stage of the tournament this match is part of. Group-stage matches (including every
+  // match in a tournament with no groups at all) default to 'Group'; knockout matches are
+  // created with round explicitly set by generate-knockout-stage/advance-knockout-round in
+  // tournamentController.js.
+  round: {
+    type: String,
+    enum: ['Group', 'Quarterfinal', 'Semifinal', 'Final'],
+    default: 'Group'
+  },
   // The match's original overs-per-side allocation. Not derived from matchType (T20 doesn't
   // always mean exactly 20 at club level, and 'Friendly'/other formats have no implied
   // count) - explicit so the rain-rule calculator has a real reference to normalize against.

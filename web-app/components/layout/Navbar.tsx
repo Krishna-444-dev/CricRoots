@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: '/teams', label: 'Teams' },
   { href: '/groups', label: 'Groups' },
   { href: '/tournaments', label: 'Tournaments' },
+  { href: '/leagues', label: 'Leagues' },
   { href: '/players', label: 'Players' },
   { href: '/network', label: 'Network' },
   { href: '/edtech', label: 'Learn' },

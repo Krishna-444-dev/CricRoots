@@ -159,11 +159,24 @@ export interface TournamentStanding {
   runsAgainst: number;
 }
 
+// Organizing body that runs multiple Tournaments (seasons/editions) over time - see
+// backend/src/models/League.js. Deliberately minimal: no venue/dates/teams of its own.
+export interface League {
+  _id: string;
+  name: string;
+  description?: string;
+  organizer: User | string;
+  logo?: string;
+  isPublic: boolean;
+}
+
 export interface Tournament {
   _id: string;
   name: string;
   description?: string;
   organizer: User | string;
+  // Optional parent League this tournament belongs to (null for standalone tournaments).
+  league?: League | string | null;
   format: 'League' | 'Knockout' | 'Group' | 'Round-Robin';
   matchType: string;
   status: 'Draft' | 'Registration' | 'Ongoing' | 'Completed' | 'Cancelled';

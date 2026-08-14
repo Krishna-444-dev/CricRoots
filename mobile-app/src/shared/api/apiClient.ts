@@ -219,6 +219,17 @@ export const tournamentsAPI = {
   postMessage: (tournamentId: string, text: string) => apiFetch(`/tournaments/${tournamentId}/messages`, 'POST', { text }),
 };
 
+// --- Leagues (backend/src/routes/leagueRoutes.js) ---
+export const leaguesAPI = {
+  getLeagues: () => apiFetch<{ success: true; leagues: any[] }>('/leagues'),
+  // GET /:id already includes this league's tournaments - no separate endpoint needed.
+  getLeagueById: (leagueId: string) => apiFetch<{ success: true; league: any; tournaments: any[] }>(`/leagues/${leagueId}`),
+  createLeague: (data: { name: string; description?: string; logo?: string; isPublic?: boolean }) =>
+    apiFetch<{ success: true; league: any }>('/leagues', 'POST', data),
+  updateLeague: (leagueId: string, data: any) => apiFetch<{ success: true; league: any }>(`/leagues/${leagueId}`, 'PUT', data),
+  deleteLeague: (leagueId: string) => apiFetch(`/leagues/${leagueId}`, 'DELETE'),
+};
+
 // --- Tactical insights (backend/src/routes/insightsRoutes.js) ---
 export const insightsAPI = {
   getShotAdvice: (playerId: string) => apiFetch(`/insights/batsman/${playerId}/shot-advice`),
@@ -384,6 +395,7 @@ export const api = {
   teams: teamsAPI,
   matches: matchesAPI,
   tournaments: tournamentsAPI,
+  leagues: leaguesAPI,
   insights: insightsAPI,
   lessons: lessonsAPI,
   news: newsAPI,

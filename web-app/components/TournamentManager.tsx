@@ -71,11 +71,19 @@ interface TournamentMatch {
   scheduledDate: string;
 }
 
-interface TournamentManagerProps {
-  tournamentId?: string;
+interface League {
+  _id: string;
+  name: string;
 }
 
-export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournamentId }) => {
+interface TournamentManagerProps {
+  tournamentId?: string;
+  // Pre-fills and opens the create-tournament form scoped to this league - set when arriving
+  // from a league's "Create Tournament" action (see app/leagues/[id]/page.tsx).
+  initialLeagueId?: string;
+}
+
+export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournamentId, initialLeagueId }) => {
   const { user, token } = useAuth();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
@@ -105,8 +113,10 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [createEndDate, setCreateEndDate] = useState('');
   const [createRegistrationDeadline, setCreateRegistrationDeadline] = useState('');
   const [createMaxTeams, setCreateMaxTeams] = useState('');
+  const [createLeagueId, setCreateLeagueId] = useState('');
   const [creatingTournament, setCreatingTournament] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [leagues, setLeagues] = useState<League[]>([]);
 
   const isOrganizer = Boolean(user && selectedTournament && selectedTournament.organizer?._id === user.id);
 
@@ -218,6 +228,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     setCreateEndDate('');
     setCreateRegistrationDeadline('');
     setCreateMaxTeams('');
+    setCreateLeagueId('');
     setCreateError('');
   };
 
@@ -243,6 +254,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
           endDate: createEndDate,
           registrationDeadline: createRegistrationDeadline,
           maxTeams: createMaxTeams ? Number(createMaxTeams) : undefined,
+          leagueId: createLeagueId || undefined,
         }),
       });
       const data = await res.json();
@@ -289,7 +301,18 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
 
   useEffect(() => {
     fetchTournaments();
+    fetch('/api/leagues')
+      .then(r => r.json())
+      .then(data => { if (data.success) setLeagues(data.leagues); });
   }, []);
+
+  // Arriving from a league's "Create Tournament" action - open the form pre-scoped to it.
+  useEffect(() => {
+    if (initialLeagueId) {
+      setCreateLeagueId(initialLeagueId);
+      setShowCreateForm(true);
+    }
+  }, [initialLeagueId]);
 
   const fetchTournaments = async () => {
     try {
@@ -526,6 +549,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                     className={inputClass}
                   />
                 </div>
+              </div>
+              <div>
+                <label htmlFor="t-league" className={labelClass}>League (optional)</label>
+                <select id="t-league" value={createLeagueId} onChange={(e) => setCreateLeagueId(e.target.value)} className={inputClass}>
+                  <option value="">None</option>
+                  {leagues.map(l => <option key={l._id} value={l._id}>{l.name}</option>)}
+                </select>
               </div>
               <div className="flex items-center gap-3">
                 <Button type="submit" disabled={creatingTournament}>

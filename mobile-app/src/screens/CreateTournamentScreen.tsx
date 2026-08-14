@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
+import { League } from '../shared/types';
 
 const FORMATS = ['League', 'Knockout', 'Group', 'Round-Robin'] as const;
 const MATCH_TYPES = ['T20', 'T10', 'ODI', 'Test'] as const;
@@ -32,7 +33,11 @@ function ChipRow({
   );
 }
 
-export default function CreateTournamentScreen({ navigation }: any) {
+export default function CreateTournamentScreen({ navigation, route }: any) {
+  // Arriving from a league's "Create Tournament" action pre-selects that league (see
+  // LeagueDetailScreen) - still just a normal optional field otherwise.
+  const preselectedLeagueId: string | undefined = route?.params?.leagueId;
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [format, setFormat] = useState<(typeof FORMATS)[number]>('League');
@@ -42,8 +47,17 @@ export default function CreateTournamentScreen({ navigation }: any) {
   const [endDate, setEndDate] = useState('');
   const [registrationDeadline, setRegistrationDeadline] = useState('');
   const [maxTeams, setMaxTeams] = useState('');
+  const [leagueId, setLeagueId] = useState(preselectedLeagueId || '');
+  const [leagues, setLeagues] = useState<League[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.leagues
+      .getLeagues()
+      .then(({ leagues }) => setLeagues(leagues))
+      .catch(() => setLeagues([]));
+  }, []);
 
   const canSubmit =
     name.trim().length > 0 &&
@@ -79,6 +93,7 @@ export default function CreateTournamentScreen({ navigation }: any) {
         endDate: parsedEnd.toISOString(),
         registrationDeadline: parsedDeadline.toISOString(),
         maxTeams: maxTeams.trim() ? Number(maxTeams.trim()) : undefined,
+        leagueId: leagueId || undefined,
       });
       // Replace rather than push, so backing out of the new tournament's detail screen
       // returns to the tournaments list rather than back to this now-submitted form.
@@ -164,6 +179,17 @@ export default function CreateTournamentScreen({ navigation }: any) {
           placeholderTextColor={colors.inkMuted}
           keyboardType="number-pad"
         />
+
+        {leagues.length > 0 && (
+          <>
+            <Text style={styles.label}>League (optional)</Text>
+            <ChipRow
+              options={[{ id: '', label: 'None' }, ...leagues.map((l) => ({ id: l._id, label: l.name }))]}
+              value={leagueId}
+              onChange={setLeagueId}
+            />
+          </>
+        )}
 
         {!!error && (
           <View style={styles.errorBox}>

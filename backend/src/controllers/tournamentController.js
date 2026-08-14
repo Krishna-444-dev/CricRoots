@@ -1,6 +1,7 @@
 const Tournament = require('../models/Tournament');
 const Team = require('../models/Team');
 const Match = require('../models/Match');
+const League = require('../models/League');
 const tendencyAnalytics = require('../services/tendencyAnalytics');
 
 // Wicket weight used to blend a bowler's contribution into the same scale as a
@@ -105,7 +106,8 @@ exports.createTournament = async (req, res) => {
       registrationDeadline,
       maxTeams,
       prizePool,
-      rules
+      rules,
+      leagueId
     } = req.body;
 
     if (!name || !venue || !startDate || !endDate || !registrationDeadline) {
@@ -115,10 +117,22 @@ exports.createTournament = async (req, res) => {
       });
     }
 
+    let league = null;
+    if (leagueId) {
+      league = await League.findById(leagueId);
+      if (!league) {
+        return res.status(404).json({
+          success: false,
+          message: 'League not found'
+        });
+      }
+    }
+
     const tournament = await Tournament.create({
       name,
       description,
       organizer: req.user.id,
+      league: league ? league._id : null,
       format: format || 'League',
       matchType: matchType || 'T20',
       status: 'Draft',
@@ -322,7 +336,9 @@ exports.registerTeam = async (req, res) => {
   }
 };
 
-// @desc    Get tournament standings
+// @desc    Get tournament standings - one flat points table, OR (when the tournament has
+//          groups assigned) one points table per group, each computed only from that group's
+//          own matches.
 // @route   GET /api/tournaments/:id/standings
 // @access  Public
 exports.getTournamentStandings = async (req, res) => {
@@ -337,11 +353,125 @@ exports.getTournamentStandings = async (req, res) => {
       });
     }
 
+    if (tournament.groups && tournament.groups.length > 0) {
+      const matches = await Match.find({
+        tournament: tournament._id,
+        status: { $in: ['Completed', 'Cancelled'] },
+        group: { $ne: null }
+      });
+
+      // One Team lookup covering every group, rather than one per group.
+      const allTeamIds = [...new Set(
+        tournament.groups.flatMap((group) => group.teams.map((teamId) => teamId.toString()))
+      )];
+      const teamDocs = await Team.find({ _id: { $in: allTeamIds } });
+      const teamById = new Map(teamDocs.map((t) => [t._id.toString(), t]));
+
+      const groups = tournament.groups.map((group) => {
+        const groupMatches = matches.filter((m) => m.group === group.name);
+        const table = Tournament.buildStandingsTable(groupMatches, group.teams, tournament.rules);
+        const ranked = Tournament.rankStandings(table).map((row) => ({
+          ...row,
+          team: teamById.get(row.team.toString()) || row.team
+        }));
+        return { name: group.name, standings: ranked };
+      });
+
+      return res.status(200).json({
+        success: true,
+        groups
+      });
+    }
+
     const leaderboard = tournament.getLeaderboard();
 
     res.status(200).json({
       success: true,
       standings: leaderboard
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Split a tournament's registered teams into evenly sized, named groups ahead of
+//          group-stage fixture generation. Splits `tournament.teams` in their existing
+//          (registration) order - deliberately not shuffled, so this is deterministic and
+//          reproducible if ever re-run before fixtures exist.
+// @route   POST /api/tournaments/:id/assign-groups
+// @access  Private (organizer only)
+exports.assignGroups = async (req, res) => {
+  try {
+    const { groupCount } = req.body;
+
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    if (tournament.organizer.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to assign groups for this tournament'
+      });
+    }
+
+    if (tournament.matches.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Groups must be assigned before fixtures are generated for this tournament'
+      });
+    }
+
+    const count = parseInt(groupCount, 10);
+    if (!count || count < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'groupCount must be a positive integer'
+      });
+    }
+
+    if (tournament.teams.length < count) {
+      return res.status(400).json({
+        success: false,
+        message: `Not enough registered teams (${tournament.teams.length}) to form ${count} groups`
+      });
+    }
+
+    // Split into `count` groups as evenly as possible: base size floor(n/count), with the
+    // first (n % count) groups getting one extra team - e.g. 28 teams / 2 groups = 14/14;
+    // 29 teams / 2 groups = 15/14.
+    const teams = tournament.teams;
+    const n = teams.length;
+    const base = Math.floor(n / count);
+    const remainder = n % count;
+    const groups = [];
+    let cursor = 0;
+    for (let i = 0; i < count; i++) {
+      const size = base + (i < remainder ? 1 : 0);
+      const groupTeams = teams.slice(cursor, cursor + size);
+      cursor += size;
+      // Group names cycle A, B, C, ... Z; beyond 26 groups (not a realistic case here) falls
+      // back to a numbered name rather than producing garbage characters.
+      const name = i < 26 ? `Group ${String.fromCharCode(65 + i)}` : `Group ${i + 1}`;
+      groups.push({ name, teams: groupTeams });
+    }
+
+    tournament.groups = groups;
+    await tournament.save();
+    await tournament.populate('teams');
+    await tournament.populate('groups.teams');
+
+    res.status(200).json({
+      success: true,
+      tournament
     });
   } catch (error) {
     res.status(500).json({
@@ -387,7 +517,9 @@ exports.getTournamentMatches = async (req, res) => {
 // @access  Private (organizer only)
 exports.generateFixtures = async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.id).populate('teams');
+    const tournament = await Tournament.findById(req.params.id)
+      .populate('teams')
+      .populate('groups.teams');
 
     if (!tournament) {
       return res.status(404).json({
@@ -417,37 +549,59 @@ exports.generateFixtures = async (req, res) => {
       });
     }
 
-    // Map the tournament's own format to a fixture-generation strategy,
-    // unless the caller explicitly overrides it in the request body.
-    const formatMap = {
-      'Round-Robin': 'round-robin',
-      'League': 'round-robin',
-      'Group': 'round-robin',
-      'Knockout': 'knockout'
-    };
-    const format = req.body.format || formatMap[tournament.format] || 'round-robin';
-
-    const teams = tournament.teams;
+    // Each pairing carries its own group/round tag so both branches below can feed the same
+    // match-creation loop.
     const pairings = [];
 
-    if (format === 'knockout') {
-      // NOTE: This only generates Round 1. A knockout bracket's later rounds
-      // depend on who wins each earlier match, which isn't known at
-      // generation time — so we deliberately stop after pairing up the
-      // registered teams once. Once Round 1 results are in, the organizer
-      // creates Round 2+ matches manually (or re-runs a future "next round"
-      // feature, which is out of scope here).
-      for (let i = 0; i + 1 < teams.length; i += 2) {
-        pairings.push([teams[i], teams[i + 1]]);
-      }
-      // If there's an odd number of teams, the last team gets a bye for
-      // this round — no match is created for them.
+    if (tournament.groups && tournament.groups.length > 0) {
+      // Groups have been assigned (see assignGroups) - generate a full round-robin
+      // independently within each group (every unique pair of that group's teams plays
+      // exactly once), tagged with that group's name and round: 'Group'. The tournament's
+      // `format` field is irrelevant once groups exist - a group stage is always round-robin.
+      tournament.groups.forEach((group) => {
+        const groupTeams = group.teams;
+        for (let i = 0; i < groupTeams.length; i++) {
+          for (let j = i + 1; j < groupTeams.length; j++) {
+            pairings.push({ team1: groupTeams[i], team2: groupTeams[j], group: group.name, round: 'Group' });
+          }
+        }
+      });
     } else {
-      // Round-robin: every unique pair of registered teams plays exactly
-      // once. This is a flat list of pairings, not day-by-day scheduling.
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-          pairings.push([teams[i], teams[j]]);
+      // No groups - 100% of the original behavior, just expressed as tagged pairings so it
+      // can share the match-creation loop below. `group` is always null and `round` is always
+      // 'Group' here, which are exactly the schema defaults a pre-groups Match would have had.
+
+      // Map the tournament's own format to a fixture-generation strategy,
+      // unless the caller explicitly overrides it in the request body.
+      const formatMap = {
+        'Round-Robin': 'round-robin',
+        'League': 'round-robin',
+        'Group': 'round-robin',
+        'Knockout': 'knockout'
+      };
+      const format = req.body.format || formatMap[tournament.format] || 'round-robin';
+
+      const teams = tournament.teams;
+
+      if (format === 'knockout') {
+        // NOTE: This only generates Round 1. A knockout bracket's later rounds
+        // depend on who wins each earlier match, which isn't known at
+        // generation time — so we deliberately stop after pairing up the
+        // registered teams once. Once Round 1 results are in, the organizer
+        // creates Round 2+ matches manually (or re-runs a future "next round"
+        // feature, which is out of scope here).
+        for (let i = 0; i + 1 < teams.length; i += 2) {
+          pairings.push({ team1: teams[i], team2: teams[i + 1], group: null, round: 'Group' });
+        }
+        // If there's an odd number of teams, the last team gets a bye for
+        // this round — no match is created for them.
+      } else {
+        // Round-robin: every unique pair of registered teams plays exactly
+        // once. This is a flat list of pairings, not day-by-day scheduling.
+        for (let i = 0; i < teams.length; i++) {
+          for (let j = i + 1; j < teams.length; j++) {
+            pairings.push({ team1: teams[i], team2: teams[j], group: null, round: 'Group' });
+          }
         }
       }
     }
@@ -468,7 +622,7 @@ exports.generateFixtures = async (req, res) => {
 
     const createdMatchIds = [];
     for (let i = 0; i < pairings.length; i++) {
-      const [team1, team2] = pairings[i];
+      const { team1, team2, group, round } = pairings[i];
       const scheduledDate = pairings.length === 1
         ? new Date(start)
         : new Date(start + (span * i) / (pairings.length - 1));
@@ -483,6 +637,8 @@ exports.generateFixtures = async (req, res) => {
         scheduledDate,
         createdBy: req.user.id,
         tournament: tournament._id,
+        group,
+        round,
         innings: [
           { team: team1._id, runs: 0, wickets: 0, overs: 0, balls: [] },
           { team: team2._id, runs: 0, wickets: 0, overs: 0, balls: [] }
@@ -513,6 +669,196 @@ exports.generateFixtures = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// Builds the standard cross-group Quarterfinal seeding for exactly 2 groups of N qualifiers
+// each (group ranks 1..N per group, e.g. A1..A4 and B1..B4 for N=4):
+//   QF1: A1 vs B4   QF2: A2 vs B3   QF3: B1 vs A4   QF4: B2 vs A3
+// This is the one bracket shape this endpoint guarantees is correct; >2 groups falls back to
+// a simpler "rank 1 vs rank N, rank 2 vs rank N-1, ..." cross-seed across the combined pool,
+// which is reasonable but not a claimed standard for that case.
+function seedQuarterfinals(groupsRanked, qualifiersPerGroup) {
+  const pairs = [];
+  if (groupsRanked.length === 2) {
+    const [A, B] = groupsRanked;
+    pairs.push([A[0], B[3] ?? B[B.length - 1]]);
+    pairs.push([A[1], B[2] ?? B[B.length - 1]]);
+    pairs.push([B[0], A[3] ?? A[A.length - 1]]);
+    pairs.push([B[1], A[2] ?? A[A.length - 1]]);
+    return pairs;
+  }
+  const pool = groupsRanked.flat();
+  for (let i = 0; i < Math.floor(pool.length / 2); i++) {
+    pairs.push([pool[i], pool[pool.length - 1 - i]]);
+  }
+  return pairs;
+}
+
+// Creates one knockout Match document, mirroring createMatch's own innings-initialization and
+// required-field shape exactly so these matches behave identically to any other once created.
+async function createKnockoutMatch({ tournament, team1, team2, round, req, matchNumber }) {
+  const scheduledDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // a week out, organizer can reschedule
+  const match = await Match.create({
+    title: `${tournament.name} - ${round} ${matchNumber || ''}`.trim(),
+    team1: team1._id || team1,
+    team2: team2._id || team2,
+    matchType: tournament.matchType,
+    venue: tournament.venue,
+    totalOvers: tournament.rules?.overs || 20,
+    scheduledDate,
+    createdBy: req.user.id,
+    tournament: tournament._id,
+    group: null,
+    round,
+    innings: [
+      { team: team1._id || team1, runs: 0, wickets: 0, overs: 0, balls: [] },
+      { team: team2._id || team2, runs: 0, wickets: 0, overs: 0, balls: [] }
+    ]
+  });
+  tournament.matches.push(match._id);
+  return match;
+}
+
+// @desc    Seed the knockout bracket from each group's current standings - the top
+//          `qualifiersPerGroup` teams per group advance, cross-seeded (see seedQuarterfinals).
+//          Only supports going straight to Quarterfinals from group standings; later rounds
+//          are generated one at a time by advanceKnockoutRound as results come in.
+// @route   POST /api/tournaments/:id/generate-knockout-stage
+// @access  Private (organizer only)
+exports.generateKnockoutStage = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id).populate('groups.teams');
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+    if (tournament.organizer.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to generate the knockout stage for this tournament' });
+    }
+    if (!tournament.groups || tournament.groups.length === 0) {
+      return res.status(400).json({ success: false, message: 'This tournament has no groups assigned' });
+    }
+
+    const existingKnockout = await Match.exists({ tournament: tournament._id, round: 'Quarterfinal' });
+    if (existingKnockout) {
+      return res.status(400).json({ success: false, message: 'The knockout stage has already been generated for this tournament' });
+    }
+
+    const qualifiersPerGroup = parseInt(req.body.qualifiersPerGroup, 10) || 4;
+
+    const groupsRanked = [];
+    for (const group of tournament.groups) {
+      if (group.teams.length < qualifiersPerGroup) {
+        return res.status(400).json({
+          success: false,
+          message: `${group.name} has only ${group.teams.length} teams, fewer than qualifiersPerGroup (${qualifiersPerGroup})`
+        });
+      }
+      const matches = await Match.find({ tournament: tournament._id, group: group.name, status: { $in: ['Completed', 'Cancelled'] } });
+      const table = Tournament.buildStandingsTable(matches, group.teams, tournament.rules);
+      const ranked = Tournament.rankStandings(table).slice(0, qualifiersPerGroup);
+      groupsRanked.push(ranked.map((row) => row.team));
+    }
+
+    const pairs = seedQuarterfinals(groupsRanked, qualifiersPerGroup);
+    const created = [];
+    for (let i = 0; i < pairs.length; i++) {
+      const [team1, team2] = pairs[i];
+      created.push(await createKnockoutMatch({ tournament, team1, team2, round: 'Quarterfinal', req, matchNumber: i + 1 }));
+    }
+
+    await tournament.save();
+    const populated = await Match.find({ _id: { $in: created.map((m) => m._id) } }).populate('team1').populate('team2');
+
+    res.status(201).json({ success: true, round: 'Quarterfinal', matches: populated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Once every match in the current furthest-generated knockout round is Completed,
+//          derive winners and create the next round (Quarterfinal -> Semifinal -> Final), or
+//          if the Final itself is what just completed, set the tournament's winner/runnerUp
+//          and mark it Completed. Winner derivation matches updateMatch's own auto-derived-
+//          result logic exactly (higher innings total wins); an exact tie deterministically
+//          advances team1 rather than erroring, since a knockout match can't stay unresolved
+//          for bracket-advancement purposes and a genuine dead-even tie is vanishingly rare.
+// @route   POST /api/tournaments/:id/advance-knockout-round
+// @access  Private (organizer only)
+exports.advanceKnockoutRound = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+    if (tournament.organizer.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to advance the knockout stage for this tournament' });
+    }
+
+    const ROUND_ORDER = ['Quarterfinal', 'Semifinal', 'Final'];
+    let currentRound = null;
+    for (const round of ROUND_ORDER) {
+      // eslint-disable-next-line no-await-in-loop
+      const exists = await Match.exists({ tournament: tournament._id, round });
+      if (exists) currentRound = round;
+    }
+    if (!currentRound) {
+      return res.status(400).json({ success: false, message: 'Generate the knockout stage first' });
+    }
+
+    const roundMatches = await Match.find({ tournament: tournament._id, round: currentRound }).sort({ createdAt: 1 });
+    const incomplete = roundMatches.filter((m) => m.status !== 'Completed');
+    if (incomplete.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `${currentRound} still has ${incomplete.length} match(es) not marked Completed`
+      });
+    }
+
+    const winnerOf = (match) => {
+      const runs1 = match.innings[0]?.runs || 0;
+      const runs2 = match.innings[1]?.runs || 0;
+      return runs1 >= runs2 ? match.team1 : match.team2; // ties deterministically favor team1 - see doc comment above
+    };
+    const loserOf = (match) => {
+      const winner = winnerOf(match);
+      return winner.toString() === match.team1.toString() ? match.team2 : match.team1;
+    };
+
+    if (currentRound === 'Quarterfinal') {
+      if (roundMatches.length !== 4) {
+        return res.status(400).json({ success: false, message: `Expected 4 Quarterfinal matches, found ${roundMatches.length}` });
+      }
+      const winners = roundMatches.map(winnerOf);
+      const sf1 = await createKnockoutMatch({ tournament, team1: winners[0], team2: winners[1], round: 'Semifinal', req, matchNumber: 1 });
+      const sf2 = await createKnockoutMatch({ tournament, team1: winners[2], team2: winners[3], round: 'Semifinal', req, matchNumber: 2 });
+      await tournament.save();
+      const populated = await Match.find({ _id: { $in: [sf1._id, sf2._id] } }).populate('team1').populate('team2');
+      return res.status(201).json({ success: true, round: 'Semifinal', matches: populated });
+    }
+
+    if (currentRound === 'Semifinal') {
+      if (roundMatches.length !== 2) {
+        return res.status(400).json({ success: false, message: `Expected 2 Semifinal matches, found ${roundMatches.length}` });
+      }
+      const winners = roundMatches.map(winnerOf);
+      const final = await createKnockoutMatch({ tournament, team1: winners[0], team2: winners[1], round: 'Final', req });
+      await tournament.save();
+      const populated = await Match.findById(final._id).populate('team1').populate('team2');
+      return res.status(201).json({ success: true, round: 'Final', matches: [populated] });
+    }
+
+    // currentRound === 'Final'
+    const final = roundMatches[0];
+    tournament.awards.winner = winnerOf(final);
+    tournament.awards.runnerUp = loserOf(final);
+    tournament.status = 'Completed';
+    await tournament.save();
+    const populated = await Tournament.findById(tournament._id).populate('awards.winner').populate('awards.runnerUp');
+    return res.status(200).json({ success: true, round: 'Completed', tournament: populated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -579,12 +925,18 @@ exports.computeAwards = async (req, res) => {
       });
     }
 
-    // Winner / runner-up / third place come straight from the points table -
+    // Winner/runner-up come straight from the points table for a pure round-robin/League
+    // tournament with no knockout stage - but if this tournament went through
+    // advanceKnockoutRound, that already set awards.winner/runnerUp from the actual Final
+    // result, which is the real answer and must not be overwritten by whoever merely topped
+    // the group-stage points table (a group leader can still lose in the knockout rounds).
     // getLeaderboard() is already sorted best-first by points then NRR.
-    const leaderboard = tournament.getLeaderboard();
-    tournament.awards.winner = leaderboard[0]?.team || null;
-    tournament.awards.runnerUp = leaderboard[1]?.team || null;
-    tournament.awards.thirdPlace = tournament.teams.length >= 3 ? (leaderboard[2]?.team || null) : null;
+    if (!tournament.awards.winner) {
+      const leaderboard = tournament.getLeaderboard();
+      tournament.awards.winner = leaderboard[0]?.team || null;
+      tournament.awards.runnerUp = leaderboard[1]?.team || null;
+      tournament.awards.thirdPlace = tournament.teams.length >= 3 ? (leaderboard[2]?.team || null) : null;
+    }
 
     // Best batsman: highest career average among this tournament's matches, requiring
     // at least 1 completed innings with the bat and > 0 runs (mirrors the minimum-sample
