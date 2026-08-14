@@ -55,6 +55,7 @@ interface Tournament {
   groups?: TournamentGroup[];
   organizer: { _id: string; name: string };
   houseRules?: string;
+  houseRulesDocument?: { url: string | null; fileName: string | null; uploadedAt: string | null };
   statistics: {
     totalMatches: number;
     completedMatches: number;
@@ -130,6 +131,9 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [savingHouseRules, setSavingHouseRules] = useState(false);
   const [houseRulesError, setHouseRulesError] = useState('');
   const [houseRulesSaved, setHouseRulesSaved] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docUploadError, setDocUploadError] = useState('');
+  const docFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Create tournament form
   const [createName, setCreateName] = useState('');
@@ -338,6 +342,53 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       setHouseRulesError('Failed to save house rules');
     } finally {
       setSavingHouseRules(false);
+    }
+  };
+
+  const handleUploadHouseRulesDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedTournament) return;
+    setUploadingDoc(true);
+    setDocUploadError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/tournaments/${selectedTournament._id}/house-rules-document`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedTournament(data.tournament);
+        setTournaments(prev => prev.map(t => (t._id === data.tournament._id ? data.tournament : t)));
+      } else {
+        setDocUploadError(data.message || 'Upload failed');
+      }
+    } catch {
+      setDocUploadError('Could not reach the CricRoots server');
+    } finally {
+      setUploadingDoc(false);
+      if (docFileInputRef.current) docFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveHouseRulesDocument = async () => {
+    if (!selectedTournament) return;
+    setDocUploadError('');
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/house-rules-document`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedTournament(data.tournament);
+        setTournaments(prev => prev.map(t => (t._id === data.tournament._id ? data.tournament : t)));
+      } else {
+        setDocUploadError(data.message || 'Failed to remove document');
+      }
+    } catch {
+      setDocUploadError('Could not reach the CricRoots server');
     }
   };
 
@@ -1162,11 +1213,70 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 {houseRulesError && (
                   <p className={styles.infoText} style={{ color: '#F87171' }}>{houseRulesError}</p>
                 )}
+
+                <div className="mt-5 pt-4 border-t border-border">
+                  <p className={styles.infoText} style={{ marginBottom: 8 }}>
+                    Attach a PDF or Word doc as a downloadable reference (e.g. the full printed rulebook) - this is separate
+                    from the free-text above, which is what the assistant actually reads.
+                  </p>
+                  {selectedTournament.houseRulesDocument?.url ? (
+                    <div className="flex items-center gap-3">
+                      <a
+                        href={selectedTournament.houseRulesDocument.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-pitch-400 hover:underline"
+                      >
+                        📎 {selectedTournament.houseRulesDocument.fileName}
+                      </a>
+                      <button
+                        type="button"
+                        className="text-xs text-wicket-400 hover:underline"
+                        onClick={handleRemoveHouseRulesDocument}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={buttonVariants('secondary')}
+                      onClick={() => docFileInputRef.current?.click()}
+                      disabled={uploadingDoc}
+                    >
+                      {uploadingDoc ? 'Uploading...' : '📎 Attach Document'}
+                    </button>
+                  )}
+                  <input
+                    ref={docFileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    style={{ display: 'none' }}
+                    onChange={handleUploadHouseRulesDocument}
+                  />
+                  {docUploadError && (
+                    <p className={styles.infoText} style={{ color: '#F87171', marginTop: 6 }}>{docUploadError}</p>
+                  )}
+                </div>
               </>
-            ) : selectedTournament.houseRules ? (
-              <p className={styles.infoText} style={{ whiteSpace: 'pre-wrap' }}>{selectedTournament.houseRules}</p>
             ) : (
-              <p className={styles.infoText}>The organizer hasn&apos;t set any house rules for this tournament.</p>
+              <>
+                {selectedTournament.houseRules ? (
+                  <p className={styles.infoText} style={{ whiteSpace: 'pre-wrap' }}>{selectedTournament.houseRules}</p>
+                ) : (
+                  <p className={styles.infoText}>The organizer hasn&apos;t set any house rules for this tournament.</p>
+                )}
+                {selectedTournament.houseRulesDocument?.url && (
+                  <a
+                    href={selectedTournament.houseRulesDocument.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-pitch-400 hover:underline mt-3 inline-block"
+                  >
+                    📎 {selectedTournament.houseRulesDocument.fileName}
+                  </a>
+                )}
+              </>
             )}
           </div>
         )}

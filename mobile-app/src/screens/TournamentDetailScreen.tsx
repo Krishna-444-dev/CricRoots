@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput, Linking } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { colors } from '../theme';
-import { api } from '../shared/api/apiClient';
+import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { Tournament, Match, TournamentStanding } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -137,6 +138,8 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const [savingHouseRules, setSavingHouseRules] = useState(false);
   const [houseRulesError, setHouseRulesError] = useState('');
   const [houseRulesSaved, setHouseRulesSaved] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docUploadError, setDocUploadError] = useState('');
 
   const load = useCallback(() => {
     setError('');
@@ -238,6 +241,42 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
       setHouseRulesError(err instanceof Error ? err.message : 'Failed to save house rules');
     } finally {
       setSavingHouseRules(false);
+    }
+  };
+
+  const handleUploadHouseRulesDocument = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ]
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    setUploadingDoc(true);
+    setDocUploadError('');
+    try {
+      const { tournament: updated } = await api.tournaments.uploadHouseRulesDocument(tournamentId, {
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType || 'application/pdf'
+      });
+      setTournament(updated);
+    } catch (err) {
+      setDocUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleRemoveHouseRulesDocument = async () => {
+    setDocUploadError('');
+    try {
+      const { tournament: updated } = await api.tournaments.deleteHouseRulesDocument(tournamentId);
+      setTournament(updated);
+    } catch (err) {
+      setDocUploadError(err instanceof Error ? err.message : 'Failed to remove document');
     }
   };
 
@@ -699,11 +738,46 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                   {houseRulesSaved && <Text style={styles.savedText}>Saved</Text>}
                 </View>
                 {!!houseRulesError && <Text style={styles.errorBanner}>{houseRulesError}</Text>}
+
+                <View style={styles.docSection}>
+                  <Text style={styles.muted}>
+                    Attach a PDF or Word doc as a downloadable reference (e.g. the full printed rulebook) - separate from
+                    the free-text above, which is what the assistant actually reads.
+                  </Text>
+                  {tournament.houseRulesDocument?.url ? (
+                    <View style={styles.docRow}>
+                      <TouchableOpacity onPress={() => Linking.openURL(resolveAttachmentUrl(tournament.houseRulesDocument!.url!))}>
+                        <Text style={styles.docLink}>📎 {tournament.houseRulesDocument.fileName}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleRemoveHouseRulesDocument}>
+                        <Text style={styles.docRemove}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.houseRulesSaveBtn, uploadingDoc && styles.sendBtnDisabled]}
+                      onPress={handleUploadHouseRulesDocument}
+                      disabled={uploadingDoc}
+                    >
+                      <Text style={styles.actionBtnText}>{uploadingDoc ? 'Uploading...' : '📎 Attach Document'}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {!!docUploadError && <Text style={styles.errorBanner}>{docUploadError}</Text>}
+                </View>
               </>
-            ) : tournament.houseRules ? (
-              <Text style={styles.rulesText}>{tournament.houseRules}</Text>
             ) : (
-              <Text style={styles.muted}>The organizer hasn&apos;t set any house rules for this tournament.</Text>
+              <>
+                {tournament.houseRules ? (
+                  <Text style={styles.rulesText}>{tournament.houseRules}</Text>
+                ) : (
+                  <Text style={styles.muted}>The organizer hasn&apos;t set any house rules for this tournament.</Text>
+                )}
+                {!!tournament.houseRulesDocument?.url && (
+                  <TouchableOpacity onPress={() => Linking.openURL(resolveAttachmentUrl(tournament.houseRulesDocument!.url!))}>
+                    <Text style={[styles.docLink, { marginTop: 12 }]}>📎 {tournament.houseRulesDocument.fileName}</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
         )}
@@ -845,6 +919,10 @@ const styles = StyleSheet.create({
   houseRulesFooterRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
   houseRulesSaveBtn: { marginTop: 0, flexShrink: 1, paddingHorizontal: 20 },
   savedText: { color: colors.pitch400, fontSize: 13, fontWeight: '600' },
+  docSection: { marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border },
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 8 },
+  docLink: { color: colors.pitch400, fontSize: 14, fontWeight: '600' },
+  docRemove: { color: colors.wicket400, fontSize: 12, fontWeight: '600' },
   messageRow: { marginBottom: 10, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10 },
   messageSender: { color: colors.gold500, fontSize: 11, fontWeight: '700', marginBottom: 2 },
   messageText: { color: colors.ink, fontSize: 13 },

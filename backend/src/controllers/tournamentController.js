@@ -182,10 +182,28 @@ exports.getAllTournaments = async (req, res) => {
       .populate({ path: 'awards.bestBowler', populate: { path: 'user', select: 'name' } })
       .sort({ [sortBy]: parseInt(order) });
 
+    // tournament.statistics.completedMatches is a stored field nothing ever wrote to (always
+    // 0) - one cheap aggregation across every tournament's Completed matches, rather than an
+    // N+1 count query per tournament in this list.
+    const completedCounts = await Match.aggregate([
+      { $match: { status: 'Completed', tournament: { $in: tournaments.map((t) => t._id) } } },
+      { $group: { _id: '$tournament', count: { $sum: 1 } } }
+    ]);
+    const completedByTournament = new Map(completedCounts.map((c) => [c._id.toString(), c.count]));
+    const tournamentsWithLiveCounts = tournaments.map((t) => {
+      const obj = t.toObject();
+      obj.statistics = {
+        ...obj.statistics,
+        totalMatches: t.matches.length,
+        completedMatches: completedByTournament.get(t._id.toString()) || 0
+      };
+      return obj;
+    });
+
     res.status(200).json({
       success: true,
       count: tournaments.length,
-      tournaments
+      tournaments: tournamentsWithLiveCounts
     });
   } catch (error) {
     res.status(500).json({
@@ -219,9 +237,18 @@ exports.getTournament = async (req, res) => {
       });
     }
 
+    // Same live-count fix as getAllTournaments - matches is already populated above, so this
+    // is free (no extra query).
+    const tournamentObj = tournament.toObject();
+    tournamentObj.statistics = {
+      ...tournamentObj.statistics,
+      totalMatches: tournament.matches.length,
+      completedMatches: tournament.matches.filter((m) => m.status === 'Completed').length
+    };
+
     res.status(200).json({
       success: true,
-      tournament
+      tournament: tournamentObj
     });
   } catch (error) {
     res.status(500).json({
@@ -263,6 +290,91 @@ exports.updateTournament = async (req, res) => {
 
     tournament = await tournament.save();
     await tournament.populate('organizer');
+
+    res.status(200).json({
+      success: true,
+      tournament
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Upload a reference document (PDF/Word) backing the free-text house rules -
+//          req.file is populated by uploadTournamentDocument (see routes/tournamentRoutes.js,
+//          which wraps it the same callback-checked way groupRoutes.js does for attachments).
+// @route   POST /api/tournaments/:id/house-rules-document
+// @access  Private (organizer only)
+exports.uploadHouseRulesDocument = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    if (tournament.organizer.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to upload a document for this tournament'
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    tournament.houseRulesDocument = {
+      url: `/uploads/tournament-documents/${req.file.filename}`,
+      fileName: req.file.originalname,
+      uploadedAt: new Date()
+    };
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      tournament
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Remove the house-rules reference document
+// @route   DELETE /api/tournaments/:id/house-rules-document
+// @access  Private (organizer only)
+exports.deleteHouseRulesDocument = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    if (tournament.organizer.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to remove this document'
+      });
+    }
+
+    tournament.houseRulesDocument = { url: null, fileName: null, uploadedAt: null };
+    await tournament.save();
 
     res.status(200).json({
       success: true,
@@ -876,6 +988,11 @@ exports.getTournamentStats = async (req, res) => {
       });
     }
 
+    // Computed live from the tournament's own Completed matches - tournament.statistics
+    // itself is a stored sub-document nothing in this codebase ever wrote to, so it always
+    // stayed at its schema defaults (all zeros) regardless of how many matches were played.
+    const liveStats = await tendencyAnalytics.getTournamentMatchStatistics(tournament._id);
+
     res.status(200).json({
       success: true,
       statistics: {
@@ -884,7 +1001,8 @@ exports.getTournamentStats = async (req, res) => {
         status: tournament.status,
         totalTeams: tournament.teams.length,
         maxTeams: tournament.maxTeams,
-        ...tournament.statistics,
+        totalMatches: tournament.matches.length,
+        ...liveStats,
         standings: tournament.getLeaderboard()
       }
     });

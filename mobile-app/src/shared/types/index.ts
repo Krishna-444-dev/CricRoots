@@ -196,6 +196,7 @@ export interface Tournament {
   // Group-stage assignment (see assign-groups) - empty for tournaments with no group stage.
   groups?: { name: string; teams: (Team | string)[] }[];
   houseRules?: string;
+  houseRulesDocument?: { url: string | null; fileName: string | null; uploadedAt: string | null };
   awards?: {
     winner?: Team | string | null;
     runnerUp?: Team | string | null;

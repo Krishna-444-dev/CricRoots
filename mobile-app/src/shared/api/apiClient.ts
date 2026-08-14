@@ -226,6 +226,10 @@ export const tournamentsAPI = {
   computeAwards: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/compute-awards`, 'POST'),
   getMessages: (tournamentId: string) => apiFetch<{ success: true; messages: any[] }>(`/tournaments/${tournamentId}/messages`),
   postMessage: (tournamentId: string, text: string) => apiFetch(`/tournaments/${tournamentId}/messages`, 'POST', { text }),
+  uploadHouseRulesDocument: (tournamentId: string, file: { uri: string; name: string; type: string }) =>
+    apiUpload<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/house-rules-document`, file),
+  deleteHouseRulesDocument: (tournamentId: string) =>
+    apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/house-rules-document`, 'DELETE'),
 };
 
 // --- Leagues (backend/src/routes/leagueRoutes.js) ---

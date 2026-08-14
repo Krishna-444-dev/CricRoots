@@ -933,6 +933,71 @@ async function getBowlingLeaderboard(limit = 10) {
 }
 
 /**
+ * Aggregate match statistics for a tournament (total runs/wickets across every completed
+ * match, the highest and lowest single-innings totals, the highest individual batting score,
+ * and the best single-match bowling figures) - computed live from the tournament's own
+ * Completed matches rather than a stored/synced tournament.statistics sub-document, which
+ * nothing in this codebase ever actually wrote to (it stayed at its schema defaults - all
+ * zeros - regardless of how many matches were played). Mirrors the "compute live from Match
+ * documents" pattern getCareerStats/getTournamentBattingLeaderboard already use, rather than
+ * introducing a second, sync-prone source of truth.
+ */
+async function getTournamentMatchStatistics(tournamentId) {
+  const matches = await Match.find({ tournament: oid(tournamentId), status: 'Completed' }).select('innings').lean();
+
+  let totalRuns = 0;
+  let totalWickets = 0;
+  let highestScore = 0;
+  let lowestScore = 0;
+  let hasAnyInnings = false;
+  let highestIndividualScore = 0;
+  let bestBowling = null; // { wickets, runs }
+
+  for (const match of matches) {
+    for (const inn of match.innings) {
+      if (!inn.balls || inn.balls.length === 0) continue; // innings never started (e.g. abandoned match)
+      hasAnyInnings = true;
+      totalRuns += inn.runs || 0;
+      totalWickets += inn.wickets || 0;
+      if (inn.runs > highestScore) highestScore = inn.runs;
+      if (lowestScore === 0 || inn.runs < lowestScore) lowestScore = inn.runs;
+
+      const battingByPlayer = new Map();
+      const bowlingByPlayer = new Map();
+      for (const ball of inn.balls) {
+        if (ball.batsmanId && !ball.isExtra) {
+          const key = ball.batsmanId.toString();
+          battingByPlayer.set(key, (battingByPlayer.get(key) || 0) + (ball.runs || 0));
+        }
+        if (ball.bowlerId) {
+          const key = ball.bowlerId.toString();
+          const figures = bowlingByPlayer.get(key) || { runs: 0, wickets: 0 };
+          if (!(ball.isExtra && ['bye', 'leg-bye'].includes(ball.extraType))) figures.runs += ball.runs || 0;
+          if (ball.isWicket && !NON_BOWLER_WICKET_TYPES.includes(ball.wicketType)) figures.wickets += 1;
+          bowlingByPlayer.set(key, figures);
+        }
+      }
+      for (const runs of battingByPlayer.values()) {
+        if (runs > highestIndividualScore) highestIndividualScore = runs;
+      }
+      for (const figures of bowlingByPlayer.values()) {
+        if (!bestBowling || isBetterBowlingFigures(figures, bestBowling)) bestBowling = figures;
+      }
+    }
+  }
+
+  return {
+    completedMatches: matches.length,
+    totalRuns,
+    totalWickets,
+    highestScore,
+    lowestScore: hasAnyInnings ? lowestScore : 0,
+    highestIndividualScore,
+    bestBowlingFigures: bestBowling ? `${bestBowling.wickets}/${bestBowling.runs}` : '0/0'
+  };
+}
+
+/**
  * Batting leaderboard scoped to a single tournament, ranked by average (min 1
  * completed innings with the bat, and > 0 runs - same convention as
  * getBattingLeaderboard above, just filtered down to one tournament's matches).
@@ -1116,5 +1181,6 @@ module.exports = {
   getBattingLeaderboard,
   getBowlingLeaderboard,
   getTournamentBattingLeaderboard,
-  getTournamentBowlingLeaderboard
+  getTournamentBowlingLeaderboard,
+  getTournamentMatchStatistics
 };

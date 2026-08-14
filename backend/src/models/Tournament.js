@@ -22,6 +22,14 @@ const tournamentSchema = new mongoose.Schema(
       maxlength: 5000,
       default: ''
     },
+    // Optional reference document (PDF/Word) backing the free-text houseRules above - purely
+    // a human-readable download, not parsed for text, so it doesn't feed the in-app assistant
+    // the way houseRules itself does (see backend/src/data and assistantController.js).
+    houseRulesDocument: {
+      url: { type: String, default: null },
+      fileName: { type: String, default: null },
+      uploadedAt: { type: Date, default: null }
+    },
     organizer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
