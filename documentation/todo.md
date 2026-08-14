@@ -10,8 +10,8 @@ and why, see `documentation/cricclubs-feature-roadmap.md` and `documentation/mob
 
 ## Product / legal
 
-- [ ] Register `cricroots.com` — flagged 2026-08-14 as the immediate next priority action, not yet
-      done. See `documentation/going-legal-and-live.md` Track B.
+- [x] Register `cricroots.com` — done 2026-08-14 via Cloudflare Registrar, auto-renew on. DNS not
+      configured yet (no public deployment target until hosting is set up, see below).
 - [ ] Form the LLC (Track A in `documentation/going-legal-and-live.md`) — founder's own action,
       requires personal identity/signature/payment.
 - [ ] Deploy the backend to real public infrastructure (Track B) — currently pilot-testing over a

@@ -56,13 +56,13 @@ this is the checklist of what's still missing around it.
    stack, less server management) are the two leanest realistic options for this stack's size. This
    needs to be your own account (billing, credentials) - happy to walk through the actual setup once
    you've picked one and created the account.
-2. **Register the domain - flagged 2026-08-14 as the immediate next priority action, not yet
-   done.** ~$12-20/yr (Cloudflare or Porkbun are the cheapest registrars). Decided 2026-08-12: the
-   app is renamed **CricRoots** (from CricSync - a company already runs an app literally called
-   "CricSync," and `cricsync.com`/`cricsync.app` were both already taken; see the
-   demand-reality-check artifact from that session for the full research). Target domain:
-   **`cricroots.com`**, confirmed available (not yet purchased) - registering it requires a
-   registrar account and payment, both the founder's own action. GitHub repo renamed to
+2. **Register the domain - done 2026-08-14.** `cricroots.com` registered via Cloudflare Registrar
+   ($10.46/yr, at-cost with no markup - Cloudflare's standard model), auto-renew on, expires
+   2027-08-14. Decided 2026-08-12: the app is renamed **CricRoots** (from CricSync - a company
+   already runs an app literally called "CricSync," and `cricsync.com`/`cricsync.app` were both
+   already taken; see the demand-reality-check artifact from that session for the full research).
+   DNS isn't configured yet - there's no publicly deployed target to point it at until the hosting
+   step below happens; the domain just sits registered until then. GitHub repo renamed to
    `Krishna-444-dev/CricRoots` on 2026-08-12; the local clone's `origin` remote and all clone
    instructions in README/DEPLOYMENT were updated to match. Everything else in the codebase - app
    name, package names, bundle IDs, Docker container labels, storage keys - was renamed in that
