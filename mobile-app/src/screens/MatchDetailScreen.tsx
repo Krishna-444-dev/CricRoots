@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
-import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle } from 'react-native-svg';
+import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
@@ -85,6 +85,99 @@ const CHART_TEAM_COLORS = [colors.pitch500, colors.gold500];
 function chartTeamName(team: any, fallback: string): string {
   if (team && typeof team === 'object' && 'name' in team) return team.name;
   return fallback;
+}
+
+// Mobile port of web-app/components/insights/ManhattanChart.tsx's SVG design - clustered
+// vertical bars (one per team per over) against a shared runs axis, rather than the previous
+// horizontal bar-list rows, which read as an odd, non-standard "growing sideways" layout next
+// to a real broadcast Manhattan chart.
+function ManhattanChartSvg({ innings }: { innings: ChartInnings[] }) {
+  const maxOvers = Math.max(1, ...innings.map((inn) => inn.overs.length));
+  const maxRuns = Math.max(1, ...innings.flatMap((inn) => inn.overs.map((o) => o.runs)));
+
+  const width = Math.max(320, maxOvers * 30);
+  const height = 200;
+  const paddingLeft = 28;
+  const paddingRight = 10;
+  const paddingTop = 16;
+  const paddingBottom = 22;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const clusterWidth = chartWidth / maxOvers;
+  const barGap = 3;
+  const barWidth = Math.max(3, (clusterWidth - barGap * (innings.length + 1)) / innings.length);
+  const labelStep = Math.max(1, Math.ceil(maxOvers / 12));
+
+  const yFor = (runs: number) => paddingTop + chartHeight - (runs / maxRuns) * chartHeight;
+  const baselineY = paddingTop + chartHeight;
+
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <Svg width={width} height={height}>
+          {[0, 0.5, 1].map((f) => (
+            <React.Fragment key={f}>
+              <SvgLine
+                x1={paddingLeft}
+                x2={width - paddingRight}
+                y1={paddingTop + chartHeight * (1 - f)}
+                y2={paddingTop + chartHeight * (1 - f)}
+                stroke={colors.border}
+                strokeWidth={1}
+                opacity={0.6}
+              />
+              <SvgText x={paddingLeft - 6} y={paddingTop + chartHeight * (1 - f) + 3} textAnchor="end" fontSize={9} fill={colors.inkMuted}>
+                {Math.round(maxRuns * f)}
+              </SvgText>
+            </React.Fragment>
+          ))}
+
+          {Array.from({ length: maxOvers }).map((_, overIdx) => {
+            const clusterX = paddingLeft + overIdx * clusterWidth;
+            return (
+              <React.Fragment key={overIdx}>
+                {innings.map((inn, teamIdx) => {
+                  const over = inn.overs[overIdx];
+                  if (!over) return null;
+                  const barX = clusterX + barGap + teamIdx * (barWidth + barGap);
+                  const barY = yFor(over.runs);
+                  const barH = Math.max(0, baselineY - barY);
+                  const color = CHART_TEAM_COLORS[teamIdx % 2];
+                  return (
+                    <React.Fragment key={teamIdx}>
+                      <Rect x={barX} y={barY} width={barWidth} height={barH} fill={color} opacity={0.9} rx={1.5} />
+                      {over.wickets > 0 && (
+                        <Circle cx={barX + barWidth / 2} cy={Math.max(paddingTop - 4, barY - 7)} r={2.5} fill={colors.wicket500} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+                {overIdx % labelStep === 0 && (
+                  <SvgText x={clusterX + clusterWidth / 2} y={height - paddingBottom + 14} textAnchor="middle" fontSize={9} fill={colors.inkMuted}>
+                    {overIdx + 1}
+                  </SvgText>
+                )}
+              </React.Fragment>
+            );
+          })}
+
+          <SvgLine x1={paddingLeft} x2={width - paddingRight} y1={baselineY} y2={baselineY} stroke={colors.borderStrong} strokeWidth={1} />
+        </Svg>
+      </ScrollView>
+      <View style={styles.chartLegendRow}>
+        {innings.map((inn, i) => (
+          <View key={i} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
+            <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
+          </View>
+        ))}
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: colors.wicket500 }]} />
+          <Text style={styles.legendText}>Wicket that over</Text>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 // Mobile port of web-app/components/insights/WormChart.tsx's SVG design (two polylines showing
@@ -411,13 +504,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     ? Math.max(6, ...activeChart.overs.map((o) => o.runs))
     : 6;
 
-  // Manhattan scaling - computed across BOTH innings (not just the active one), so the two
-  // teams' bars stay comparable row-to-row. (WormChartSvg does its own equivalent scaling.)
   const hasChartData = !!chartInnings?.some((inn) => inn.overs.some((o) => o.runs > 0 || o.wickets > 0));
-  const manhattanMaxOvers = chartInnings?.length ? Math.max(0, ...chartInnings.map((inn) => inn.overs.length)) : 0;
-  const manhattanMaxRuns = chartInnings?.length
-    ? Math.max(1, ...chartInnings.flatMap((inn) => inn.overs.map((o) => o.runs)))
-    : 1;
 
   return (
     <ScrollView
@@ -828,47 +915,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           <Text style={styles.sectionTitle}>Manhattan Chart</Text>
           <Text style={styles.reportsHint}>Runs scored per over</Text>
           <View style={styles.chartListCard}>
-            <ScrollView style={styles.chartListScroll} nestedScrollEnabled>
-              {Array.from({ length: manhattanMaxOvers }).map((_, overIdx) => (
-                <View key={overIdx} style={styles.chartListRow}>
-                  <Text style={styles.chartListLabel}>{overIdx + 1}</Text>
-                  <View style={styles.chartListBars}>
-                    {chartInnings.map((inn, teamIdx) => {
-                      const over = inn.overs[overIdx];
-                      const widthPct = over ? Math.max(4, (over.runs / manhattanMaxRuns) * 100) : 0;
-                      return (
-                        <View key={teamIdx} style={styles.chartMiniBarRow}>
-                          <View style={styles.chartMiniBarTrack}>
-                            <View
-                              style={[
-                                styles.chartMiniBarFill,
-                                { width: `${widthPct}%`, backgroundColor: CHART_TEAM_COLORS[teamIdx % 2] },
-                              ]}
-                            />
-                          </View>
-                          {over && over.wickets > 0 && <View style={styles.chartWicketDot} />}
-                        </View>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.chartListValue}>
-                    {chartInnings.map((inn) => (inn.overs[overIdx] ? inn.overs[overIdx].runs : '-')).join(' · ')}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-            <View style={styles.chartLegendRow}>
-              {chartInnings.map((inn, i) => (
-                <View key={i} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
-                  <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
-                </View>
-              ))}
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: colors.wicket500 }]} />
-                <Text style={styles.legendText}>Wicket that over</Text>
-              </View>
-            </View>
+            <ManhattanChartSvg innings={chartInnings} />
           </View>
         </View>
       )}
@@ -1085,24 +1132,10 @@ const styles = StyleSheet.create({
 
   fieldingList: { gap: 10 },
 
-  // Manhattan/Worm chart list rows - one row per over, label + proportionally-filled bar
-  // View(s), same pattern as PlayerStatsScreen's wagon wheel rows.
+  // Card wrapper shared by ManhattanChartSvg and WormChartSvg.
   chartListCard: {
     backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12,
   },
-  chartListScroll: { maxHeight: 280 },
-  chartListRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 8 },
-  chartListLabel: { color: colors.inkMuted, fontSize: 11, width: 20, textAlign: 'right' },
-  chartListBars: { flex: 1, gap: 3 },
-  chartMiniBarRow: { flexDirection: 'row', alignItems: 'center' },
-  chartMiniBarTrack: {
-    flex: 1, height: 7, backgroundColor: colors.surfaceAlt, borderRadius: 4, overflow: 'hidden',
-  },
-  chartMiniBarFill: { height: '100%', borderRadius: 4 },
-  chartWicketDot: {
-    width: 5, height: 5, borderRadius: 3, backgroundColor: colors.wicket500, marginLeft: 4,
-  },
-  chartListValue: { color: colors.inkSecondary, fontSize: 11, width: 56, textAlign: 'right' },
   chartLegendRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10, paddingTop: 10,
     borderTopWidth: 1, borderTopColor: colors.border,
