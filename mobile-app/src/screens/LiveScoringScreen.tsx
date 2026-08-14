@@ -18,6 +18,8 @@ import { Match, Player, BallEvent, LiveState } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import LiveMatchupPanel from '../components/LiveMatchupPanel';
 import { resolveRefName } from '../shared/utils/resolveRef';
+import { computeCanScore, resolveUserId, rosterIds } from '../shared/utils/matchAuth';
+import { isLegalDelivery, battingStatsFor, bowlingStatsFor, maidenOversFor } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'LiveScoring'>;
 
@@ -65,77 +67,9 @@ function teamNameOf(team: Match['team1'] | undefined): string {
   return typeof team === 'string' ? 'Team' : team.name;
 }
 
-function rosterIds(team: Match['team1'] | undefined): string[] {
-  if (!team || typeof team === 'string') return [];
-  return (team.players || []).map((p) => (typeof p === 'string' ? p : p._id));
-}
-
-function resolveUserId(u: Match['createdBy'] | undefined | null): string | null {
-  if (!u) return null;
-  if (typeof u === 'string') return u;
-  const any = u as any;
-  return any._id ?? any.id ?? null;
-}
-
-function isLegalDelivery(b: Pick<BallEvent, 'isExtra' | 'extraType'>): boolean {
-  return !(b.isExtra && (b.extraType === 'wide' || b.extraType === 'no-ball'));
-}
-
-function battingStatsFor(balls: BallEvent[], playerId: string) {
-  let runs = 0;
-  let ballsFaced = 0;
-  let fours = 0;
-  let sixes = 0;
-  for (const b of balls) {
-    if (b.batsmanId !== playerId) continue;
-    if (!(b.isExtra && b.extraType === 'wide')) ballsFaced += 1;
-    if (!b.isExtra) {
-      runs += b.runs;
-      if (b.runs === 4) fours += 1;
-      if (b.runs === 6) sixes += 1;
-    }
-  }
-  const strikeRate = ballsFaced > 0 ? (runs / ballsFaced) * 100 : 0;
-  return { runs, ballsFaced, fours, sixes, strikeRate };
-}
-
-function bowlingStatsFor(balls: BallEvent[], playerId: string) {
-  let legalBalls = 0;
-  let runsConceded = 0;
-  let wickets = 0;
-  for (const b of balls) {
-    if (b.bowlerId !== playerId) continue;
-    if (isLegalDelivery(b)) legalBalls += 1;
-    if (!(b.isExtra && (b.extraType === 'bye' || b.extraType === 'leg-bye'))) runsConceded += b.runs;
-    if (b.isWicket && !['run out', 'retired hurt', 'retired out'].includes(b.wicketType || '')) wickets += 1;
-  }
-  const overs = Math.floor(legalBalls / 6) + (legalBalls % 6) / 10;
-  const economy = legalBalls > 0 ? runsConceded / (legalBalls / 6) : 0;
-  return { legalBalls, runsConceded, wickets, overs, economy };
-}
-
-// Filtering to just this bowler's own deliveries (in order) reconstructs their overs correctly
-// even though other bowlers' balls are interleaved in the full innings list - each individual
-// over is always bowled entirely by one bowler, so every run of 6 legal deliveries pulled from
-// just their balls is exactly one of their completed overs.
-function maidenOversFor(balls: BallEvent[], playerId: string): number {
-  let maidens = 0;
-  let runsThisOver = 0;
-  let legalInOver = 0;
-  for (const b of balls) {
-    if (b.bowlerId !== playerId) continue;
-    if (!(b.isExtra && (b.extraType === 'bye' || b.extraType === 'leg-bye'))) runsThisOver += b.runs;
-    if (isLegalDelivery(b)) {
-      legalInOver += 1;
-      if (legalInOver === 6) {
-        if (runsThisOver === 0) maidens += 1;
-        runsThisOver = 0;
-        legalInOver = 0;
-      }
-    }
-  }
-  return maidens;
-}
+// isLegalDelivery/battingStatsFor/bowlingStatsFor/maidenOversFor moved to
+// shared/utils/matchStats.ts so MatchDetailScreen's read-only scorecard can reuse the exact
+// same figures instead of a second copy.
 
 // Full cross-platform liveState shape - matches web-app's InningsData (BallByBallScoring.tsx)
 // and what MatchDetailScreen/AtTheCrease/FieldingPlan already expect to read from
@@ -204,26 +138,10 @@ function buildFullLiveState(
   };
 }
 
-// --- Broadened scoring authorization - mirrors canManageMatch() on the backend (the real
-// enforcement; this is just so the UI doesn't invite someone into a flow they'll get a 403 the
-// moment they try to use it). Scoring is open to whoever created the match, any appointed
-// umpire, or anyone actually rostered on either playing team - not just the creator. Plain
-// function (not a hook) so it can be called both above and below this screen's early returns
-// without violating the Rules of Hooks. ---
-function computeCanScore(
-  match: Match | null,
-  userId: string | null | undefined,
-  playersById: Map<string, Player>
-): { isOwner: boolean; canScore: boolean } {
-  if (!match || !userId) return { isOwner: false, canScore: false };
-  const ownerId = resolveUserId(match.createdBy);
-  const isOwner = !!ownerId && ownerId === userId;
-  const isUmpire = (match.umpires || []).some((u) => resolveUserId(u) === userId);
-  const myPlayer = Array.from(playersById.values()).find((p) => resolveUserId(p.user) === userId);
-  const isRostered =
-    !!myPlayer && (rosterIds(match.team1).includes(myPlayer._id) || rosterIds(match.team2).includes(myPlayer._id));
-  return { isOwner, canScore: isOwner || isUmpire || isRostered };
-}
+// Broadened scoring authorization now lives in shared/utils/matchAuth.ts (computeCanScore) -
+// MatchDetailScreen.tsx needs the identical check for its "Score this match" button, and having
+// each screen keep its own independent copy is exactly what let that button stay creator-only
+// after this screen's own check was broadened.
 
 // Persisted verbatim to match.innings[i].liveState on every record-ball call (see
 // api.matches.recordBall's comment) so a resumed session - this device later, or a different
@@ -424,7 +342,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
 
   // Computed fresh every render (not a hook) so it's safe to use both above and below this
   // screen's early-return guards further down.
-  const { isOwner, canScore } = computeCanScore(match, user?.id, playersById);
+  const { isOwner, canScore } = computeCanScore(match, user?.id, Array.from(playersById.values()));
 
   // --- Single active scorer lock - opening scoring up to every rostered player plus umpires
   // means two people could otherwise submit conflicting balls simultaneously. Claim the lock as

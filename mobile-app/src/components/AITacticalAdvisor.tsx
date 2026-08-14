@@ -91,7 +91,10 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
     return null;
   }
 
-  if (error) {
+  // A socket error only means live updates aren't flowing right now - it doesn't mean there's
+  // nothing to show. The REST-fetched snapshot (aiInsights) is still valid and worth displaying;
+  // only block on the error if there's truly no data to fall back on.
+  if (error && !aiInsights) {
     return (
       <Card style={styles.errorCard}>
         <Card.Content>

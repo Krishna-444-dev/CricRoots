@@ -1,5 +1,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import io, { Socket } from 'socket.io-client';
+import { API_BASE_URL } from '../shared/api/apiClient';
+
+// Socket.IO shares the same HTTP server/port as the REST API (see backend/src/index.js -
+// socketManager attaches to the same server Express listens on), so the socket origin is just
+// API_BASE_URL with its trailing /api path stripped - not a separately-resolved URL. Previously
+// this read `process.env.REACT_APP_API_URL`, a Create React App convention that Metro never
+// inlines (Expo only inlines `EXPO_PUBLIC_*`), so it silently always fell back to
+// 'http://localhost:5000' - meaning "the phone itself" on a physical device, not this Mac,
+// which is why the socket connection always failed there while REST calls (going through
+// apiClient's correctly-resolved API_BASE_URL) worked fine.
+const SOCKET_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 
 interface AIInsight {
   match_status: string;
@@ -47,9 +58,7 @@ export const useMatchWebSocket = ({
       return;
     }
 
-    const socketUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-    
-    const newSocket = io(socketUrl, {
+    const newSocket = io(SOCKET_URL, {
       auth: {
         token,
         userId

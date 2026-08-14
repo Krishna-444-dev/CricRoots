@@ -4,27 +4,20 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
-import { Match, BallEvent, Prediction } from '../shared/types';
+import { Match, BallEvent, Prediction, Player } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import AtTheCrease from '../components/AtTheCrease';
 import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId } from '../shared/utils/resolveRef';
+import { computeCanScore } from '../shared/utils/matchAuth';
+import { battingStatsFor, bowlingStatsFor, maidenOversFor } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
 
 function teamName(team: Match['team1'] | undefined): string {
   if (!team) return 'TBD';
   return typeof team === 'string' ? 'TBD' : team.name;
-}
-
-// Match.createdBy may arrive as a bare id string, a raw Mongoose doc (`_id`), or the
-// register/login-shaped `{id}` object - normalize defensively rather than assume one shape.
-function resolveUserId(u: Match['createdBy'] | undefined | null): string | null {
-  if (!u) return null;
-  if (typeof u === 'string') return u;
-  const any = u as any;
-  return any._id ?? any.id ?? null;
 }
 
 // Which innings is "current" for the Recent Deliveries / commentary panel: whichever one has
@@ -133,6 +126,10 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   // doesn't come back scoped to just this match's participants, so it's fetched once here,
   // same non-blocking pattern as web-app's fetchPlayerDirectory.
   const [playerDirectory, setPlayerDirectory] = useState<Map<string, string>>(new Map());
+  // Full player list, for the same broadened "who can score this match" check LiveScoringScreen
+  // uses (see shared/utils/matchAuth.ts) - this screen's own "Score this match" button needs to
+  // agree with what that screen will actually let someone do once they get there.
+  const [players, setPlayers] = useState<Player[]>([]);
 
   const load = useCallback(() => {
     api.matches
@@ -230,9 +227,13 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           if (name) map.set(p._id, name);
         }
         setPlayerDirectory(map);
+        setPlayers(players);
       })
       .catch(() => {
-        if (!cancelled) setPlayerDirectory(new Map());
+        if (!cancelled) {
+          setPlayerDirectory(new Map());
+          setPlayers([]);
+        }
       });
     return () => {
       cancelled = true;
@@ -277,9 +278,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const ownerId = resolveUserId(match.createdBy);
-  const isOwner = !!user && !!ownerId && ownerId === user.id;
-  const canScore = isOwner && (match.status === 'Live' || match.status === 'Scheduled');
+  const { canScore: canManageMatch } = computeCanScore(match, user?.id, players);
+  const canScore = canManageMatch && (match.status === 'Live' || match.status === 'Scheduled');
 
   const team1Id = teamIdOf(match.team1);
   const team2Id = teamIdOf(match.team2);
@@ -525,6 +525,81 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           <Text style={styles.scoutingButtonText}>Scouting Report &rarr;</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Full Scorecard - read-only, visible to anyone viewing the match (not just the scorer;
+      LiveScoringScreen has its own copy of this for the scorer specifically). Batting/bowling
+      order is derived from first appearance in the ball log, same source playersWhoAppeared
+      below uses, since team.players isn't reliably populated with real rosters on this endpoint. */}
+      {match.innings.some((inn) => inn.balls.length > 0) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Full Scorecard</Text>
+          {match.innings.map((innings, idx) => {
+            if (innings.balls.length === 0) return null;
+            const battingOrder: string[] = [];
+            const bowlingOrder: string[] = [];
+            for (const b of innings.balls) {
+              if (b.batsmanId && !battingOrder.includes(b.batsmanId)) battingOrder.push(b.batsmanId);
+              if (b.bowlerId && !bowlingOrder.includes(b.bowlerId)) bowlingOrder.push(b.bowlerId);
+            }
+            return (
+              <View key={idx} style={styles.scorecardInnings}>
+                <Text style={styles.scorecardTeamName}>
+                  {teamName(innings.team)} - {innings.runs}/{innings.wickets} ({innings.overs.toFixed(1)} ov)
+                </Text>
+
+                <View style={styles.scorecardHeaderRow}>
+                  <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Batsman</Text>
+                  <Text style={styles.scorecardHeaderCell}>R</Text>
+                  <Text style={styles.scorecardHeaderCell}>B</Text>
+                  <Text style={styles.scorecardHeaderCell}>4s</Text>
+                  <Text style={styles.scorecardHeaderCell}>6s</Text>
+                  <Text style={styles.scorecardHeaderCell}>SR</Text>
+                </View>
+                {battingOrder.map((playerId) => {
+                  const stats = battingStatsFor(innings.balls, playerId);
+                  return (
+                    <View key={playerId} style={styles.scorecardRow}>
+                      <Text style={[styles.scorecardCell, styles.scorecardNameCol]} numberOfLines={1}>
+                        {playerDirectory.get(playerId) ?? 'Player'}
+                      </Text>
+                      <Text style={styles.scorecardCell}>{stats.runs}</Text>
+                      <Text style={styles.scorecardCell}>{stats.ballsFaced}</Text>
+                      <Text style={styles.scorecardCell}>{stats.fours}</Text>
+                      <Text style={styles.scorecardCell}>{stats.sixes}</Text>
+                      <Text style={styles.scorecardCell}>{stats.strikeRate.toFixed(1)}</Text>
+                    </View>
+                  );
+                })}
+
+                <View style={[styles.scorecardHeaderRow, { marginTop: 10 }]}>
+                  <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Bowler</Text>
+                  <Text style={styles.scorecardHeaderCell}>O</Text>
+                  <Text style={styles.scorecardHeaderCell}>M</Text>
+                  <Text style={styles.scorecardHeaderCell}>R</Text>
+                  <Text style={styles.scorecardHeaderCell}>W</Text>
+                  <Text style={styles.scorecardHeaderCell}>Econ</Text>
+                </View>
+                {bowlingOrder.map((playerId) => {
+                  const stats = bowlingStatsFor(innings.balls, playerId);
+                  const maidens = maidenOversFor(innings.balls, playerId);
+                  return (
+                    <View key={playerId} style={styles.scorecardRow}>
+                      <Text style={[styles.scorecardCell, styles.scorecardNameCol]} numberOfLines={1}>
+                        {playerDirectory.get(playerId) ?? 'Player'}
+                      </Text>
+                      <Text style={styles.scorecardCell}>{stats.overs.toFixed(1)}</Text>
+                      <Text style={styles.scorecardCell}>{maidens}</Text>
+                      <Text style={styles.scorecardCell}>{stats.runsConceded}</Text>
+                      <Text style={styles.scorecardCell}>{stats.wickets}</Text>
+                      <Text style={styles.scorecardCell}>{stats.economy.toFixed(2)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {/* Player Performance Reports - mobile port of web-app's per-player report links. */}
       {playersWhoAppeared(match.innings).length > 0 && (
@@ -911,6 +986,19 @@ const styles = StyleSheet.create({
   chartBarWicket: { backgroundColor: colors.wicket500 },
   chartBarRuns: { color: colors.ink, fontSize: 11, fontWeight: '700', marginTop: 4 },
   chartBarLabel: { color: colors.inkMuted, fontSize: 10, marginTop: 1 },
+
+  scorecardInnings: {
+    backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+    padding: 12, marginBottom: 12,
+  },
+  scorecardTeamName: { color: colors.ink, fontSize: 13, fontWeight: '700', marginBottom: 10 },
+  scorecardHeaderRow: {
+    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 6, marginBottom: 4,
+  },
+  scorecardHeaderCell: { flex: 1, color: colors.inkMuted, fontSize: 10, fontWeight: '700', textAlign: 'right' },
+  scorecardRow: { flexDirection: 'row', paddingVertical: 4 },
+  scorecardCell: { flex: 1, color: colors.inkSecondary, fontSize: 12, textAlign: 'right' },
+  scorecardNameCol: { flex: 3, textAlign: 'left' },
 
   reportsHint: { color: colors.inkMuted, fontSize: 12, marginBottom: 10 },
   reportChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
