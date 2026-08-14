@@ -35,7 +35,7 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
   token,
   isLive
 }) => {
-  const { isConnected, error, aiInsights: liveInsights } = useMatchWebSocket({
+  const { isConnected, error, aiInsights: liveInsights, ballRecorded } = useMatchWebSocket({
     matchId,
     userId,
     token,
@@ -73,6 +73,11 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
   // backend) - not the synthetic key_recommendations model that has no roster awareness.
   const [bowlerRec, setBowlerRec] = useState<BowlerRecommendation | null>(null);
 
+  // Re-fetch whenever a new ball lands, not just once on mount - otherwise this stays frozen
+  // at whatever it was when the panel first opened even as win_probability keeps updating live
+  // beside it (that one arrives via the socket's own 'ai-insights' push; this recommendation
+  // has no push equivalent, so `ballRecorded` - which changes identity on every 'ball-recorded'
+  // event - stands in as the "something changed, go refetch" trigger).
   useEffect(() => {
     if (!isLive) return;
     let cancelled = false;
@@ -85,7 +90,7 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [matchId, isLive]);
+  }, [matchId, isLive, ballRecorded]);
 
   if (!isLive) {
     return null;

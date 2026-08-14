@@ -237,19 +237,42 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
         // both lose who's actually on strike right now and risk duplicate/conflicting ball
         // numbers once new balls are recorded. Mirrors web-app/app/match/[id]/score/page.tsx.
         const idx: 0 | 1 = (m.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0;
+        setInningsIndex(idx);
+        const idxBalls = m.innings[idx]?.balls ?? [];
         // The persisted object is ScoringSnapshot's fields merged with the full cross-platform
         // LiveState shape (see buildFullLiveState) - only the ScoringSnapshot fields matter here.
         // Cast through unknown since Innings.liveState's static type (LiveState) and
         // ScoringSnapshot don't share required fields, even though the real object has both.
         const saved = m.innings[idx]?.liveState as unknown as (ScoringSnapshot & Partial<LiveState>) | null | undefined;
-        if (saved) {
-          setInningsIndex(idx);
-          setBattingTeamId(saved.battingTeamId);
-          setStrikerId(saved.strikerId);
-          setNonStrikerId(saved.nonStrikerId);
-          setBowlerId(saved.bowlerId);
-          setOutPlayerIds(new Set(saved.outPlayerIds));
+        // Only trust the snapshot if it actually carries every field this screen needs to
+        // resume a mid-over state. A liveState written by something other than this screen
+        // (e.g. a full cross-platform-shape write with no ScoringSnapshot fields at all) is
+        // present-but-empty from here - blindly trusting it dropped straight into the live
+        // scoring view with no striker/non-striker/bowler selected (blank names, "0 (0)"
+        // everywhere) despite real runs already on the board.
+        const hasValidSnapshot = !!(
+          saved && saved.battingTeamId && saved.strikerId && saved.nonStrikerId && saved.bowlerId
+        );
+        if (hasValidSnapshot) {
+          setBattingTeamId(saved!.battingTeamId);
+          setStrikerId(saved!.strikerId);
+          setNonStrikerId(saved!.nonStrikerId);
+          setBowlerId(saved!.bowlerId);
+          setOutPlayerIds(new Set(saved!.outPlayerIds));
           setInningsStarted(true);
+        } else if (idxBalls.length > 0) {
+          // Runs are already on the board but we don't know exactly who's at the crease right
+          // now - infer the batting side from whoever's actually appeared in the ball log
+          // (unambiguous) and leave striker/non-striker/bowler for the scorer to confirm via
+          // the picker below rather than guessing at a specific player.
+          const battedIds = new Set(idxBalls.map((b) => b.batsmanId));
+          const t1Ids = new Set(rosterIds(m.team1));
+          const battingIsTeam1 = [...battedIds].some((id) => t1Ids.has(id));
+          setBattingTeamId(battingIsTeam1 ? teamIdOf(m.team1) : teamIdOf(m.team2));
+          // Whoever's batsmanId is on a wicket ball is out - mirrors how handleWicket itself
+          // records dismissals (always the ball's batsmanId, see the wicket handler below) -
+          // so an already-dismissed batsman can't be re-picked as the resumed striker/non-striker.
+          setOutPlayerIds(new Set(idxBalls.filter((b) => b.isWicket).map((b) => b.batsmanId)));
         }
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : 'Failed to load match'))
@@ -474,7 +497,10 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   function handleStartInnings() {
     if (!match || !canStart) return;
     setInningsIndex(battingTeamId === team1Id ? 0 : 1);
-    setOutPlayerIds(new Set());
+    // Only clear dismissals for a genuinely fresh innings - when resuming one that already has
+    // balls, outPlayerIds was already derived from the ball log at load time and must survive
+    // this call so an already-out batsman can't be re-selected.
+    if (currentBalls.length === 0) setOutPlayerIds(new Set());
     setInningsStarted(true);
   }
 
@@ -764,9 +790,19 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   if (!inningsStarted) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.setupContent}>
-        <Text style={styles.sectionTitle}>Start Innings</Text>
+        <Text style={styles.sectionTitle}>
+          {currentBalls.length > 0 ? 'Resume Scoring' : 'Start Innings'}
+        </Text>
+        {currentBalls.length > 0 && (
+          <Text style={[styles.muted, { marginBottom: 16 }]}>
+            This innings already has {currentBalls.length} ball{currentBalls.length === 1 ? '' : 's'}{' '}
+            recorded - we couldn&apos;t automatically recover who&apos;s currently at the crease, so
+            confirm the batting side and who&apos;s on strike, non-strike, and bowling below. Runs
+            already on the board are not affected.
+          </Text>
+        )}
         <ChipGroup
-          label="Batting first"
+          label="Batting side"
           required
           options={[
             { id: team1Id || 'team1', label: teamNameOf(match.team1) },

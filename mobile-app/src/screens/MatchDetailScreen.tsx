@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
@@ -74,15 +75,120 @@ interface ChartInnings {
   cumulative: { over: number; total: number }[];
 }
 
-// Manhattan/Worm charts - dependency-free equivalent of web-app's inline-SVG
-// ManhattanChart/WormChart, built the same way as PlayerStatsScreen's wagon wheel: a column of
-// rows, each a label plus a proportionally-filled bar View. No react-native-svg or charting
-// library, per the Expo Go pilot-distribution constraint. One color per innings (batting order).
+// Manhattan chart: a column of rows, each a label plus a proportionally-filled bar View - the
+// same list-row pattern PlayerStatsScreen's wagon wheel uses. One color per innings (batting
+// order). The Worm Chart below is a real SVG line/area chart instead (see WormChartSvg) - a
+// growing bar per over doesn't show what a worm chart is for (each team's scoring *rate*,
+// compared side by side, with a crossing point once the second innings catches up).
 const CHART_TEAM_COLORS = [colors.pitch500, colors.gold500];
 
 function chartTeamName(team: any, fallback: string): string {
   if (team && typeof team === 'object' && 'name' in team) return team.name;
   return fallback;
+}
+
+// Mobile port of web-app/components/insights/WormChart.tsx's SVG design (two polylines showing
+// cumulative runs per over, an area fill under each, wicket dots) rather than the bar-list style
+// used for the Manhattan Chart above. react-native-svg ships inside Expo Go itself (it's in
+// Expo's own "bundled native modules" list: docs.expo.dev/versions/latest/sdk/svg), so this
+// doesn't need a custom dev client or break the Expo Go pilot-distribution path.
+function WormChartSvg({ innings }: { innings: ChartInnings[] }) {
+  const maxOvers = Math.max(1, ...innings.map((inn) => inn.cumulative.length));
+  const maxTotal = Math.max(1, ...innings.flatMap((inn) => inn.cumulative.map((c) => c.total)));
+
+  const width = Math.max(320, maxOvers * 26);
+  const height = 200;
+  const paddingLeft = 32;
+  const paddingRight = 10;
+  const paddingTop = 16;
+  const paddingBottom = 22;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const labelStep = Math.max(1, Math.ceil(maxOvers / 12));
+
+  const xFor = (overNumber: number) => paddingLeft + (overNumber / maxOvers) * chartWidth;
+  const yFor = (total: number) => paddingTop + chartHeight - (total / maxTotal) * chartHeight;
+  const baselineY = paddingTop + chartHeight;
+
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <Svg width={width} height={height}>
+          {[0, 0.5, 1].map((f) => (
+            <React.Fragment key={f}>
+              <SvgLine
+                x1={paddingLeft}
+                x2={width - paddingRight}
+                y1={paddingTop + chartHeight * (1 - f)}
+                y2={paddingTop + chartHeight * (1 - f)}
+                stroke={colors.border}
+                strokeWidth={1}
+                opacity={0.6}
+              />
+              <SvgText x={paddingLeft - 6} y={paddingTop + chartHeight * (1 - f) + 3} textAnchor="end" fontSize={9} fill={colors.inkMuted}>
+                {Math.round(maxTotal * f)}
+              </SvgText>
+            </React.Fragment>
+          ))}
+
+          {Array.from({ length: maxOvers + 1 }).map((_, overNumber) =>
+            overNumber % labelStep === 0 ? (
+              <SvgText
+                key={overNumber}
+                x={xFor(overNumber)}
+                y={height - paddingBottom + 14}
+                textAnchor="middle"
+                fontSize={9}
+                fill={colors.inkMuted}
+              >
+                {overNumber}
+              </SvgText>
+            ) : null
+          )}
+
+          {innings.map((inn, teamIdx) => {
+            if (inn.cumulative.length === 0) return null;
+            const points = [{ over: 0, total: 0 }, ...inn.cumulative.map((c) => ({ over: c.over + 1, total: c.total }))];
+            const linePoints = points.map((p) => `${xFor(p.over)},${yFor(p.total)}`).join(' ');
+            const areaPoints = `${xFor(0)},${baselineY} ${linePoints} ${xFor(points[points.length - 1].over)},${baselineY}`;
+            const color = CHART_TEAM_COLORS[teamIdx % 2];
+            return (
+              <React.Fragment key={teamIdx}>
+                <Polygon points={areaPoints} fill={color} opacity={0.1} />
+                <Polyline
+                  points={linePoints}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {inn.overs.map((o, i) =>
+                  o.wickets > 0 ? (
+                    <Circle key={i} cx={xFor(o.over + 1)} cy={yFor(points[i + 1].total)} r={3} fill={colors.wicket500} />
+                  ) : null
+                )}
+              </React.Fragment>
+            );
+          })}
+
+          <SvgLine x1={paddingLeft} x2={width - paddingRight} y1={baselineY} y2={baselineY} stroke={colors.borderStrong} strokeWidth={1} />
+        </Svg>
+      </ScrollView>
+      <View style={styles.chartLegendRow}>
+        {innings.map((inn, i) => (
+          <View key={i} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
+            <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
+          </View>
+        ))}
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: colors.wicket500 }]} />
+          <Text style={styles.legendText}>Wicket that over</Text>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 interface PredictionSplit {
@@ -305,16 +411,12 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     ? Math.max(6, ...activeChart.overs.map((o) => o.runs))
     : 6;
 
-  // Manhattan/Worm scaling - computed across BOTH innings (not just the active one), so the
-  // two teams' bars stay comparable row-to-row.
+  // Manhattan scaling - computed across BOTH innings (not just the active one), so the two
+  // teams' bars stay comparable row-to-row. (WormChartSvg does its own equivalent scaling.)
   const hasChartData = !!chartInnings?.some((inn) => inn.overs.some((o) => o.runs > 0 || o.wickets > 0));
   const manhattanMaxOvers = chartInnings?.length ? Math.max(0, ...chartInnings.map((inn) => inn.overs.length)) : 0;
   const manhattanMaxRuns = chartInnings?.length
     ? Math.max(1, ...chartInnings.flatMap((inn) => inn.overs.map((o) => o.runs)))
-    : 1;
-  const wormMaxOvers = chartInnings?.length ? Math.max(0, ...chartInnings.map((inn) => inn.cumulative.length)) : 0;
-  const wormMaxTotal = chartInnings?.length
-    ? Math.max(1, ...chartInnings.flatMap((inn) => inn.cumulative.map((c) => c.total)))
     : 1;
 
   return (
@@ -770,42 +872,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           <Text style={styles.sectionTitle}>Worm Chart</Text>
           <Text style={styles.reportsHint}>Cumulative team total after each over</Text>
           <View style={styles.chartListCard}>
-            <ScrollView style={styles.chartListScroll} nestedScrollEnabled>
-              {Array.from({ length: wormMaxOvers }).map((_, overIdx) => (
-                <View key={overIdx} style={styles.chartListRow}>
-                  <Text style={styles.chartListLabel}>{overIdx + 1}</Text>
-                  <View style={styles.chartListBars}>
-                    {chartInnings.map((inn, teamIdx) => {
-                      const point = inn.cumulative[overIdx];
-                      const widthPct = point ? Math.max(4, (point.total / wormMaxTotal) * 100) : 0;
-                      return (
-                        <View key={teamIdx} style={styles.chartMiniBarRow}>
-                          <View style={styles.chartMiniBarTrack}>
-                            <View
-                              style={[
-                                styles.chartMiniBarFill,
-                                { width: `${widthPct}%`, backgroundColor: CHART_TEAM_COLORS[teamIdx % 2] },
-                              ]}
-                            />
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.chartListValue}>
-                    {chartInnings.map((inn) => (inn.cumulative[overIdx] ? inn.cumulative[overIdx].total : '-')).join(' · ')}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-            <View style={styles.chartLegendRow}>
-              {chartInnings.map((inn, i) => (
-                <View key={i} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
-                  <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
-                </View>
-              ))}
-            </View>
+            <WormChartSvg innings={chartInnings} />
           </View>
         </View>
       )}
