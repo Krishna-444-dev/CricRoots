@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } fr
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
+import { resolveRefName } from '../shared/utils/resolveRef';
 import { NewsPost } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -15,7 +16,7 @@ type FeedMode = 'public' | 'mine';
 const CAN_POST_ROLES = ['organizer', 'admin'];
 
 function authorName(author: NewsPost['author']): string {
-  return typeof author === 'string' ? 'Unknown' : author.name;
+  return resolveRefName(author, 'Unknown');
 }
 
 function formatDate(iso: string): string {

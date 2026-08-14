@@ -3,13 +3,14 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } fr
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
+import { resolveRefName } from '../shared/utils/resolveRef';
 import { Lesson } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
 
 const CATEGORIES = ['batting', 'bowling', 'fielding', 'fitness', 'rules', 'strategy'];
 
 function authorName(author: Lesson['author']): string {
-  return typeof author === 'string' ? 'Unknown' : author.name;
+  return resolveRefName(author, 'Unknown');
 }
 
 export default function LearnScreen({ navigation }: any) {

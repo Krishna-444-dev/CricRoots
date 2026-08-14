@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
+import { resolveRefName } from '../shared/utils/resolveRef';
 import { Product } from '../shared/types';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../hooks/useAuth';
@@ -13,7 +14,7 @@ import { useAuth } from '../hooks/useAuth';
 const CATEGORIES = ['equipment', 'apparel', 'accessories', 'other'] as const;
 
 function sellerName(seller: Product['seller']): string {
-  return typeof seller === 'string' ? 'Unknown' : seller.name;
+  return resolveRefName(seller, 'Unknown');
 }
 
 export default function MarketplaceScreen({ navigation }: any) {

@@ -4,6 +4,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { Match } from '../shared/types';
+import { resolveRefName } from '../shared/utils/resolveRef';
 
 interface QuickLink {
   label: string;
@@ -27,7 +28,7 @@ const QUICK_LINKS: QuickLink[] = [
 ];
 
 function teamName(team: Match['team1']): string {
-  return typeof team === 'string' ? 'Team' : team.name;
+  return resolveRefName(team, 'Team');
 }
 
 export default function HomeScreen({ navigation }: any) {

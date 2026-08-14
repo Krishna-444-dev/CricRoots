@@ -9,6 +9,7 @@ import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import AtTheCrease from '../components/AtTheCrease';
 import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
+import { resolveRefId } from '../shared/utils/resolveRef';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
 
@@ -101,7 +102,7 @@ interface PredictionSplit {
 // endpoint this screen uses), but type it defensively in case a populated shape ever shows up.
 function predictedWinnerId(p: Prediction | null | undefined): string | null {
   if (!p) return null;
-  return typeof p.predictedWinner === 'string' ? p.predictedWinner : p.predictedWinner._id;
+  return resolveRefId(p.predictedWinner);
 }
 
 interface KeyMoment {
@@ -740,7 +741,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
 }
 
 function teamIdOf(team: Match['team1']): string {
-  return typeof team === 'string' ? team : team._id;
+  return resolveRefId(team) ?? '';
 }
 
 const styles = StyleSheet.create({

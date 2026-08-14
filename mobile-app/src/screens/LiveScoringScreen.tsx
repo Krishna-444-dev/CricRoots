@@ -17,6 +17,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Match, Player, BallEvent, LiveState } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import LiveMatchupPanel from '../components/LiveMatchupPanel';
+import { resolveRefName } from '../shared/utils/resolveRef';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'LiveScoring'>;
 
@@ -513,7 +514,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
       const uid = resolveUserId(p.user);
       if (!uid || seen.has(uid) || existing.has(uid)) return;
       seen.add(uid);
-      list.push({ id: uid, label: typeof p.user === 'string' ? 'Player' : p.user.name });
+      list.push({ id: uid, label: resolveRefName(p.user, 'Player') });
     });
     return list;
   }, [match, playersById]);
@@ -798,7 +799,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   }
 
   if (!canScore) {
-    const creatorName = typeof match.createdBy === 'string' ? 'its creator' : match.createdBy.name;
+    const creatorName = resolveRefName(match.createdBy, 'its creator');
     return (
       <View style={styles.centered}>
         <Text style={styles.errorTitle}>Not authorized</Text>
@@ -1208,7 +1209,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
           {match.umpires && match.umpires.length > 0 ? (
             match.umpires.map((u) => {
               const uid = resolveUserId(u);
-              const uname = typeof u === 'string' ? 'Umpire' : u.name;
+              const uname = resolveRefName(u, 'Umpire');
               return (
                 <View key={uid ?? uname} style={styles.playerRow}>
                   <Text style={styles.playerNameSecondary}>{uname}</Text>

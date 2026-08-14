@@ -8,20 +8,25 @@ import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { LeaderboardEntry, Prediction } from '../shared/types';
+import { resolveRefName } from '../shared/utils/resolveRef';
 
 type Tab = 'leaderboard' | 'mine';
 
+// resolveRefName expects a `.name` field, but a populated match's display field is `.title` -
+// same null/string/populated tri-state, just checked inline rather than forcing it through that
+// helper.
 function matchTitle(p: Prediction): string {
-  return typeof p.match === 'string' ? 'Match' : p.match.title;
+  if (!p.match) return 'Match';
+  return typeof p.match === 'string' ? 'Match' : p.match.title || 'Match';
 }
 
 function matchTeams(p: Prediction): string {
-  if (typeof p.match === 'string') return '';
-  return `${p.match.team1.name} vs ${p.match.team2.name}`;
+  if (!p.match || typeof p.match === 'string') return '';
+  return `${p.match.team1?.name || 'Team'} vs ${p.match.team2?.name || 'Team'}`;
 }
 
 function winnerName(p: Prediction): string {
-  return typeof p.predictedWinner === 'string' ? 'your pick' : p.predictedWinner.name;
+  return resolveRefName(p.predictedWinner, 'your pick');
 }
 
 export default function LeaderboardScreen() {
