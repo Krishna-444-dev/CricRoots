@@ -127,6 +127,10 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const [statsLoaded, setStatsLoaded] = useState(false);
   const [statsError, setStatsError] = useState('');
 
+  // Top performers - lazy-loaded the first time the Awards tab is opened.
+  const [leaderboard, setLeaderboard] = useState<{ batsmen: any[]; bowlers: any[] } | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+
   // Announcements - GET is public, POST is organizer-only (enforced server-side too)
   const [announcements, setAnnouncements] = useState<any[] | null>(null);
   const [announcementText, setAnnouncementText] = useState('');
@@ -189,6 +193,16 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
       .catch((err: any) => setStatsError(err instanceof Error ? err.message : 'Failed to load statistics'))
       .finally(() => setStatsLoading(false));
   }, [section, statsLoaded, tournamentId]);
+
+  useEffect(() => {
+    if (section !== 'awards') return;
+    setLeaderboardLoading(true);
+    api.tournaments
+      .getLeaderboard(tournamentId, 5)
+      .then((res: any) => setLeaderboard({ batsmen: res.batsmen, bowlers: res.bowlers }))
+      .catch(() => {})
+      .finally(() => setLeaderboardLoading(false));
+  }, [section, tournamentId]);
 
   // Grouped per-group standings live on a separate response shape from getStandings (see
   // getTournamentStandings on the backend) - only fetched once the tournament actually has
@@ -667,6 +681,43 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                 <AwardBox label="Best Bowler" value={awardPlayerName(awards?.bestBowler)} />
               </View>
             )}
+
+            <Text style={[styles.groupTitle, { marginTop: 24 }]}>Top Performers</Text>
+            {leaderboardLoading || !leaderboard ? (
+              <ActivityIndicator color={colors.pitch400} />
+            ) : leaderboard.batsmen.length === 0 && leaderboard.bowlers.length === 0 ? (
+              <Text style={styles.muted}>No completed matches yet - top performers appear once some matches finish.</Text>
+            ) : (
+              <>
+                <Text style={[styles.groupTitle, { fontSize: 13, marginTop: 12 }]}>Leading Run Scorers</Text>
+                {leaderboard.batsmen.length === 0 ? (
+                  <Text style={styles.muted}>No qualifying innings yet.</Text>
+                ) : (
+                  leaderboard.batsmen.map((b, i) => (
+                    <View key={b.player._id} style={styles.leaderRow}>
+                      <Text style={styles.leaderName} numberOfLines={1}>
+                        {b.player._id === resolveId(awards?.bestBatsman) ? '🏆 ' : ''}{i + 1}. {b.player.name}
+                      </Text>
+                      <Text style={styles.leaderStat}>{b.runs} runs · avg {b.average} · SR {b.strikeRate}</Text>
+                    </View>
+                  ))
+                )}
+
+                <Text style={[styles.groupTitle, { fontSize: 13, marginTop: 16 }]}>Leading Wicket Takers</Text>
+                {leaderboard.bowlers.length === 0 ? (
+                  <Text style={styles.muted}>No qualifying spells yet.</Text>
+                ) : (
+                  leaderboard.bowlers.map((b, i) => (
+                    <View key={b.player._id} style={styles.leaderRow}>
+                      <Text style={styles.leaderName} numberOfLines={1}>
+                        {b.player._id === resolveId(awards?.bestBowler) ? '🏆 ' : ''}{i + 1}. {b.player.name}
+                      </Text>
+                      <Text style={styles.leaderStat}>{b.wickets} wkts · avg {b.average} · econ {b.economyRate}</Text>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
           </View>
         )}
 
@@ -923,6 +974,9 @@ const styles = StyleSheet.create({
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 8 },
   docLink: { color: colors.pitch400, fontSize: 14, fontWeight: '600' },
   docRemove: { color: colors.wicket400, fontSize: 12, fontWeight: '600' },
+  leaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
+  leaderName: { color: colors.ink, fontSize: 13, flexShrink: 1 },
+  leaderStat: { color: colors.inkSecondary, fontSize: 12 },
   messageRow: { marginBottom: 10, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10 },
   messageSender: { color: colors.gold500, fontSize: 11, fontWeight: '700', marginBottom: 2 },
   messageText: { color: colors.ink, fontSize: 13 },

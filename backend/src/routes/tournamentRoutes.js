@@ -14,6 +14,7 @@ const {
   generateKnockoutStage,
   advanceKnockoutRound,
   computeAwards,
+  getTournamentLeaderboard,
   deleteTournament,
   uploadHouseRulesDocument,
   deleteHouseRulesDocument
@@ -28,6 +29,7 @@ router.get('/:id', getTournament);
 router.get('/:id/standings', getTournamentStandings);
 router.get('/:id/matches', getTournamentMatches);
 router.get('/:id/statistics', getTournamentStats);
+router.get('/:id/leaderboard', getTournamentLeaderboard);
 router.get('/:id/messages', getTournamentMessages);
 
 // Protected routes

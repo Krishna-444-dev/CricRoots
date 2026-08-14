@@ -215,6 +215,8 @@ export const tournamentsAPI = {
   getStandings: (tournamentId: string) => apiFetch<any>(`/tournaments/${tournamentId}/standings`),
   getTournamentMatches: (tournamentId: string) => apiFetch<{ success: true; matches: any[] }>(`/tournaments/${tournamentId}/matches`),
   getStatistics: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/statistics`),
+  getLeaderboard: (tournamentId: string, limit = 5) =>
+    apiFetch<{ success: true; batsmen: any[]; bowlers: any[] }>(`/tournaments/${tournamentId}/leaderboard?limit=${limit}`),
   assignGroups: (tournamentId: string, groupCount: number) =>
     apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/assign-groups`, 'POST', { groupCount }),
   generateFixtures: (tournamentId: string, format?: 'round-robin' | 'knockout') =>

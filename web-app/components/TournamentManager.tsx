@@ -96,6 +96,23 @@ interface League {
   name: string;
 }
 
+interface LeaderboardBatsman {
+  player: { _id: string; name: string; specialization: string };
+  matches: number;
+  runs: number;
+  highestScore: number;
+  average: number;
+  strikeRate: number;
+}
+
+interface LeaderboardBowler {
+  player: { _id: string; name: string; specialization: string };
+  matches: number;
+  wickets: number;
+  average: number;
+  economyRate: number;
+}
+
 interface TournamentManagerProps {
   tournamentId?: string;
   // Pre-fills and opens the create-tournament form scoped to this league - set when arriving
@@ -118,6 +135,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [generatingFixtures, setGeneratingFixtures] = useState(false);
   const [computingAwards, setComputingAwards] = useState(false);
   const [awardsError, setAwardsError] = useState('');
+  const [leaderboard, setLeaderboard] = useState<{ batsmen: LeaderboardBatsman[]; bowlers: LeaderboardBowler[] } | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [groupStandings, setGroupStandings] = useState<GroupStandingsResponse[] | null>(null);
   const [groupStandingsLoading, setGroupStandingsLoading] = useState(false);
   const [groupCountInput, setGroupCountInput] = useState('2');
@@ -163,6 +182,16 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       fetch(`/api/tournaments/${selectedTournament._id}/messages`)
         .then(r => r.json())
         .then(data => { if (data.success) setAnnouncements(data.messages); });
+    }
+  }, [activeTab, selectedTournament]);
+
+  useEffect(() => {
+    if (activeTab === 'awards' && selectedTournament) {
+      setLeaderboardLoading(true);
+      fetch(`/api/tournaments/${selectedTournament._id}/leaderboard?limit=5`)
+        .then(r => r.json())
+        .then(data => { if (data.success) setLeaderboard({ batsmen: data.batsmen, bowlers: data.bowlers }); })
+        .finally(() => setLeaderboardLoading(false));
     }
   }, [activeTab, selectedTournament]);
 
@@ -1172,6 +1201,56 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                   <span className={styles.statValue}>{selectedTournament.awards.bestBowler?.user?.name || '-'}</span>
                   {selectedTournament.awards.bestBowler?.specialization && (
                     <span className={styles.statSubtext}>{selectedTournament.awards.bestBowler.specialization}</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'awards' && selectedTournament && (
+          <div className={styles.card} style={{ marginTop: 20 }}>
+            <h2>Top Performers</h2>
+            {leaderboardLoading || !leaderboard ? (
+              <p className={styles.infoText}>Loading...</p>
+            ) : leaderboard.batsmen.length === 0 && leaderboard.bowlers.length === 0 ? (
+              <p className={styles.infoText}>No completed matches yet - top performers appear once some matches finish.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 style={{ marginBottom: 8 }}>Leading Run Scorers</h3>
+                  {leaderboard.batsmen.length === 0 ? (
+                    <p className={styles.infoText}>No qualifying innings yet.</p>
+                  ) : (
+                    leaderboard.batsmen.map((b, i) => (
+                      <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                        <span className="text-ink">
+                          {b.player._id === selectedTournament.awards?.bestBatsman?._id && '🏆 '}
+                          {i + 1}. {b.player.name}
+                        </span>
+                        <span className="text-ink-secondary font-mono">
+                          {b.runs} runs · avg {b.average} · SR {b.strikeRate}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div>
+                  <h3 style={{ marginBottom: 8 }}>Leading Wicket Takers</h3>
+                  {leaderboard.bowlers.length === 0 ? (
+                    <p className={styles.infoText}>No qualifying spells yet.</p>
+                  ) : (
+                    leaderboard.bowlers.map((b, i) => (
+                      <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                        <span className="text-ink">
+                          {b.player._id === selectedTournament.awards?.bestBowler?._id && '🏆 '}
+                          {i + 1}. {b.player.name}
+                        </span>
+                        <span className="text-ink-secondary font-mono">
+                          {b.wickets} wkts · avg {b.average} · econ {b.economyRate}
+                        </span>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>

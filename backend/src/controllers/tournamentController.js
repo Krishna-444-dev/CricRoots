@@ -2,7 +2,14 @@ const Tournament = require('../models/Tournament');
 const Team = require('../models/Team');
 const Match = require('../models/Match');
 const League = require('../models/League');
+const Player = require('../models/Player');
 const tendencyAnalytics = require('../services/tendencyAnalytics');
+
+async function toPlayerSummary(playerId) {
+  const player = await Player.findById(playerId).populate('user', 'name');
+  if (!player) return null;
+  return { _id: player._id, name: player.user?.name ?? 'Unknown', specialization: player.specialization };
+}
 
 // Wicket weight used to blend a bowler's contribution into the same scale as a
 // batsman's runs when tie-breaking "man of the tournament" (see computeManOfTheTournament
@@ -1088,6 +1095,75 @@ exports.computeAwards = async (req, res) => {
       success: true,
       message: 'Tournament awards computed successfully',
       tournament: populated
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Top run-scorers and wicket-takers for this tournament, ranked by average (the same
+//          convention computeAwards's bestBatsman/bestBowler already use - this just surfaces
+//          the top N instead of only the single #1 pick). Powers a "Top Performers" section
+//          alongside the tournament's awards.
+// @route   GET /api/tournaments/:id/leaderboard
+// @access  Public
+exports.getTournamentLeaderboard = async (req, res) => {
+  try {
+    const { limit = 5 } = req.query;
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    const [battingRows, bowlingRows] = await Promise.all([
+      tendencyAnalytics.getTournamentBattingLeaderboard(tournament._id, parseInt(limit)),
+      tendencyAnalytics.getTournamentBowlingLeaderboard(tournament._id, parseInt(limit))
+    ]);
+
+    const batsmen = (
+      await Promise.all(
+        battingRows.map(async (r) => {
+          const player = await toPlayerSummary(r._id);
+          if (!player) return null;
+          return {
+            player,
+            matches: r.matches,
+            runs: r.runs,
+            highestScore: r.highestScore,
+            average: Math.round(r.average * 100) / 100,
+            strikeRate: Math.round(r.strikeRate * 100) / 100
+          };
+        })
+      )
+    ).filter(Boolean);
+
+    const bowlers = (
+      await Promise.all(
+        bowlingRows.map(async (r) => {
+          const player = await toPlayerSummary(r._id);
+          if (!player) return null;
+          return {
+            player,
+            matches: r.matches,
+            wickets: r.wickets,
+            average: Math.round(r.average * 100) / 100,
+            economyRate: Math.round(r.economyRate * 100) / 100
+          };
+        })
+      )
+    ).filter(Boolean);
+
+    res.status(200).json({
+      success: true,
+      batsmen,
+      bowlers
     });
   } catch (error) {
     res.status(500).json({
