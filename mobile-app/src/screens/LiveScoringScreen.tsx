@@ -1109,6 +1109,14 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
         {scorecardOpen && (
           <View style={styles.scorecardBox}>
             <Text style={styles.scorecardSectionTitle}>Batting</Text>
+            <View style={styles.scorecardHeaderRow}>
+              <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Batsman</Text>
+              <Text style={styles.scorecardHeaderCell}>R</Text>
+              <Text style={styles.scorecardHeaderCell}>B</Text>
+              <Text style={styles.scorecardHeaderCell}>4s</Text>
+              <Text style={styles.scorecardHeaderCell}>6s</Text>
+              <Text style={styles.scorecardHeaderCell}>SR</Text>
+            </View>
             {battingRoster.map((p) => {
               const stats = battingStatsFor(currentBalls, p.id);
               const isBatting = p.id === strikerId || p.id === nonStrikerId;
@@ -1117,23 +1125,40 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
               const dismissal = isOut ? dismissalFor(currentBalls, p.id, nameFor) : null;
               return (
                 <View key={p.id} style={styles.scorecardRow}>
-                  <View style={{ flexShrink: 1 }}>
-                    <Text style={[styles.scorecardName, isBatting && styles.scorecardNameCurrent]}>
+                  <View style={[styles.scorecardNameCol, { flexShrink: 1 }]}>
+                    <Text
+                      style={[styles.scorecardNameText, isBatting && styles.scorecardNameCurrent]}
+                      numberOfLines={1}
+                    >
                       {p.name}
                       {p.id === strikerId ? ' *' : ''}
                     </Text>
                     {dismissal && <Text style={styles.scorecardDismissal}>{dismissal}</Text>}
                     {isBatting && !dismissal && <Text style={styles.scorecardDismissal}>not out</Text>}
                   </View>
-                  <Text style={styles.scorecardStat}>
-                    {yetToBat
-                      ? 'yet to bat'
-                      : `${stats.runs} (${stats.ballsFaced}) 4s:${stats.fours} 6s:${stats.sixes} SR:${stats.strikeRate.toFixed(1)}`}
-                  </Text>
+                  {yetToBat ? (
+                    <Text style={styles.scorecardYetToBat}>yet to bat</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.scorecardCell}>{stats.runs}</Text>
+                      <Text style={styles.scorecardCell}>{stats.ballsFaced}</Text>
+                      <Text style={styles.scorecardCell}>{stats.fours}</Text>
+                      <Text style={styles.scorecardCell}>{stats.sixes}</Text>
+                      <Text style={styles.scorecardCell}>{stats.strikeRate.toFixed(1)}</Text>
+                    </>
+                  )}
                 </View>
               );
             })}
             <Text style={[styles.scorecardSectionTitle, { marginTop: 12 }]}>Bowling</Text>
+            <View style={styles.scorecardHeaderRow}>
+              <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Bowler</Text>
+              <Text style={styles.scorecardHeaderCell}>O</Text>
+              <Text style={styles.scorecardHeaderCell}>M</Text>
+              <Text style={styles.scorecardHeaderCell}>R</Text>
+              <Text style={styles.scorecardHeaderCell}>W</Text>
+              <Text style={styles.scorecardHeaderCell}>Econ</Text>
+            </View>
             {bowlingRoster
               .filter((p) => currentBalls.some((b) => b.bowlerId === p.id))
               .map((p) => {
@@ -1141,13 +1166,17 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
                 const maidens = maidenOversFor(currentBalls, p.id);
                 return (
                   <View key={p.id} style={styles.scorecardRow}>
-                    <Text style={[styles.scorecardName, p.id === bowlerId && styles.scorecardNameCurrent]}>
+                    <Text
+                      style={[styles.scorecardNameText, styles.scorecardNameCol, p.id === bowlerId && styles.scorecardNameCurrent]}
+                      numberOfLines={1}
+                    >
                       {p.name}
                     </Text>
-                    <Text style={styles.scorecardStat}>
-                      {stats.overs.toFixed(1)}-{maidens}-{stats.runsConceded}-{stats.wickets} (Econ{' '}
-                      {stats.economy.toFixed(2)})
-                    </Text>
+                    <Text style={styles.scorecardCell}>{stats.overs.toFixed(1)}</Text>
+                    <Text style={styles.scorecardCell}>{maidens}</Text>
+                    <Text style={styles.scorecardCell}>{stats.runsConceded}</Text>
+                    <Text style={styles.scorecardCell}>{stats.wickets}</Text>
+                    <Text style={styles.scorecardCell}>{stats.economy.toFixed(2)}</Text>
                   </View>
                 );
               })}
@@ -1535,10 +1564,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 8,
   },
-  scorecardName: { color: colors.inkSecondary, fontSize: 13, fontWeight: '600', flexShrink: 1 },
   scorecardNameCurrent: { color: colors.ink, fontWeight: '800' },
-  scorecardStat: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600' },
-  scorecardDismissal: { color: colors.inkMuted, fontSize: 11, marginTop: 1 },
+  scorecardDismissal: { color: colors.inkMuted, fontSize: 10, marginTop: 1 },
+  scorecardHeaderRow: { flexDirection: 'row', marginBottom: 2, gap: 8 },
+  scorecardHeaderCell: { flex: 1, color: colors.inkMuted, fontSize: 10, fontWeight: '700', textAlign: 'right' },
+  scorecardCell: { flex: 1, color: colors.inkSecondary, fontSize: 12, textAlign: 'right' },
+  scorecardNameCol: { flex: 3, textAlign: 'left' },
+  scorecardNameText: { color: colors.inkSecondary, fontSize: 13, fontWeight: '600' },
+  scorecardYetToBat: { flex: 5, color: colors.inkMuted, fontSize: 12, textAlign: 'right' },
 
   umpireHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
 });
