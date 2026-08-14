@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput } from 'react-native';
 import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
-import { Tournament, Match } from '../shared/types';
+import { Tournament, Match, TournamentStanding } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
 
 // Populated relations depend on which endpoint returned them - GET /tournaments/:id populates
@@ -55,7 +55,15 @@ function formatDate(d?: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type Section = 'standings' | 'matches' | 'statistics' | 'awards' | 'announcements' | 'rules';
+type Section = 'standings' | 'matches' | 'bracket' | 'statistics' | 'awards' | 'announcements' | 'rules';
+
+const KNOCKOUT_ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'] as const;
+
+function winnerName(m: Match): string | null {
+  if (m.status !== 'Completed' || !m.result?.winningTeam) return null;
+  const t1Id = resolveId(m.team1);
+  return m.result.winningTeam === t1Id ? teamName(m.team1) : teamName(m.team2);
+}
 
 interface TournamentStatistics {
   totalMatches: number;
@@ -95,6 +103,17 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   // Generate fixtures
   const [generating, setGenerating] = useState(false);
   const [fixturesError, setFixturesError] = useState('');
+
+  // Groups + knockout bracket
+  const [groupStandings, setGroupStandings] = useState<{ name: string; standings: TournamentStanding[] }[] | null>(null);
+  const [groupStandingsLoading, setGroupStandingsLoading] = useState(false);
+  const [groupCountInput, setGroupCountInput] = useState('2');
+  const [assigningGroups, setAssigningGroups] = useState(false);
+  const [groupsError, setGroupsError] = useState('');
+  const [qualifiersInput, setQualifiersInput] = useState('4');
+  const [generatingKnockout, setGeneratingKnockout] = useState(false);
+  const [advancingRound, setAdvancingRound] = useState(false);
+  const [knockoutError, setKnockoutError] = useState('');
 
   // Compute awards
   const [computing, setComputing] = useState(false);
@@ -167,6 +186,21 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
       .catch((err: any) => setStatsError(err instanceof Error ? err.message : 'Failed to load statistics'))
       .finally(() => setStatsLoading(false));
   }, [section, statsLoaded, tournamentId]);
+
+  // Grouped per-group standings live on a separate response shape from getStandings (see
+  // getTournamentStandings on the backend) - only fetched once the tournament actually has
+  // groups; otherwise tournament.standings (already in hand) is used directly.
+  useEffect(() => {
+    if (section !== 'standings' || !tournament || !(tournament.groups?.length ?? 0)) {
+      setGroupStandings(null);
+      return;
+    }
+    setGroupStandingsLoading(true);
+    api.tournaments
+      .getStandings(tournamentId)
+      .then((res: any) => { if (res.groups) setGroupStandings(res.groups); })
+      .finally(() => setGroupStandingsLoading(false));
+  }, [section, tournament, tournamentId]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -264,6 +298,55 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const handleAssignGroups = async () => {
+    const count = parseInt(groupCountInput, 10);
+    if (!count || count < 1) {
+      setGroupsError('Enter a valid number of groups');
+      return;
+    }
+    setAssigningGroups(true);
+    setGroupsError('');
+    try {
+      const { tournament: updated } = await api.tournaments.assignGroups(tournamentId, count);
+      setTournament(updated);
+    } catch (err) {
+      setGroupsError(err instanceof Error ? err.message : 'Failed to assign groups');
+    } finally {
+      setAssigningGroups(false);
+    }
+  };
+
+  const knockoutMatches = useMemo(() => matches.filter((m) => m.round && m.round !== 'Group'), [matches]);
+  const finalDone = knockoutMatches.some((m) => m.round === 'Final' && m.status === 'Completed');
+
+  const handleGenerateKnockoutStage = async () => {
+    const qualifiersPerGroup = parseInt(qualifiersInput, 10) || 4;
+    setGeneratingKnockout(true);
+    setKnockoutError('');
+    try {
+      await api.tournaments.generateKnockoutStage(tournamentId, qualifiersPerGroup);
+      await load();
+      setSection('bracket');
+    } catch (err) {
+      setKnockoutError(err instanceof Error ? err.message : 'Failed to generate the knockout stage');
+    } finally {
+      setGeneratingKnockout(false);
+    }
+  };
+
+  const handleAdvanceKnockoutRound = async () => {
+    setAdvancingRound(true);
+    setKnockoutError('');
+    try {
+      await api.tournaments.advanceKnockoutRound(tournamentId);
+      await load();
+    } catch (err) {
+      setKnockoutError(err instanceof Error ? err.message : 'Failed to advance the knockout stage');
+    } finally {
+      setAdvancingRound(false);
+    }
+  };
+
   // Gated on: organizer and status === 'Completed' - mirrors the backend's computeAwards() check.
   const canComputeAwards = isOrganizer && tournament?.status === 'Completed';
 
@@ -330,14 +413,14 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         {!!error && <Text style={styles.errorBanner}>{error}</Text>}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.segmentScroll} contentContainerStyle={styles.segmentRow}>
-          {(['standings', 'matches', 'statistics', 'awards', 'announcements', 'rules'] as Section[]).map(s => (
+          {(['standings', 'matches', 'bracket', 'statistics', 'awards', 'announcements', 'rules'] as Section[]).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.segmentBtn, section === s && styles.segmentBtnActive]}
               onPress={() => setSection(s)}
             >
               <Text style={[styles.segmentText, section === s && styles.segmentTextActive]}>
-                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'statistics' ? 'Statistics' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : 'House Rules'}
+                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'bracket' ? 'Bracket' : s === 'statistics' ? 'Statistics' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : 'House Rules'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -345,37 +428,25 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
         {section === 'standings' && (
           <View style={styles.sectionBody}>
-            {standings.length === 0 ? (
+            {(tournament.groups?.length ?? 0) > 0 ? (
+              groupStandingsLoading || !groupStandings ? (
+                <ActivityIndicator color={colors.pitch400} />
+              ) : (
+                groupStandings.map((group) => (
+                  <View key={group.name} style={{ marginBottom: 20 }}>
+                    <Text style={styles.groupTitle}>{group.name}</Text>
+                    {group.standings.length === 0 ? (
+                      <Text style={styles.muted}>No completed matches in this group yet.</Text>
+                    ) : (
+                      <StandingsTable standings={group.standings} />
+                    )}
+                  </View>
+                ))
+              )
+            ) : standings.length === 0 ? (
               <Text style={styles.muted}>No standings yet - register teams and complete matches to populate the points table.</Text>
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View>
-                  <View style={styles.tableRow}>
-                    <Text style={[styles.tableHeaderCell, styles.colRank]}>#</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colTeam]}>Team</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colStat]}>P</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colStat]}>W</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colStat]}>L</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colStat]}>T</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colStat]}>NR</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colStat]}>Pts</Text>
-                    <Text style={[styles.tableHeaderCell, styles.colNrr]}>NRR</Text>
-                  </View>
-                  {standings.map((row, idx) => (
-                    <View key={idx} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}>
-                      <Text style={[styles.tableCell, styles.colRank]}>{idx + 1}</Text>
-                      <Text style={[styles.tableCell, styles.colTeam]} numberOfLines={1}>{teamName(row.team)}</Text>
-                      <Text style={[styles.tableCell, styles.colStat]}>{row.played}</Text>
-                      <Text style={[styles.tableCell, styles.colStat]}>{row.won}</Text>
-                      <Text style={[styles.tableCell, styles.colStat]}>{row.lost}</Text>
-                      <Text style={[styles.tableCell, styles.colStat]}>{row.tied}</Text>
-                      <Text style={[styles.tableCell, styles.colStat]}>{row.noResult}</Text>
-                      <Text style={[styles.tableCell, styles.colStat, styles.pointsCell]}>{row.points}</Text>
-                      <Text style={[styles.tableCell, styles.colNrr]}>{row.netRunRate >= 0 ? '+' : ''}{row.netRunRate.toFixed(2)}</Text>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
+              <StandingsTable standings={standings} />
             )}
           </View>
         )}
@@ -385,6 +456,29 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
             {matches.length === 0 ? (
               <>
                 <Text style={styles.muted}>No matches linked to this tournament yet.</Text>
+                {isOrganizer && !tournament.groups?.length && (
+                  <View style={styles.groupAssignRow}>
+                    <TextInput
+                      style={[styles.input, styles.groupCountInput]}
+                      value={groupCountInput}
+                      onChangeText={setGroupCountInput}
+                      keyboardType="number-pad"
+                    />
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.groupAssignBtn, (assigningGroups || (tournament.teams?.length ?? 0) < 2) && styles.sendBtnDisabled]}
+                      onPress={handleAssignGroups}
+                      disabled={assigningGroups || (tournament.teams?.length ?? 0) < 2}
+                    >
+                      <Text style={styles.actionBtnText}>{assigningGroups ? 'Assigning...' : 'Assign Groups'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {!!tournament.groups?.length && (
+                  <Text style={styles.muted}>
+                    {tournament.groups.length} groups assigned. Generating fixtures below will create a round-robin within each group.
+                  </Text>
+                )}
+                {!!groupsError && <Text style={styles.errorBanner}>{groupsError}</Text>}
                 {canGenerateFixtures && (
                   <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateFixtures} disabled={generating}>
                     <Text style={styles.actionBtnText}>{generating ? 'Generating...' : 'Generate Fixtures'}</Text>
@@ -408,6 +502,85 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.matchMeta}>{formatDate(m.scheduledDate)} · {m.venue}</Text>
                 </TouchableOpacity>
               ))
+            )}
+          </View>
+        )}
+
+        {section === 'bracket' && (
+          <View style={styles.sectionBody}>
+            {!tournament.groups?.length ? (
+              <Text style={styles.muted}>This tournament has no group stage, so there&apos;s no bracket to generate here.</Text>
+            ) : (
+              <>
+                {isOrganizer && (
+                  <>
+                    {knockoutMatches.length === 0 ? (
+                      <View style={styles.groupAssignRow}>
+                        <TextInput
+                          style={[styles.input, styles.groupCountInput]}
+                          value={qualifiersInput}
+                          onChangeText={setQualifiersInput}
+                          keyboardType="number-pad"
+                        />
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.groupAssignBtn, generatingKnockout && styles.sendBtnDisabled]}
+                          onPress={handleGenerateKnockoutStage}
+                          disabled={generatingKnockout}
+                        >
+                          <Text style={styles.actionBtnText}>{generatingKnockout ? 'Generating...' : 'Generate Knockout Stage'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : !finalDone ? (
+                      <TouchableOpacity
+                        style={[styles.actionBtn, advancingRound && styles.sendBtnDisabled]}
+                        onPress={handleAdvanceKnockoutRound}
+                        disabled={advancingRound}
+                      >
+                        <Text style={styles.actionBtnText}>{advancingRound ? 'Advancing...' : 'Advance to Next Round'}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.muted}>The Final is complete. Check the Awards tab for the tournament winner.</Text>
+                    )}
+                  </>
+                )}
+                {!!knockoutError && <Text style={styles.errorBanner}>{knockoutError}</Text>}
+
+                {knockoutMatches.length === 0 ? (
+                  <Text style={[styles.muted, { marginTop: 12 }]}>
+                    No knockout matches yet.{isOrganizer ? ' Generate the knockout stage above once the group stage is far enough along.' : ' Check back once the organizer generates it.'}
+                  </Text>
+                ) : (
+                  KNOCKOUT_ROUNDS.map((round) => {
+                    const roundMatches = knockoutMatches.filter((m) => m.round === round);
+                    if (roundMatches.length === 0) return null;
+                    return (
+                      <View key={round} style={{ marginTop: 16 }}>
+                        <Text style={styles.groupTitle}>{round}</Text>
+                        {roundMatches.map((m) => {
+                          const winner = winnerName(m);
+                          return (
+                            <TouchableOpacity
+                              key={m._id}
+                              style={styles.matchCard}
+                              onPress={() => navigation.navigate('Matches', { screen: 'MatchDetail', params: { matchId: m._id } })}
+                            >
+                              <View style={styles.matchCardRow}>
+                                <Text style={styles.matchTeams} numberOfLines={1}>
+                                  {teamName(m.team1)} vs {teamName(m.team2)}
+                                </Text>
+                                <View style={[styles.statusBadgeSmall, m.status === 'Live' && styles.statusBadgeLive]}>
+                                  <Text style={styles.statusBadgeSmallText}>{m.status}</Text>
+                                </View>
+                              </View>
+                              {!!winner && <Text style={styles.matchMeta}>{winner} won</Text>}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    );
+                  })
+                )}
+              </>
             )}
           </View>
         )}
@@ -573,6 +746,39 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   );
 }
 
+function StandingsTable({ standings }: { standings: TournamentStanding[] }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableHeaderCell, styles.colRank]}>#</Text>
+          <Text style={[styles.tableHeaderCell, styles.colTeam]}>Team</Text>
+          <Text style={[styles.tableHeaderCell, styles.colStat]}>P</Text>
+          <Text style={[styles.tableHeaderCell, styles.colStat]}>W</Text>
+          <Text style={[styles.tableHeaderCell, styles.colStat]}>L</Text>
+          <Text style={[styles.tableHeaderCell, styles.colStat]}>T</Text>
+          <Text style={[styles.tableHeaderCell, styles.colStat]}>NR</Text>
+          <Text style={[styles.tableHeaderCell, styles.colStat]}>Pts</Text>
+          <Text style={[styles.tableHeaderCell, styles.colNrr]}>NRR</Text>
+        </View>
+        {standings.map((row, idx) => (
+          <View key={idx} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}>
+            <Text style={[styles.tableCell, styles.colRank]}>{idx + 1}</Text>
+            <Text style={[styles.tableCell, styles.colTeam]} numberOfLines={1}>{teamName(row.team)}</Text>
+            <Text style={[styles.tableCell, styles.colStat]}>{row.played}</Text>
+            <Text style={[styles.tableCell, styles.colStat]}>{row.won}</Text>
+            <Text style={[styles.tableCell, styles.colStat]}>{row.lost}</Text>
+            <Text style={[styles.tableCell, styles.colStat]}>{row.tied}</Text>
+            <Text style={[styles.tableCell, styles.colStat]}>{row.noResult}</Text>
+            <Text style={[styles.tableCell, styles.colStat, styles.pointsCell]}>{row.points}</Text>
+            <Text style={[styles.tableCell, styles.colNrr]}>{row.netRunRate >= 0 ? '+' : ''}{row.netRunRate.toFixed(2)}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
 function AwardBox({ label, value }: { label: string; value: string | null }) {
   return (
     <View style={styles.awardBox}>
@@ -666,6 +872,10 @@ const styles = StyleSheet.create({
   colTeam: { width: 140 },
   colStat: { width: 32, textAlign: 'center' },
   colNrr: { width: 56, textAlign: 'right' },
+  groupTitle: { color: colors.ink, fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  groupAssignRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  groupCountInput: { width: 60, paddingVertical: 8, textAlign: 'center' },
+  groupAssignBtn: { marginTop: 0, flexShrink: 1, paddingHorizontal: 20 },
   matchCard: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   matchCardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   matchTeams: { color: colors.ink, fontSize: 14, fontWeight: '600', flexShrink: 1 },

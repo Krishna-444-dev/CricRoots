@@ -209,11 +209,20 @@ export const tournamentsAPI = {
   createTournament: (data: any) => apiFetch<{ success: true; tournament: any }>('/tournaments', 'POST', data),
   updateTournament: (tournamentId: string, data: any) => apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}`, 'PUT', data),
   registerTeam: (tournamentId: string, teamId: string) => apiFetch(`/tournaments/${tournamentId}/register-team`, 'POST', { teamId }),
-  getStandings: (tournamentId: string) => apiFetch<{ success: true; standings: any[] }>(`/tournaments/${tournamentId}/standings`),
+  // Flat {success, standings} for a tournament with no groups; {success, groups: [{name,
+  // standings}]} once groups are assigned - see getTournamentStandings in
+  // tournamentController.js. Untyped rather than a misleading single shape.
+  getStandings: (tournamentId: string) => apiFetch<any>(`/tournaments/${tournamentId}/standings`),
   getTournamentMatches: (tournamentId: string) => apiFetch<{ success: true; matches: any[] }>(`/tournaments/${tournamentId}/matches`),
   getStatistics: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/statistics`),
+  assignGroups: (tournamentId: string, groupCount: number) =>
+    apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/assign-groups`, 'POST', { groupCount }),
   generateFixtures: (tournamentId: string, format?: 'round-robin' | 'knockout') =>
     apiFetch(`/tournaments/${tournamentId}/generate-fixtures`, 'POST', format ? { format } : {}),
+  generateKnockoutStage: (tournamentId: string, qualifiersPerGroup: number) =>
+    apiFetch<{ success: true; round: string; matches: any[] }>(`/tournaments/${tournamentId}/generate-knockout-stage`, 'POST', { qualifiersPerGroup }),
+  advanceKnockoutRound: (tournamentId: string) =>
+    apiFetch<{ success: true; round: string; matches?: any[]; tournament?: any }>(`/tournaments/${tournamentId}/advance-knockout-round`, 'POST'),
   computeAwards: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/compute-awards`, 'POST'),
   getMessages: (tournamentId: string) => apiFetch<{ success: true; messages: any[] }>(`/tournaments/${tournamentId}/messages`),
   postMessage: (tournamentId: string, text: string) => apiFetch(`/tournaments/${tournamentId}/messages`, 'POST', { text }),

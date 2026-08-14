@@ -34,6 +34,11 @@ interface TournamentAwards {
   bestBowler?: AwardPlayer | null;
 }
 
+interface TournamentGroup {
+  name: string;
+  teams: { _id: string; name: string }[];
+}
+
 interface Tournament {
   _id: string;
   name: string;
@@ -47,6 +52,7 @@ interface Tournament {
   teams: any[];
   maxTeams: number;
   standings: any[];
+  groups?: TournamentGroup[];
   organizer: { _id: string; name: string };
   houseRules?: string;
   statistics: {
@@ -62,6 +68,16 @@ interface Tournament {
   awards?: TournamentAwards;
 }
 
+// Only present on the standings response when the tournament has groups (see
+// getTournamentStandings in tournamentController.js) - a flat tournament instead returns
+// {success, leaderboard}, unchanged from before groups existed.
+interface GroupStandingsResponse {
+  name: string;
+  standings: any[];
+}
+
+const KNOCKOUT_ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'] as const;
+
 interface TournamentMatch {
   _id: string;
   title: string;
@@ -69,6 +85,9 @@ interface TournamentMatch {
   team2: { _id: string; name: string };
   status: string;
   scheduledDate: string;
+  round?: (typeof KNOCKOUT_ROUNDS)[number] | 'Group';
+  group?: string | null;
+  result?: { winningTeam: string; margin: string; marginValue: number } | null;
 }
 
 interface League {
@@ -88,7 +107,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'statistics' | 'announcements' | 'awards' | 'rules'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'bracket' | 'statistics' | 'announcements' | 'awards' | 'rules'>('list');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [announcements, setAnnouncements] = useState<ChatMessage[]>([]);
   const [announcementText, setAnnouncementText] = useState('');
@@ -98,6 +117,15 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [generatingFixtures, setGeneratingFixtures] = useState(false);
   const [computingAwards, setComputingAwards] = useState(false);
   const [awardsError, setAwardsError] = useState('');
+  const [groupStandings, setGroupStandings] = useState<GroupStandingsResponse[] | null>(null);
+  const [groupStandingsLoading, setGroupStandingsLoading] = useState(false);
+  const [groupCountInput, setGroupCountInput] = useState('2');
+  const [assigningGroups, setAssigningGroups] = useState(false);
+  const [groupsError, setGroupsError] = useState('');
+  const [qualifiersInput, setQualifiersInput] = useState('4');
+  const [generatingKnockout, setGeneratingKnockout] = useState(false);
+  const [advancingRound, setAdvancingRound] = useState(false);
+  const [knockoutError, setKnockoutError] = useState('');
   const [houseRulesText, setHouseRulesText] = useState('');
   const [savingHouseRules, setSavingHouseRules] = useState(false);
   const [houseRulesError, setHouseRulesError] = useState('');
@@ -143,10 +171,105 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   };
 
   useEffect(() => {
-    if (activeTab === 'matches' && selectedTournament) {
+    if ((activeTab === 'matches' || activeTab === 'bracket') && selectedTournament) {
       fetchTournamentMatches(selectedTournament._id);
     }
   }, [activeTab, selectedTournament]);
+
+  // Grouped per-group standings live on a separate response shape from GET .../standings
+  // (see getTournamentStandings) - only fetched when the tournament actually has groups;
+  // otherwise the existing flat selectedTournament.standings array (already in hand) is used.
+  useEffect(() => {
+    if (activeTab === 'standings' && selectedTournament && (selectedTournament.groups?.length ?? 0) > 0) {
+      setGroupStandingsLoading(true);
+      fetch(`/api/tournaments/${selectedTournament._id}/standings`)
+        .then((r) => r.json())
+        .then((data) => { if (data.success && data.groups) setGroupStandings(data.groups); })
+        .finally(() => setGroupStandingsLoading(false));
+    } else {
+      setGroupStandings(null);
+    }
+  }, [activeTab, selectedTournament]);
+
+  const handleAssignGroups = async () => {
+    if (!selectedTournament || assigningGroups) return;
+    const count = parseInt(groupCountInput, 10);
+    if (!count || count < 1) {
+      setGroupsError('Enter a valid number of groups');
+      return;
+    }
+    setAssigningGroups(true);
+    setGroupsError('');
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/assign-groups`, {
+        method: 'POST',
+        body: JSON.stringify({ groupCount: count }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedTournament(data.tournament);
+        setTournaments((prev) => prev.map((t) => (t._id === data.tournament._id ? data.tournament : t)));
+      } else {
+        setGroupsError(data.message || 'Failed to assign groups');
+      }
+    } catch (error) {
+      console.error('Error assigning groups:', error);
+      setGroupsError('Failed to assign groups');
+    } finally {
+      setAssigningGroups(false);
+    }
+  };
+
+  const handleGenerateKnockoutStage = async () => {
+    if (!selectedTournament || generatingKnockout) return;
+    const qualifiersPerGroup = parseInt(qualifiersInput, 10) || 4;
+    setGeneratingKnockout(true);
+    setKnockoutError('');
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/generate-knockout-stage`, {
+        method: 'POST',
+        body: JSON.stringify({ qualifiersPerGroup }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchTournamentMatches(selectedTournament._id);
+      } else {
+        setKnockoutError(data.message || 'Failed to generate the knockout stage');
+      }
+    } catch (error) {
+      console.error('Error generating knockout stage:', error);
+      setKnockoutError('Failed to generate the knockout stage');
+    } finally {
+      setGeneratingKnockout(false);
+    }
+  };
+
+  const handleAdvanceKnockoutRound = async () => {
+    if (!selectedTournament || advancingRound) return;
+    setAdvancingRound(true);
+    setKnockoutError('');
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/advance-knockout-round`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchTournamentMatches(selectedTournament._id);
+        if (data.tournament) {
+          setSelectedTournament(data.tournament);
+          setTournaments((prev) => prev.map((t) => (t._id === data.tournament._id ? data.tournament : t)));
+        }
+      } else {
+        setKnockoutError(data.message || 'Failed to advance the knockout stage');
+      }
+    } catch (error) {
+      console.error('Error advancing knockout round:', error);
+      setKnockoutError('Failed to advance the knockout stage');
+    } finally {
+      setAdvancingRound(false);
+    }
+  };
 
   const handleGenerateFixtures = async () => {
     if (!selectedTournament || generatingFixtures) return;
@@ -421,6 +544,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
               🏏 Matches
             </button>
             <button
+              className={`${styles.tab} ${activeTab === 'bracket' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('bracket')}
+            >
+              🥇 Bracket
+            </button>
+            <button
               className={`${styles.tab} ${activeTab === 'statistics' ? styles.activeTab : ''}`}
               onClick={() => setActiveTab('statistics')}
             >
@@ -630,7 +759,47 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
         {activeTab === 'standings' && selectedTournament && (
           <div className={styles.card}>
             <h2>{selectedTournament.name} - Standings</h2>
-            {selectedTournament.standings.length === 0 ? (
+            {(selectedTournament.groups?.length ?? 0) > 0 ? (
+              groupStandingsLoading || !groupStandings ? (
+                <p className={styles.infoText}>Loading group standings...</p>
+              ) : (
+                groupStandings.map((group) => (
+                  <div key={group.name} style={{ marginBottom: 28 }}>
+                    <h3 style={{ marginBottom: 8 }}>{group.name}</h3>
+                    {group.standings.length === 0 ? (
+                      <p className={styles.infoText}>No completed matches in this group yet.</p>
+                    ) : (
+                      <div className={styles.standingsTable}>
+                        <div className={styles.tableHeader}>
+                          <div className={styles.col1}>Rank</div>
+                          <div className={styles.col2}>Team</div>
+                          <div className={styles.col3}>P</div>
+                          <div className={styles.col4}>W</div>
+                          <div className={styles.col5}>L</div>
+                          <div className={styles.col6}>T</div>
+                          <div className={styles.col7}>NR</div>
+                          <div className={styles.col8}>Pts</div>
+                          <div className={styles.col9}>NRR</div>
+                        </div>
+                        {group.standings.map((standing, idx) => (
+                          <div key={idx} className={styles.tableRow}>
+                            <div className={styles.col1}>{idx + 1}</div>
+                            <div className={styles.col2}>{standing.team?.name || 'Team'}</div>
+                            <div className={styles.col3}>{standing.played}</div>
+                            <div className={styles.col4}>{standing.won}</div>
+                            <div className={styles.col5}>{standing.lost}</div>
+                            <div className={styles.col6}>{standing.tied}</div>
+                            <div className={styles.col7}>{standing.noResult}</div>
+                            <div className={styles.col8}>{standing.points}</div>
+                            <div className={styles.col9}>{standing.netRunRate >= 0 ? '+' : ''}{standing.netRunRate.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )
+            ) : selectedTournament.standings.length === 0 ? (
               <p className={styles.infoText}>No standings yet — register teams and complete a match to populate the points table.</p>
             ) : (
               <div className={styles.standingsTable}>
@@ -673,6 +842,36 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 <p className={styles.infoText}>
                   No matches linked to this tournament yet. Create one from the New Match page and select this tournament.
                 </p>
+                {isOrganizer && !selectedTournament.groups?.length && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
+                    <label htmlFor="group-count" className={labelClass} style={{ margin: 0 }}>
+                      Split into groups (optional)
+                    </label>
+                    <input
+                      id="group-count"
+                      type="number"
+                      min={2}
+                      value={groupCountInput}
+                      onChange={(e) => setGroupCountInput(e.target.value)}
+                      className={inputClass}
+                      style={{ width: 70 }}
+                    />
+                    <button
+                      className={buttonVariants('secondary')}
+                      onClick={handleAssignGroups}
+                      disabled={assigningGroups || selectedTournament.teams.length < 2}
+                    >
+                      {assigningGroups ? 'Assigning...' : 'Assign Groups'}
+                    </button>
+                  </div>
+                )}
+                {selectedTournament.groups?.length ? (
+                  <p className={styles.infoText}>
+                    {selectedTournament.groups.length} groups assigned ({selectedTournament.groups.map((g) => `${g.name}: ${g.teams.length}`).join(', ')}).
+                    Generating fixtures below will create a round-robin within each group.
+                  </p>
+                ) : null}
+                {groupsError && <p className={styles.infoText} style={{ color: '#F87171' }}>{groupsError}</p>}
                 {isOrganizer && (
                   <button
                     className={styles.createBtn}
@@ -704,6 +903,109 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
             )}
           </div>
         )}
+
+        {activeTab === 'bracket' && selectedTournament && (() => {
+          const knockoutMatches = tournamentMatches.filter((m) => m.round && m.round !== 'Group');
+          const byRound = KNOCKOUT_ROUNDS.map((round) => ({
+            round,
+            matches: knockoutMatches.filter((m) => m.round === round),
+          })).filter((r) => r.matches.length > 0);
+          const hasGroups = (selectedTournament.groups?.length ?? 0) > 0;
+          const finalDone = knockoutMatches.some((m) => m.round === 'Final' && m.status === 'Completed');
+
+          const winnerName = (m: TournamentMatch) => {
+            if (m.status !== 'Completed' || !m.result?.winningTeam) return null;
+            return m.result.winningTeam === m.team1._id ? m.team1.name : m.team2.name;
+          };
+
+          return (
+            <div className={styles.card}>
+              <h2>{selectedTournament.name} - Knockout Bracket</h2>
+              {!hasGroups ? (
+                <p className={styles.infoText}>This tournament has no group stage, so there&apos;s no bracket to generate here.</p>
+              ) : (
+                <>
+                  {isOrganizer && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+                      {knockoutMatches.length === 0 ? (
+                        <>
+                          <label htmlFor="qualifiers" className={labelClass} style={{ margin: 0 }}>
+                            Qualifiers per group
+                          </label>
+                          <input
+                            id="qualifiers"
+                            type="number"
+                            min={2}
+                            value={qualifiersInput}
+                            onChange={(e) => setQualifiersInput(e.target.value)}
+                            className={inputClass}
+                            style={{ width: 70 }}
+                          />
+                          <button
+                            className={buttonVariants('accent')}
+                            onClick={handleGenerateKnockoutStage}
+                            disabled={generatingKnockout}
+                          >
+                            {generatingKnockout ? 'Generating...' : '🥇 Generate Knockout Stage'}
+                          </button>
+                        </>
+                      ) : !finalDone ? (
+                        <button
+                          className={buttonVariants('accent')}
+                          onClick={handleAdvanceKnockoutRound}
+                          disabled={advancingRound}
+                        >
+                          {advancingRound ? 'Advancing...' : '➡️ Advance to Next Round'}
+                        </button>
+                      ) : (
+                        <p className={styles.infoText} style={{ margin: 0 }}>
+                          The Final is complete. Check the Awards tab for the tournament winner.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {knockoutError && <p className={styles.infoText} style={{ color: '#F87171' }}>{knockoutError}</p>}
+
+                  {byRound.length === 0 ? (
+                    <p className={styles.infoText}>
+                      No knockout matches yet. {isOrganizer ? 'Generate the knockout stage above once the group stage is far enough along.' : 'Check back once the organizer generates it.'}
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-6">
+                      {byRound.map(({ round, matches }) => (
+                        <div key={round}>
+                          <h3 style={{ marginBottom: 8 }}>{round}</h3>
+                          <div className="flex flex-col gap-2">
+                            {matches.map((m) => {
+                              const winner = winnerName(m);
+                              return (
+                                <Link
+                                  key={m._id}
+                                  href={m.status === 'Completed' ? `/match/${m._id}` : `/match/${m._id}/score`}
+                                  className="flex items-center justify-between gap-3 bg-surface-alt border border-border rounded-lg p-3 hover:bg-surface-hover transition-colors"
+                                >
+                                  <div className="text-sm text-ink">
+                                    <span style={{ fontWeight: winner === m.team1.name ? 700 : 400 }}>{m.team1.name}</span>
+                                    {' vs '}
+                                    <span style={{ fontWeight: winner === m.team2.name ? 700 : 400 }}>{m.team2.name}</span>
+                                    {winner && <span className="text-ink-muted"> · {winner} won</span>}
+                                  </div>
+                                  <Badge variant={m.status === 'Live' ? 'live' : m.status === 'Completed' ? 'success' : 'neutral'} pulse={m.status === 'Live'}>
+                                    {m.status}
+                                  </Badge>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {activeTab === 'statistics' && selectedTournament && (
           <div className={styles.card}>

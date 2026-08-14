@@ -132,6 +132,11 @@ export interface Match {
   pitchType?: string;
   scheduledDate: string;
   tournament?: string | null;
+  // Which of the tournament's groups this belongs to (group-stage matches only) and which
+  // stage of the tournament it's part of - see backend/src/models/Match.js. Every match
+  // defaults to round: 'Group', including every match in a tournament with no groups at all.
+  group?: string | null;
+  round?: 'Group' | 'Quarterfinal' | 'Semifinal' | 'Final';
   // The match's original overs-per-side allocation - see backend/src/models/Match.js.
   totalOvers?: number;
   interruption?: Interruption | null;
@@ -188,6 +193,8 @@ export interface Tournament {
   maxTeams: number;
   matches?: (Match | string)[];
   standings: TournamentStanding[];
+  // Group-stage assignment (see assign-groups) - empty for tournaments with no group stage.
+  groups?: { name: string; teams: (Team | string)[] }[];
   houseRules?: string;
   awards?: {
     winner?: Team | string | null;
