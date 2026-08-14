@@ -198,7 +198,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     if (section !== 'awards') return;
     setLeaderboardLoading(true);
     api.tournaments
-      .getLeaderboard(tournamentId, 5)
+      .getLeaderboard(tournamentId, 20)
       .then((res: any) => setLeaderboard({ batsmen: res.batsmen, bowlers: res.bowlers }))
       .catch(() => {})
       .finally(() => setLeaderboardLoading(false));

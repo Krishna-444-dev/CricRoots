@@ -1112,7 +1112,7 @@ exports.computeAwards = async (req, res) => {
 // @access  Public
 exports.getTournamentLeaderboard = async (req, res) => {
   try {
-    const { limit = 5 } = req.query;
+    const { limit = 20 } = req.query;
     const tournament = await Tournament.findById(req.params.id);
 
     if (!tournament) {

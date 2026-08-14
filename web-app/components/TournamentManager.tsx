@@ -188,7 +188,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   useEffect(() => {
     if (activeTab === 'awards' && selectedTournament) {
       setLeaderboardLoading(true);
-      fetch(`/api/tournaments/${selectedTournament._id}/leaderboard?limit=5`)
+      fetch(`/api/tournaments/${selectedTournament._id}/leaderboard?limit=20`)
         .then(r => r.json())
         .then(data => { if (data.success) setLeaderboard({ batsmen: data.batsmen, bowlers: data.bowlers }); })
         .finally(() => setLeaderboardLoading(false));
