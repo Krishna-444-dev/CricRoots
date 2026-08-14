@@ -36,20 +36,17 @@ CricRoots is a full-stack cricket application built with a microservices-inspire
 
 ### 1. Client Layer
 
-#### Web Application (React)
-- **Technology**: React, TypeScript, TailwindCSS
+#### Web Application (Next.js)
+- **Technology**: Next.js 14, React 18, TypeScript, TailwindCSS
 - **Purpose**: Browser-based interface for desktop users
-- **Features**: Shopping cart, team management, scoring display
+- **Features**: Ball-by-ball scoring, teams/tournaments/lessons (edtech), marketplace with cart/checkout, news, group and direct messaging, match predictions, calendar
 - **Location**: `/web-app`
 
 #### Mobile Application (React Native)
-- **Technology**: React Native, Expo, TypeScript
+- **Technology**: React Native 0.81, Expo SDK 54, TypeScript
 - **Purpose**: Native mobile experience for iOS and Android
-- **Features**: Platform-specific UI, offline support, push notifications
+- **Features**: 37 screens under `/mobile-app/src/screens` covering scoring, teams, tournaments, marketplace, and messaging; charts (Manhattan/Worm) rendered with `react-native-svg`; live-scoring resume/lock flow in `mobile-app/src/shared/utils/` (matchAuth, matchStats, resolveRef); distributed via EAS Update (channel `preview`)
 - **Location**: `/mobile-app`
-- **Platform-Specific Code**:
-  - iOS components: `/mobile-app/src/platform/ios-*`
-  - Android components: `/mobile-app/src/platform/android-*`
 
 ### 2. Backend API (Node.js/Express)
 
@@ -82,14 +79,18 @@ CricRoots is a full-stack cricket application built with a microservices-inspire
 - Match result calculation
 - Scorecard generation
 
+16 route files total (`backend/src/routes/`). Beyond the four modules above: `tournamentRoutes` (standings, tournament chat), `lessonRoutes`/`newsRoutes` (edtech + news feeds), `productRoutes`/`orderRoutes` (marketplace), `groupRoutes`/`directMessageRoutes` (chat, backed by Socket.IO), `insightsRoutes`/`predictionRoutes` (tactical insights, match-outcome predictions), `assistantRoutes` (Claude-backed Q&A), `playerStatsRoutes` (rankings/trends/comparisons), `userRoutes` (follow graph).
+
 #### Database Models
+
+16 Mongoose models in `backend/src/models/`; the four core ones are shown below (also: Tournament, Lesson, NewsPost, Product, Order, Prediction, Group, GroupMessage, DirectMessage, Message, Follow, PlayerStats).
 
 ```
 User
 ├── name
 ├── email
 ├── password (hashed)
-├── role (player, captain, organizer, admin)
+├── role (player, captain, organizer, admin, sponsor, collaborator)
 └── createdAt
 
 Player
@@ -147,11 +148,29 @@ Provide intelligent tactical recommendations for cricket matches
 - Output: Optimal fielding positions
 - Model: RandomForestClassifier
 
+**Win Probability & Tactical Advisor**
+- Input: Overs remaining, wickets down, run rate, target score, opposition strength, pitch type
+- Output: Win probability and tactical recommendation text
+- Model: RandomForestRegressor (win probability)
+- Called synchronously from the backend (`backend/src/utils/aiService.js`) and pushed to connected clients over Socket.IO (`emitAIInsights`)
+
 #### API Endpoints
+Registered in `ai-engine/app.py` under two blueprints:
+
+`/api/recommendations` (`ai-engine/src/api/recommendations.py`):
 - `POST /api/recommendations/batsman`
 - `POST /api/recommendations/bowler`
 - `POST /api/recommendations/fielding`
+- `POST /api/recommendations/win-probability`
+- `POST /api/recommendations/tactical-advisor`
+- `POST /api/recommendations/train`
 - `GET /api/recommendations/health`
+
+`/api/analytics` (`ai-engine/src/api/analytics.py`):
+- `POST /api/analytics/player-form`
+- `POST /api/analytics/player-performance`
+- `POST /api/analytics/tournament-trends`
+- `POST /api/analytics/tournament-winner-prediction`
 
 ### 4. Data Layer (MongoDB)
 
@@ -159,10 +178,11 @@ Provide intelligent tactical recommendations for cricket matches
 Persistent data storage for all application entities
 
 #### Collections
+16 collections total, one per model (see Database Models above). Core ones:
 - `users`: User account information
 - `players`: Player profiles and statistics
 - `teams`: Team information and rosters
-- `matches`: Match details and scoring data
+- `matches`: Match details and scoring data (innings, ball-by-ball log, live scorer state, rain-rule interruption)
 
 #### Indexing Strategy
 - `users.email`: Unique index for fast lookups
@@ -197,17 +217,19 @@ Client → Nginx → Backend API
        Response to Client
 ```
 
-### Asynchronous Communication (Future)
+### AI Engine Communication (Implemented, no queue)
+
+The backend calls the AI Engine synchronously over HTTP (`backend/src/utils/aiService.js` → `AI_ENGINE_URL`, 5s timeout, degrades to `{ success: false }` on failure) and pushes the result to clients over the existing Socket.IO connection - no message queue involved:
 
 ```
-Client → Backend API → Message Queue (RabbitMQ/Redis)
-                       ↓
-                   AI Engine (processes)
+Client → Backend API → AI Engine (HTTP, synchronous)
                        ↓
                    Database Update
                        ↓
-                   WebSocket to Client
+                   Socket.IO push to room
 ```
+
+A message queue between backend and AI Engine (decoupling, retry) is not yet built - see Future Enhancements > Message Queue Integration.
 
 ## API Communication Flow
 
@@ -370,12 +392,14 @@ Client ←→ Nginx (SSL/TLS)
 ### CORS Configuration
 
 ```
-Nginx handles CORS headers:
+Nginx handles CORS headers on /api/:
 - Access-Control-Allow-Origin
 - Access-Control-Allow-Methods
 - Access-Control-Allow-Headers
 - Access-Control-Max-Age
 ```
+
+The backend also applies Express `cors()` (`backend/src/index.js`) as a second layer, so it still responds correctly when hit directly (bypassing Nginx, e.g. in local dev).
 
 ## Deployment Architecture
 
@@ -444,14 +468,16 @@ Grafana Dashboards
 
 ## Future Enhancements
 
-### Real-time Features
+### Real-time Features (Implemented)
+
+Socket.IO is already live in the backend (`backend/src/utils/socketManager.js`), JWT-authenticated per connection, with per-user, per-match, per-team, per-tournament, and per-group rooms:
 
 ```
-WebSocket Server
+Socket.IO Server
     ↓
-    ├─ Live match updates
-    ├─ Real-time notifications
-    └─ Chat functionality
+    ├─ Live match updates (ball recorded, wicket, status change)
+    ├─ AI insights push (tactical advisor results, post-ball)
+    └─ Group/direct chat delivery
 ```
 
 ### Message Queue Integration

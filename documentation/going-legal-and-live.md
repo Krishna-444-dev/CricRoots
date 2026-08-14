@@ -56,11 +56,13 @@ this is the checklist of what's still missing around it.
    stack, less server management) are the two leanest realistic options for this stack's size. This
    needs to be your own account (billing, credentials) - happy to walk through the actual setup once
    you've picked one and created the account.
-2. **Register the domain.** ~$12-20/yr (Cloudflare or Porkbun are the cheapest registrars). Decided
-   2026-08-12: the app is renamed **CricRoots** (from CricSync - a company already runs an app
-   literally called "CricSync," and `cricsync.com`/`cricsync.app` were both already taken; see the
+2. **Register the domain - flagged 2026-08-14 as the immediate next priority action, not yet
+   done.** ~$12-20/yr (Cloudflare or Porkbun are the cheapest registrars). Decided 2026-08-12: the
+   app is renamed **CricRoots** (from CricSync - a company already runs an app literally called
+   "CricSync," and `cricsync.com`/`cricsync.app` were both already taken; see the
    demand-reality-check artifact from that session for the full research). Target domain:
-   **`cricroots.com`**, confirmed available (not yet purchased). GitHub repo renamed to
+   **`cricroots.com`**, confirmed available (not yet purchased) - registering it requires a
+   registrar account and payment, both the founder's own action. GitHub repo renamed to
    `Krishna-444-dev/CricRoots` on 2026-08-12; the local clone's `origin` remote and all clone
    instructions in README/DEPLOYMENT were updated to match. Everything else in the codebase - app
    name, package names, bundle IDs, Docker container labels, storage keys - was renamed in that
@@ -89,20 +91,36 @@ amortized, Apple Developer fee amortized) - see the viability report for the ful
 
 For a pilot ("a few people, a few matches, one season"), skip app store distribution entirely at
 first - it's slower (developer account approval, app review) and not what it's for yet. The mobile
-app (now upgraded to current Expo SDK 57 as of this doc) can be shared as a live link that opens
-instantly inside the free **Expo Go** app - no waitlist, no review, no account approval needed on
-the tester's side.
+app (Expo SDK 54) can be shared as a live link that opens instantly inside the free **Expo Go**
+app - no waitlist, no review, no account approval needed on the tester's side.
 
-**One-time setup (yours):**
-1. Create a free account at [expo.dev](https://expo.dev) if you don't have one.
-2. From `mobile-app/`, run `npx eas-cli login` and sign in.
-3. Run `npx eas-cli update:configure` once to link this project to your Expo account.
-4. Run `npx eas-cli update --branch preview --message "pilot build"` to publish. This gives you a
-   shareable `expo.dev` link and QR code.
+**Setup: done.** The Expo project is linked (project ID `c42d8897-9374-4b2c-8ceb-7282f6180e2b`,
+owner `krishnadev444`), and updates publish for real to the `preview` channel:
+
+```bash
+cd mobile-app
+npx eas-cli update --channel preview --message "describe what changed"
+```
+
+`--channel` (not `--branch`) is the flag that actually matters here - it publishes to whichever
+branch is mapped to that channel, auto-creating the mapping the first time a given channel name is
+used. This gives a shareable `expo.dev` link and QR code pointing at
+`exp://u.expo.dev/c42d8897-9374-4b2c-8ceb-7282f6180e2b?channel-name=preview`.
 
 **What a tester does:** install the free "Expo Go" app from the App Store or Play Store, then tap
 your link (or scan the QR code) - CricRoots opens immediately inside it. That's the entire install
 process.
+
+**Confirmed real limitation, found during the first actual pilot test:** an EAS Update bundle bakes
+in whatever `EXPO_PUBLIC_API_URL` was set in `mobile-app/.env` on the machine that ran the publish
+command, at publish time - it is not re-resolved per device. Until the backend is actually deployed
+somewhere publicly reachable (Track B), this means the "opens instantly, zero setup" promise above
+only holds for testers on the **same LAN as the machine that published the update**, with that
+machine's Docker backend running - not "anywhere," despite EAS Updates normally being marketed as
+portable. A tester off that network gets a silent blank screen (see
+`documentation/mobile-app-rebuild.md` - this is a real, open, unexplained failure mode: no error is
+surfaced, unlike the local dev-server path, which shows a normal error overlay on a genuine crash).
+Don't promise "share this link with anyone" until Track B is actually done.
 
 When you're ready for something that feels more like a "real app" (its own icon on the home screen,
 no Expo Go wrapper) - or once you need push notifications or any native module Expo Go doesn't

@@ -24,7 +24,8 @@ ai-engine/
 │   │   ├── recommendation_model.py    # Core ML model logic
 │   │   └── trained_models/            # Saved model files (.pkl)
 │   ├── api/
-│   │   └── recommendations.py         # Flask API routes
+│   │   ├── recommendations.py         # Flask API routes (batsman/bowler/fielding/win-prob/tactical-advisor)
+│   │   └── analytics.py               # Flask API routes (player form, performance, tournament trends)
 │   └── utils/
 │       └── data_generator.py          # Synthetic data generation
 ├── data/                              # Training data (CSV)
@@ -90,6 +91,24 @@ Provides a complete strategic overview of the current match situation.
 ### 3. Training
 **Endpoint**: `POST /api/recommendations/train`
 **Description**: Triggers a full retraining cycle of all machine learning models.
+
+### 4. Individual Recommendations
+Lower-level endpoints used by the Tactical Advisor internally, also callable directly:
+- `POST /api/recommendations/batsman` — recommended batsman ID + confidence
+- `POST /api/recommendations/bowler` — recommended bowler ID + confidence
+- `POST /api/recommendations/fielding` — recommended fielding position (`player_data` + `batsman_data` required)
+
+### 5. Health Check
+**Endpoint**: `GET /api/recommendations/health`
+**Response**: `{ "status": "healthy", "models_loaded": true, "service": "CricSync AI Recommendation Engine" }`
+
+## Analytics Endpoints
+
+A separate blueprint at `/api/analytics`, mounted from `src/api/analytics.py`, provides rule-based (non-ML) statistical helpers:
+- `POST /api/analytics/player-form` — form/trend from recent performance ratings
+- `POST /api/analytics/player-performance` — batting/bowling prediction adjusted for pitch conditions
+- `POST /api/analytics/tournament-trends` — average score, wickets, matches completed
+- `POST /api/analytics/tournament-winner-prediction` — top-3 teams by points with a heuristic win probability
 
 ## Development & Data
 

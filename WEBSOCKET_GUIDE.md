@@ -4,7 +4,9 @@ This document provides a comprehensive guide on the WebSocket implementation for
 
 ## Overview
 
-The CricRoots application now uses **Socket.io** for real-time, bidirectional communication between the backend server and connected clients (mobile and web). This replaces the previous polling mechanism, providing instant updates with significantly reduced latency and server load.
+The CricRoots application uses **Socket.io** for real-time, bidirectional communication between the backend server and connected clients (mobile and web), for match ball-by-ball events/AI insights as well as team/tournament/group chat and direct messages.
+
+This is not a wholesale replacement of polling, though: on web, `useMatchWebSocket` is only mounted while the AI Insights tab is open (`web-app/app/match/[id]/page.tsx`) - the default Scorecard tab still refreshes itself via a 10-second `setInterval`, independent of the socket. The mobile `MatchDetailScreen` does keep its embedded `AITacticalAdvisor` connected whenever the match is live.
 
 ## Architecture
 
@@ -57,26 +59,25 @@ socket.emit('leave-match', matchId);
 ```
 Unsubscribes the client from the match room.
 
-#### 3. Record Ball
+#### 3. Join/Leave Team, Tournament, Group Rooms
 ```javascript
-socket.emit('record-ball', {
-  ballNumber: 45,
-  batsmanId: 'player1',
-  bowlerId: 'player2',
-  runs: 4,
-  isWicket: false
-});
+socket.emit('join-team', teamId);
+socket.emit('leave-team', teamId);
+socket.emit('join-tournament', tournamentId);
+socket.emit('leave-tournament', tournamentId);
+socket.emit('join-group', groupId);
+socket.emit('leave-group', groupId);
 ```
-Notifies the server that a ball has been recorded.
+Same pattern as match rooms - subscribes/unsubscribes the client to a team chat, tournament announcements, or group chat room. `join-group` itself does not check membership; authorization is enforced separately by the REST API before any group message is ever emitted into that room.
 
-#### 4. Update Match
+Every authenticated socket is also auto-joined to a personal `user-<userId>` room on connect (no explicit join event needed) - this is how direct messages are delivered.
+
+#### 4. Record Ball / Update Match (defined client-side, not wired up server-side)
 ```javascript
-socket.emit('update-match', {
-  status: 'Live',
-  toss: { winningTeam: 'team1', decision: 'bat' }
-});
+socket.emit('record-ball', { ballNumber: 45, batsmanId: 'player1', bowlerId: 'player2', runs: 4, isWicket: false });
+socket.emit('update-match', { status: 'Live', toss: { winningTeam: 'team1', decision: 'bat' } });
 ```
-Updates match-level information.
+Both mobile and web `useMatchWebSocket` hooks expose `recordBall()`/`updateMatch()` helpers that emit these, but `backend/src/utils/socketManager.js` has no `socket.on('record-ball', ...)` or `socket.on('update-match', ...)` handler - the server never listens for either, so these emits are currently no-ops. Ball recording actually happens over REST (`POST /api/matches/:id/record-ball`), which is what triggers the real `ball-recorded`/`ai-insights` broadcasts below.
 
 ### Server → Client Events
 
@@ -151,7 +152,7 @@ socket.on('scorecard-update', (data) => {
   // }
 });
 ```
-Broadcast updated scorecard information.
+`emitScorecardUpdate()` exists on `SocketManager` and the web hook listens for it, but no controller calls it yet (see #7) - the web scorecard tab gets its data from plain REST polling instead, not this event.
 
 #### 6. User Joined/Left
 ```javascript
@@ -164,6 +165,30 @@ socket.on('user-left', (data) => {
 });
 ```
 Broadcast when users join or leave a match room.
+
+#### 7. Milestone, Match Update (defined, not currently triggered)
+```javascript
+socket.on('milestone', (data) => { /* data.milestone: 50s, 100s, etc. */ });
+socket.on('match-update', (data) => { /* data.data: arbitrary match-level payload */ });
+```
+`SocketManager` defines `emitMilestone()` and `emitMatchUpdate()` (alongside `emitScorecardUpdate()` above), and the web hook listens for all three - but no controller currently calls any of them. They're wired end-to-end and ready to use, just not yet triggered by any code path.
+
+#### 8. Chat Events
+```javascript
+socket.on('new-message', (data) => {
+  // data = { scope: 'team' | 'tournament', id, message, timestamp }
+});
+socket.on('new-direct-message', (data) => {
+  // data = { message, timestamp } - delivered to the recipient's personal user-<id> room
+});
+socket.on('new-group-message', (data) => {
+  // data = { groupId, message, timestamp } - text, poll, or attachment
+});
+socket.on('group-poll-update', (data) => {
+  // data = { groupId, message, timestamp } - updated vote counts for an existing poll message
+});
+```
+Emitted by `messageController.js` (team/tournament chat), `directMessageController.js`, and `groupMessageController.js` respectively - these aren't AI/match related but are real, actively-used events this file previously didn't mention.
 
 ## Implementation Details
 
@@ -264,9 +289,9 @@ location /socket.io {
 ## Error Handling
 
 ### Connection Failures
-- Automatic reconnection with exponential backoff
-- Max 5 reconnection attempts
-- Fallback to HTTP polling if WebSocket fails
+- Automatic reconnection with backoff (`reconnectionDelay: 1000`, capped at `reconnectionDelayMax: 5000`)
+- Max 5 reconnection attempts (`reconnectionAttempts: 5`)
+- No active HTTP-polling fallback while disconnected on the AI Insights panel specifically - it just keeps showing the last value it had (REST snapshot or last socket push) and a "Reconnecting..." badge until the socket comes back. The web scorecard tab's separate 10-second poll (see Overview) is unrelated and keeps running regardless of socket state.
 
 ### Timeout Handling
 - 5-second timeout for AI Engine calls
@@ -274,9 +299,9 @@ location /socket.io {
 - Match data still delivered without AI insights
 
 ### Authentication
-- JWT token verified on connection
-- Invalid tokens rejected
-- Automatic disconnection on token expiry
+- JWT token verified once, in the `io.use()` middleware at handshake time (`backend/src/utils/socketManager.js`)
+- Invalid or missing tokens rejected with `next(new Error('Authentication error'))`, refusing the connection
+- No re-check during the life of the connection - a socket that connected with a since-expired token is not proactively disconnected (tokens are 30 days by default, so this is a narrow edge case, not a re-auth loop)
 
 ## Performance Optimization
 
@@ -368,7 +393,7 @@ socket.on('ball-recorded', (data) => {
 2. **Presence Tracking**: Show which users are watching
 3. **Notifications**: Send push notifications for key events
 4. **Analytics**: Track real-time engagement metrics
-5. **Chat Integration**: Add live chat to match rooms
+5. ~~Chat Integration~~ - shipped, but as team/tournament/group rooms and DMs (`new-message`, `new-direct-message`, `new-group-message`, `group-poll-update` above), not scoped to match rooms specifically
 6. **Replay System**: Store and replay match events
 
 ---

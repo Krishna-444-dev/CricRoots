@@ -41,10 +41,12 @@ export function bowlingStatsFor(balls: BallEvent[], playerId: string) {
 }
 
 // How a batsman got out, in standard scorecard shorthand ("c Fielder b Bowler", "lbw b Bowler",
-// "run out (Fielder)", ...) - null if they haven't been dismissed. Prefers the names baked onto
-// the wicket ball itself (batsmanName/bowlerName/fielderName, sent by the client at record time -
-// see BallEvent) and falls back to a roster lookup for older balls recorded before those fields
-// existed.
+// "run out (Fielder)", ...) - null if they haven't been dismissed. batsmanName/bowlerName/
+// fielderName are accepted on record-ball but the backend only uses them transiently to build
+// `commentary` - they're never persisted on the ball subdocument (see Match.js) - so despite
+// BallEvent declaring them, they read back as undefined and this always resolves via nameFor
+// (a roster lookup) in practice; kept as the primary source rather than removed in case that
+// ever changes.
 export function dismissalFor(
   balls: BallEvent[],
   playerId: string,

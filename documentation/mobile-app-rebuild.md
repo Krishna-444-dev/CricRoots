@@ -1,9 +1,11 @@
 # Mobile App Rebuild + Ball Commentary/Voice Input + Analytics Research
 
 Continuation of the autonomous work session started in `documentation/cricclubs-feature-roadmap.md`.
-Covers three threads: auto-generated ball commentary + voice-driven scoring input, a full
-mobile-app foundation rebuild (it was crashing on launch), and a research pass into advanced
-cricket analytics to find genuinely applicable next features. Started 2026-08-11.
+Covers: auto-generated ball commentary + voice-driven scoring input, a full mobile-app foundation
+rebuild (it was crashing on launch), a research pass into advanced cricket analytics, a full
+web-vs-mobile feature-parity audit and build-out, and the first real live pilot-testing/bug-fix
+arc (EAS Update setup, a systemic null-ref crash class, live-scoring resume, chart rendering, and
+scorecard format). Started 2026-08-11.
 
 ## Ball commentary + voice scoring input (`0b27370`)
 
@@ -217,7 +219,139 @@ captures the same "who's going to win?" engagement hook with zero stake and zero
   in both before merge. All UI copy avoids gambling language entirely ("predict"/"points"/
   "leaderboard", never "bet"/"wager"/"odds"/"stake").
 
+## Full web-vs-mobile feature parity audit + build-out (`efc92a1` .. `f04bbc1`)
+
+User's ask: "whatever functionality we see on the web app, we should be able to see and do on
+mobile app" — not just live scoring parity. An Explore-agent audit found five genuine gaps, one of
+them (tournament creation) confirmed broken on **both** platforms, not just missing on mobile:
+
+- **Match creation** (`efc92a1`) — confirmed totally missing from mobile; no way to start a match
+  at all without going to web first.
+- **Calendar** (`d7330ca`) — mobile port of the read-only web `/calendar` month-grid view.
+- **Player profile completion + rankings** (`9a3d172`) — flagged as the highest-impact gap: a new
+  player joining via mobile had no way to fill in their own profile.
+- **Lesson and news authoring** (`2221496`) — mobile could read lessons/news but not create them.
+- **Tournament creation** (`f04bbc1`) — the real find here: this was dead code on **web too**, not
+  just a mobile gap. Fixed on both platforms in the same pass, plus mobile parity.
+
+Built via parallel background agents (one per gap), each reviewed by reading the actual diff rather
+than trusting the agent's own summary — this caught two real cross-agent conflicts before merge:
+`HomeStack.tsx` got independent `Stack.Screen` additions from two agents working off the same base
+commit (reconciled by hand, both kept); and the scoring-screen agent and the match-detail agent
+independently designed **incompatible shapes** for `Innings.liveState` — one a lightweight
+`ScoringSnapshot` (`battingTeamId`/`strikerId`/`nonStrikerId`/`bowlerId`/`outPlayerIds`), the other
+expecting the full web-style `InningsData` shape (`currentBatsmen`/`currentBowler`/
+`battingScorecard`/`bowlingScorecard`). Fixed by having the scoring screen write **both**, merged
+into one object (`buildFullLiveState()`), so either screen can read what either wrote — this
+mismatch resurfaced later (see the live-scoring resume section below) when a `liveState` written by
+something else entirely (a manual backfill) turned out to satisfy neither shape fully.
+
+## First real live pilot test + first real EAS Update setup
+
+User tested the rebuilt app live over several rounds, each surfacing genuine bugs invisible to
+`tsc --noEmit` or static review:
+
+- **Rediscovered the dev server wasn't actually running** this session (a stale `expo start`
+  process), and that no EAS Update had ever actually been published despite a linked EAS project
+  (`c42d8897-9374-4b2c-8ceb-7282f6180e2b`, owner `krishnadev444`) — a prior claim that OTA
+  distribution was already live was checked against `eas-cli build:list`/`channel:list` and found
+  false before repeating it. Set up EAS Update for real: `eas update --channel preview` auto-created
+  and linked a same-named branch+channel, now the actual pilot-distribution path.
+- **The EAS Update path showed a silent blank screen after login** with no error surfaced — traced
+  the *cause of the confusion* (not fully explained even now) but found and fixed the underlying
+  false claim: an EAS Update bundle bakes in whatever `EXPO_PUBLIC_API_URL` was set in
+  `mobile-app/.env` on the machine that ran the publish command, at publish time — so "OTA update,
+  works from anywhere" was wrong; it still requires the same LAN/backend as the local dev-server
+  path. Redirected testing to the dev-server path specifically because it surfaces real Metro
+  red-box error overlays instead of a silent blank screen.
+- **`HomeScreen.tsx` crash**: `Cannot read property 'name' of null` in `teamName()`, confirmed via
+  the actual Metro error overlay (Render Error, Sources, Component/Call Stack) the user
+  screenshotted. Root cause is a recurring bug class from earlier in this session's web-app
+  work: a populated Mongoose ref resolves to one of three shapes — an unpopulated id string, a
+  populated object, or `null` (a deleted referenced document — Mongoose nulls the field rather than
+  omitting it or erroring). Code shaped like `typeof x === 'string' ? fallback : x.name` mishandles
+  this because `typeof null === 'object'`, so `null` falls into the "populated object" branch and
+  `.name` throws. Fixed with a new `mobile-app/src/shared/utils/resolveRef.ts`
+  (`resolveRefId`/`resolveRefName`, mirroring the existing `web-app/lib/resolveRef.ts`), then swept
+  the whole app for the pattern — 24 occurrences across 13 files, 12 genuinely vulnerable and fixed,
+  12 already safely guarded (`a7b92cb`).
+
+## Second bug round: WebSocket URL, AI Insights hidden by its own error, scoring-button parity gap
+
+- **`useMatchWebSocket.ts` never actually connected**: it read `process.env.REACT_APP_API_URL`, a
+  Create React App convention Metro never inlines, always silently falling back to
+  `http://localhost:5000` — which on a physical device means the phone itself, not the backend. Now
+  derives the socket origin from the same `API_BASE_URL` the REST client already resolves
+  correctly, stripped of its `/api` suffix.
+- **`AITacticalAdvisor.tsx` hid valid data behind an unrelated error**: it showed its error card
+  unconditionally whenever the socket errored, even when the REST-fallback fetch had already loaded
+  real insights — a connection hiccup blanked out working content. Now only blocks on the error if
+  there's truly nothing to fall back on (`error && !aiInsights`).
+- **`MatchDetailScreen.tsx`'s "Score this match" button used a stale, creator-only `canScore`
+  check** that was never updated when scoring authorization was broadened inside
+  `LiveScoringScreen.tsx` earlier this session — invisible to any non-creator rostered
+  player/umpire who would have actually been let in once there. Fixed by extracting a shared
+  `mobile-app/src/shared/utils/matchAuth.ts` (`computeCanScore`/`resolveUserId`/`rosterIds`), used
+  by both screens so this can't drift out of sync a third time.
+- **No public read-only Full Scorecard**: it only ever existed on the scorer's own
+  `LiveScoringScreen.tsx`. Built one on `MatchDetailScreen.tsx`, extracting the ball-derived stats
+  functions (`isLegalDelivery`/`battingStatsFor`/`bowlingStatsFor`/`maidenOversFor`) into a new
+  shared `mobile-app/src/shared/utils/matchStats.ts` used by both screens (`8f24943`).
+
+## Third bug round: live-scoring resume, chart rendering, scorecard format
+
+Three more rounds of screenshots after the fixes above landed, each pointing at a real, distinct bug:
+
+- **Live-scoring resume silently produced a blank/zeroed scoring view**: a match at 72/3 in 6 overs
+  showed blank striker/non-striker/bowler names and "0 (0)"/"0/0 (0.0)" everywhere. Root cause: the
+  resume logic (`LiveScoringScreen.tsx`'s `load()`) treated *any* truthy `innings[idx].liveState` as
+  a valid resumable snapshot and immediately set `inningsStarted = true` — but this match's
+  `liveState` had been written by something that didn't populate the `ScoringSnapshot` fields
+  (`battingTeamId`/`strikerId`/`nonStrikerId`/`bowlerId`), so those all resolved to `undefined` while
+  the screen still skipped straight past the "Start Innings" setup form. Fixed by validating the
+  snapshot actually has every field needed before trusting it; if not, falls through to a "Resume
+  Scoring" picker pre-filled with the batting side and already-dismissed batsmen derived directly
+  from the ball log (unambiguous, unlike who's currently at the crease) rather than guessing at a
+  specific player (`dbe77aa`).
+- **Manhattan and Worm charts read as broken/non-standard**: both were horizontal bar-list rows
+  (one per over, growing sideways) — the Worm Chart in particular just showed ever-longer bars of a
+  running total, which doesn't convey what a worm chart is *for* (each team's scoring rate,
+  compared side by side, with a visible crossing point). Rebuilt both as real SVG charts
+  (`react-native-svg`, confirmed to ship inside Expo Go itself — no custom dev client needed, so
+  this doesn't affect pilot distribution) matching `web-app/components/insights/ManhattanChart.tsx`
+  and `WormChart.tsx`'s design exactly: clustered vertical bars per over for Manhattan, two
+  polylines with an area fill for Worm, both with gridlines, axis labels, and wicket dots
+  (`dbe77aa`, `c7d43b1`).
+- **Both scorecards were missing standard dismissal text**: "13 (3) 4s:0 6s:2 SR:433.3" with no
+  indication of *how* — or whether — a batsman got out, next to a "Full Scorecard" label. Added a
+  shared `dismissalFor()` in `matchStats.ts` producing standard shorthand ("c Fielder b Bowler",
+  "lbw b Bowler", "run out (Fielder)", "not out", ...) from each wicket ball's
+  `wicketType`/`bowlerId`/`fielderId`, resolving names via a roster lookup (a docs-verification
+  pass afterward found `batsmanName`/`bowlerName`/`fielderName` - accepted on `record-ball` and
+  declared on the client's `BallEvent` type - are actually never persisted on the ball
+  subdocument server-side, used only transiently to build `commentary`; `dismissalFor` still
+  checks them first in case that changes, but in practice always falls through to the roster
+  lookup) (`501fda5`). Also
+  restructured `LiveScoringScreen`'s own scorecard from a single concatenated stat line into the
+  same R/B/4s/6s/SR column-table layout `MatchDetailScreen`'s already used, since the two had
+  drifted into visibly different formats (`08197dc`).
+
+Every fix in these three rounds was verified against the actual served Metro bundle (fetching
+`http://localhost:8081/node_modules/expo/AppEntry.bundle?platform=ios&dev=true` and grepping for
+the new code) before telling the user it had shipped — `tsc --noEmit` alone doesn't catch runtime
+crashes, stale-bundle caching, or Rules-of-Hooks violations. Also learned the hard way that a
+shake-triggered in-app Reload on the EAS Update path only re-runs the update already downloaded to
+the phone — it does not check the channel for a newer publish; that requires a full force-quit and
+relaunch of Expo Go.
+
 ## What's next
 
 - Source and verify the D/L Standard resource table before implementing rain-revision for real.
-- An actual device/simulator smoke test of the mobile app (see "Result" above).
+- Still an open question, not just a deprioritized one: *why* the EAS Update path shows a silent
+  blank screen with zero error surfaced (as opposed to a real crash with a visible stack trace, the
+  behavior confirmed on the dev-server path) — worked around by testing on the dev server instead,
+  never root-caused.
+- The win-probability/tactical-advisor model (`ai-engine/`) is trained on synthetic data at small
+  scale — real club-match data (as scoring activity accumulates through this app itself) would be
+  the next step toward it actually being sensitive to match state rather than saturating near its
+  extremes for long stretches.

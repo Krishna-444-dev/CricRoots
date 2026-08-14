@@ -53,6 +53,14 @@ FLASK_ENV=development
 
 ### 3. Start Services
 
+`nginx.conf` terminates TLS on 443 and redirects all port-80 traffic to https, so nginx needs `ssl/cert.pem` and `ssl/key.pem` to exist before it will start — the `ssl/` directory is gitignored and empty on a fresh clone. For local dev, generate a self-signed pair first:
+
+```bash
+mkdir -p ssl
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+  -keyout ssl/key.pem -out ssl/cert.pem -subj "/CN=localhost"
+```
+
 ```bash
 docker-compose up -d
 ```
@@ -84,8 +92,8 @@ cricroots-nginx          Up
 
 - **Backend API**: http://localhost:5000
 - **AI Engine**: http://localhost:5001
-- **MongoDB**: localhost:27017 (internal only)
-- **Nginx Proxy**: http://localhost:80
+- **MongoDB**: localhost:27017 (published to the host by default; restrict with a firewall or drop the port mapping in production)
+- **Nginx Proxy**: http://localhost:80 (redirects to https://localhost, see SSL note below)
 
 ### 6. View Logs
 
@@ -207,6 +215,8 @@ ai.yourdomain.com -> your-server-ip
 | `MONGO_URI` | MongoDB connection string | `mongodb://user:pass@host:27017/db` |
 | `JWT_SECRET` | JWT signing secret | `your-secret-key` |
 | `JWT_EXPIRE` | Token expiration | `30d` |
+| `ANTHROPIC_API_KEY` | Claude API key for the in-app assistant; leave blank to keep the assistant in its "not configured yet" state | `sk-ant-...` |
+| `AI_ENGINE_URL` | AI engine base URL (fixed to `http://ai-engine:5001` inside docker-compose) | `http://ai-engine:5001` |
 
 ### AI Engine Environment Variables
 
@@ -220,9 +230,10 @@ ai.yourdomain.com -> your-server-ip
 
 | Variable | Description | Example |
 | :--- | :--- | :--- |
-| `MONGO_INITDB_ROOT_USERNAME` | Root username | `admin` |
-| `MONGO_INITDB_ROOT_PASSWORD` | Root password | `secure-password` |
-| `MONGO_INITDB_DATABASE` | Initial database | `cricsync` |
+| `MONGO_ROOT_USER` | Root username (mapped to `MONGO_INITDB_ROOT_USERNAME` in the container) | `admin` |
+| `MONGO_ROOT_PASSWORD` | Root password (mapped to `MONGO_INITDB_ROOT_PASSWORD` in the container) | `secure-password` |
+
+The initial database name (`cricsync`) is hardcoded in `docker-compose.yml`, not configurable via `.env`.
 
 ## Database Management
 
@@ -263,8 +274,8 @@ curl http://localhost:5000/
 # AI Engine health
 curl http://localhost:5001/api/recommendations/health
 
-# Nginx health
-curl http://localhost/health
+# Nginx health (port 80 redirects to https; -k accepts the self-signed dev cert)
+curl -k https://localhost/health
 ```
 
 ### Container Logs

@@ -86,20 +86,19 @@ const advice = await AIService.getTacticalAdvice({
 
 ### Match Controller Integration
 
-The match controller automatically fetches AI insights when:
+The match controller fetches AI insights when:
 
 1. **Recording a Ball** (`POST /api/matches/:id/record-ball`)
-   - After saving the ball data
-   - Calls `AIService.getTacticalAdvice()`
-   - Returns insights along with match data
+   - After saving the ball data, the HTTP response itself only contains `{ success, message, match }` - no `aiInsights` field
+   - `req.socketManager.emitBallRecorded()` fires instead, which broadcasts `ball-recorded` and then internally calls `AIService.getTacticalAdvice()` and broadcasts the result as a separate `ai-insights` WebSocket event (see WEBSOCKET_GUIDE.md)
+   - So AI insights after a ball are delivered async over the socket, not synchronously in the record-ball response
 
 2. **Getting Scorecard** (`GET /api/matches/:id/scorecard`)
-   - Includes AI insights in the response
-   - Provides real-time tactical analysis
+   - Calls `AIService.getTacticalAdvice()` and includes `aiInsights` in the response (`null` if the AI Engine call failed)
 
 3. **Getting AI Insights** (`GET /api/matches/:id/ai-insights`)
-   - Dedicated endpoint for AI data
-   - Called by frontend components
+   - Dedicated endpoint for AI data, used as the REST fallback so a client opening the AI Insights panel mid-match gets an immediate snapshot instead of waiting for the next ball
+   - Unlike scorecard, this one returns HTTP 500 if the AI Engine call fails rather than falling back gracefully
 
 ### Example Flow
 
@@ -115,8 +114,9 @@ POST /api/matches/123/record-ball
   isWicket: false
 }
 
-// 2. Backend saves the ball
-// 3. Backend calculates match state
+// 2. Backend saves the ball and returns { success, message, match } - no AI insights in this response
+// 3. socketManager.emitBallRecorded() broadcasts 'ball-recorded', then calls
+//    AIService.getTacticalAdvice() and broadcasts the result separately as 'ai-insights'
 // 4. Backend calls AI Engine
 POST http://ai-engine:5001/api/recommendations/tactical-advisor
 {
@@ -140,12 +140,8 @@ POST http://ai-engine:5001/api/recommendations/tactical-advisor
   }
 }
 
-// 6. Backend returns to frontend
-{
-  success: true,
-  match: {...},
-  aiInsights: {...}
-}
+// 6. Backend broadcasts to all clients in the match room over WebSocket
+socket.emit('ai-insights', { matchId, insights: {...}, timestamp })
 ```
 
 ## Frontend Integration
@@ -159,52 +155,50 @@ Displays AI insights in a user-friendly format:
 ```
 
 **Features:**
-- Auto-refreshes every 30 seconds during live matches
+- Fetches a one-time REST snapshot (`GET /api/matches/:id/ai-insights`) on mount so the panel doesn't sit spinning until the next ball is scored, then keeps itself fresh via the `useMatchWebSocket` hook's `ai-insights` event - no 30-second polling loop
 - Shows win probability with visual progress bar
 - Displays tactical advice
-- Recommends next batsman and bowler
+- Recommends the next bowler only, via a separate roster-grounded endpoint (`GET /api/matches/:id/next-bowler-recommendation`, backed by `tendencyAnalytics.getLiveMatchupPlan` - the matchup shrinkage engine, not the AI Engine). The AI Engine's own `key_recommendations.batsman/bowler` (raw class labels with no roster awareness) are deliberately not rendered
 - Color-coded status (Dominant/Balanced/Challenging)
 
 ### Web Component (`web-app/components/AITacticalAdvisor.tsx`)
 
-Similar functionality for web browsers with responsive design.
+Same REST-snapshot-plus-WebSocket pattern as the mobile component, plus a `connectedUsers` count from the web hook.
 
 ### Live Match Screens
 
-**Mobile Screen** (`mobile-app/src/screens/LiveMatchScreen.tsx`)
-- Tab-based navigation (Scorecard / AI Insights)
-- Real-time score updates
-- Recent balls display
-- FAB button to record new balls
+**Mobile Screen** (`mobile-app/src/screens/MatchDetailScreen.tsx`)
+- Single scrollable screen (no tabs, no FAB) with sections for the live scorecard, recent balls, key moments, charts, and the embedded `AITacticalAdvisor`
+- Ball scoring itself happens on a separate screen, `LiveScoringScreen.tsx`, which posts to `record-ball` over REST
 
 **Web Page** (`web-app/app/match/[id]/page.tsx`)
-- Similar layout with responsive design
+- Tab-based navigation (Scorecard / AI Insights) - but only the AI Insights tab mounts `useMatchWebSocket`; see WEBSOCKET_GUIDE.md for how the Scorecard tab actually updates
 - Grid-based recent balls display
 - Professional styling
 
 ## Data Flow During Live Match
 
+This is superseded in practice by the WebSocket push described in WEBSOCKET_GUIDE.md, but the still-accurate shape is:
+
 ```
-1. User opens live match screen
+1. User opens the AI Insights panel/tab
    ↓
-2. Component fetches match data: GET /api/matches/:id
+2. AITacticalAdvisor mounts useMatchWebSocket and connects to the socket, joining match-<id>
    ↓
-3. Component fetches AI insights: GET /api/matches/:id/ai-insights
+3. In parallel, it fetches a one-time snapshot: GET /api/matches/:id/ai-insights
+   (Backend calls AI Engine: POST /api/recommendations/tactical-advisor)
    ↓
-4. Backend calls AI Engine: POST /api/recommendations/tactical-advisor
+4. Frontend displays the REST snapshot immediately
    ↓
-5. AI Engine returns predictions
+5. Whenever anyone records a ball: POST /api/matches/:id/record-ball
    ↓
-6. Frontend displays insights
+6. Backend saves the ball, then emitBallRecorded() broadcasts 'ball-recorded' and
+   'ai-insights' (freshly fetched from the AI Engine) to everyone in that match room
    ↓
-7. Auto-refresh every 30 seconds (steps 2-6 repeat)
-   ↓
-8. When ball is recorded: POST /api/matches/:id/record-ball
-   ↓
-9. Backend updates match state and fetches new AI insights
-   ↓
-10. Frontend receives updated data and refreshes display
+7. All connected clients' panels update instantly - no polling loop
 ```
+
+Note: the web scorecard tab (as opposed to the AI Insights tab) does not use this socket connection at all - it polls `GET /api/matches/:id` etc. on a 10-second `setInterval` (see `web-app/app/match/[id]/page.tsx`).
 
 ## AI Engine Endpoints
 
@@ -297,24 +291,28 @@ Services communicate through the `cricroots-network`:
 - Backend: `http://ai-engine:5001`
 - AI Engine: `http://backend:5000`
 
+## Model Training & Reliability
+
+- Both the win-probability regressor and the batsman/bowler/fielding classifiers are `RandomForest` models trained on **synthetic** data (`ai-engine/data/matches.csv`, `fielding.csv`), not real historical match data - accuracy claims should be read as illustrative of the pipeline, not of the sport, until real match data volume justifies retraining
+- On startup, `RecommendationModel.load_models()` tries to unpickle the `.pkl` files baked into the ai-engine image. If that fails (e.g. a scikit-learn/numpy version bump since they were pickled), it logs the real exception (previously a bare `except: return False` swallowed it silently) and `recommendations.py` automatically calls `train_all_models()` against the synthetic dataset - the service self-heals instead of staying stuck at "model not trained" until someone notices and manually hits `POST /train`
+
 ## Performance Considerations
 
-1. **Caching**: AI insights are cached for 30 seconds to reduce API calls
-2. **Timeout**: AI Engine calls have a 5-second timeout
-3. **Fallback**: If AI Engine is unavailable, match data is still returned
-4. **Async**: AI calls don't block match data retrieval
+1. **Timeout**: AI Engine calls have a 5-second timeout
+2. **Fallback**: If AI Engine is unavailable, match data is still returned (except `GET /api/matches/:id/ai-insights`, which returns HTTP 500)
+3. **Async**: AI calls don't block match data retrieval
 
 ## Error Handling
 
 If the AI Engine is unavailable:
-- Backend returns match data without AI insights
+- Backend returns match data without AI insights (scorecard endpoint) or a 500 (dedicated ai-insights endpoint)
 - Frontend displays match scorecard normally
-- AI Insights section shows error message
-- Auto-retry every 30 seconds
+- AI Insights panel falls back to "Could not load AI insights" if the initial REST fetch fails, or keeps showing the last value received over the socket
+- No fixed-interval auto-retry; the socket reconnects itself with backoff (see WEBSOCKET_GUIDE.md)
 
 ## Future Enhancements
 
-1. **Real-time WebSocket Updates**: Push AI insights to clients
+1. ~~Real-time WebSocket Updates~~ - shipped; see WEBSOCKET_GUIDE.md
 2. **Player-Specific Recommendations**: Personalized advice based on player history
 3. **Deep Learning Models**: Upgrade from RandomForest to neural networks
 4. **Live Data Integration**: Connect to real cricket data sources
