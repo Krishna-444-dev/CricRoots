@@ -29,15 +29,19 @@ export function bowlingStatsFor(balls: BallEvent[], playerId: string) {
   let legalBalls = 0;
   let runsConceded = 0;
   let wickets = 0;
+  let wides = 0;
+  let noBalls = 0;
   for (const b of balls) {
     if (b.bowlerId !== playerId) continue;
     if (isLegalDelivery(b)) legalBalls += 1;
     if (!(b.isExtra && (b.extraType === 'bye' || b.extraType === 'leg-bye'))) runsConceded += b.runs;
     if (b.isWicket && !['run out', 'retired hurt', 'retired out'].includes(b.wicketType || '')) wickets += 1;
+    if (b.isExtra && b.extraType === 'wide') wides += 1;
+    if (b.isExtra && b.extraType === 'no-ball') noBalls += 1;
   }
   const overs = Math.floor(legalBalls / 6) + (legalBalls % 6) / 10;
   const economy = legalBalls > 0 ? runsConceded / (legalBalls / 6) : 0;
-  return { legalBalls, runsConceded, wickets, overs, economy };
+  return { legalBalls, runsConceded, wickets, overs, economy, wides, noBalls };
 }
 
 // How a batsman got out, in standard scorecard shorthand ("c Fielder b Bowler", "lbw b Bowler",
