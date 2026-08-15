@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList } from 'react-native';
 import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
@@ -11,7 +11,7 @@ import AtTheCrease from '../components/AtTheCrease';
 import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId } from '../shared/utils/resolveRef';
-import { computeCanScore } from '../shared/utils/matchAuth';
+import { computeCanScore, resolveUserId } from '../shared/utils/matchAuth';
 import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
@@ -19,6 +19,16 @@ type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
 function teamName(team: Match['team1'] | undefined): string {
   if (!team) return 'TBD';
   return typeof team === 'string' ? 'TBD' : team.name;
+}
+
+// manOfTheMatch arrives as a populated Player doc with a nested populated `user` ref (see
+// backend's MAN_OF_THE_MATCH_POPULATE) - same defensive Player | string handling teamName above
+// uses for Team | string, plus an extra unwrap for the nested user ref.
+function manOfTheMatchName(mom: Match['manOfTheMatch']): string | null {
+  if (!mom || typeof mom === 'string') return null;
+  const user = mom.user;
+  if (!user || typeof user === 'string') return null;
+  return user.name || null;
 }
 
 // Which innings is "current" for the Recent Deliveries / commentary panel: whichever one has
@@ -493,6 +503,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   // uses (see shared/utils/matchAuth.ts) - this screen's own "Score this match" button needs to
   // agree with what that screen will actually let someone do once they get there.
   const [players, setPlayers] = useState<Player[]>([]);
+  // Umpire appointment modal + its own busy/error state - mirrors web-app's
+  // umpireToAdd/umpireBusy/umpireError.
+  const [umpirePickerOpen, setUmpirePickerOpen] = useState(false);
+  const [umpireBusy, setUmpireBusy] = useState(false);
+  const [umpireError, setUmpireError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api.matches
@@ -619,6 +634,35 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const handleAddUmpire = async (userId: string) => {
+    if (!match || umpireBusy) return;
+    setUmpireBusy(true);
+    setUmpireError(null);
+    try {
+      await api.matches.addUmpire(match._id, userId);
+      setUmpirePickerOpen(false);
+      load();
+    } catch (e) {
+      setUmpireError(e instanceof Error ? e.message : 'Could not add umpire');
+    } finally {
+      setUmpireBusy(false);
+    }
+  };
+
+  const handleRemoveUmpire = async (userId: string) => {
+    if (!match || umpireBusy) return;
+    setUmpireBusy(true);
+    setUmpireError(null);
+    try {
+      await api.matches.removeUmpire(match._id, userId);
+      load();
+    } catch (e) {
+      setUmpireError(e instanceof Error ? e.message : 'Could not remove umpire');
+    } finally {
+      setUmpireBusy(false);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     load();
@@ -641,8 +685,27 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const { canScore: canManageMatch } = computeCanScore(match, user?.id, players);
+  const { isOwner, canScore: canManageMatch } = computeCanScore(match, user?.id, players);
   const canScore = canManageMatch && (match.status === 'Live' || match.status === 'Scheduled');
+  const momName = manOfTheMatchName(match.manOfTheMatch);
+
+  // Umpire candidates: everyone in the player directory minus already-appointed umpires and
+  // the match creator - same eligibility filter as web-app's userOptions for the appoint picker.
+  const appointedUmpireIds = new Set(
+    (match.umpires || []).map((u) => resolveUserId(u)).filter((id): id is string => !!id)
+  );
+  const creatorId = resolveUserId(match.createdBy);
+  const umpireOptionsMap = new Map<string, string>();
+  for (const p of players) {
+    const uid = resolveUserId(p.user);
+    const name = typeof p.user === 'string' ? null : p.user?.name;
+    if (uid && name && !appointedUmpireIds.has(uid) && uid !== creatorId) {
+      umpireOptionsMap.set(uid, name);
+    }
+  }
+  const umpireOptions = [...umpireOptionsMap.entries()]
+    .map(([userId, name]) => ({ userId, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const team1Id = teamIdOf(match.team1);
   const team2Id = teamIdOf(match.team2);
@@ -673,6 +736,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const hasRunsTypeData = !!chartInnings?.some((inn) => inn.runsTypeBreakdown?.some((r) => r.count > 0));
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.pitch400} />}
@@ -692,6 +756,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             </View>
           )}
         </View>
+        {momName && <Text style={styles.manOfTheMatchText}>🏆 Man of the Match: {momName}</Text>}
       </View>
 
       <View style={styles.scoreCard}>
@@ -813,6 +878,44 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
               </Text>
             </TouchableOpacity>
           )}
+
+      {/* Umpires - creator-only, mirrors web-app's app/match/[id]/page.tsx Umpires block.
+          Umpires get the same scoring rights as the creator without needing to be rostered. */}
+      {isOwner && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Umpires</Text>
+          <View style={styles.umpireCard}>
+            <Text style={styles.reportsHint}>
+              Umpires can score this match the same way you can, without needing to be on either team&apos;s roster.
+            </Text>
+            {(match.umpires || []).length > 0 && (
+              <View style={styles.umpireList}>
+                {(match.umpires || []).map((u) => {
+                  const uid = resolveUserId(u);
+                  if (!uid) return null;
+                  const name = typeof u === 'string' ? uid : u.name;
+                  return (
+                    <View key={uid} style={styles.umpireRow}>
+                      <Text style={styles.umpireName}>{name}</Text>
+                      <TouchableOpacity onPress={() => handleRemoveUmpire(uid)} disabled={umpireBusy}>
+                        <Text style={styles.umpireRemove}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.umpireAddButton}
+              onPress={() => setUmpirePickerOpen(true)}
+              disabled={umpireBusy}
+            >
+              <Text style={styles.umpireAddButtonText}>+ Appoint Umpire</Text>
+            </TouchableOpacity>
+            {umpireError && <Text style={styles.umpireError}>{umpireError}</Text>}
+          </View>
+        </View>
+      )}
 
       {match.status === 'Scheduled' && (
         <View style={styles.section}>
@@ -1240,6 +1343,35 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
 
       <View style={{ height: 32 }} />
     </ScrollView>
+
+    <Modal visible={umpirePickerOpen} animationType="slide" transparent onRequestClose={() => setUmpirePickerOpen(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeaderRow}>
+            <Text style={styles.modalTitle}>Appoint Umpire</Text>
+            <TouchableOpacity onPress={() => setUmpirePickerOpen(false)}>
+              <Text style={styles.modalClose}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={umpireOptions}
+            keyExtractor={(o) => o.userId}
+            style={{ maxHeight: 420 }}
+            ListEmptyComponent={<Text style={styles.muted}>No eligible people to appoint.</Text>}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.pickerRow}
+                disabled={umpireBusy}
+                onPress={() => handleAddUmpire(item.userId)}
+              >
+                <Text style={styles.pickerName}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -1262,6 +1394,7 @@ const styles = StyleSheet.create({
   statusBadgeText: { color: colors.inkSecondary, fontSize: 11, fontWeight: '700' },
   statusBadgeTextLive: { color: colors.pitch400 },
   tossText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600', marginTop: 8 },
+  manOfTheMatchText: { color: colors.gold500, fontSize: 13, fontWeight: '600', marginTop: 8 },
   powerplayBadge: {
     marginLeft: 8,
     backgroundColor: 'rgba(245,166,35,0.15)',
@@ -1496,4 +1629,37 @@ const styles = StyleSheet.create({
   overSummaryCol: { width: 74, alignItems: 'flex-end' },
   overSummaryText: { color: colors.inkMuted, fontSize: 11 },
   overSummaryTotal: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 1 },
+
+  // Umpires section (Info tab) - card + appoint modal, same modal/picker visual pattern as
+  // TournamentDetailScreen's register-team picker.
+  umpireCard: {
+    backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14,
+  },
+  umpireList: { marginTop: 4, marginBottom: 10 },
+  umpireRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  umpireName: { color: colors.inkSecondary, fontSize: 13, fontWeight: '600' },
+  umpireRemove: { color: colors.wicket400, fontSize: 12, fontWeight: '700' },
+  umpireAddButton: {
+    marginTop: 4, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+  },
+  umpireAddButtonText: { color: colors.pitch400, fontSize: 13, fontWeight: '700' },
+  umpireError: { color: colors.wicket400, fontSize: 12, marginTop: 8 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: {
+    backgroundColor: colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18,
+    borderWidth: 1, borderColor: colors.border, paddingBottom: 24, maxHeight: '75%',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  modalTitle: { color: colors.ink, fontSize: 16, fontWeight: 'bold' },
+  modalClose: { color: colors.pitch400, fontSize: 14, fontWeight: '600' },
+  pickerRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  pickerName: { color: colors.ink, fontSize: 14, fontWeight: '600' },
 });
