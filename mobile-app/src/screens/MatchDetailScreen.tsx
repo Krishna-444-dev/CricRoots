@@ -73,6 +73,8 @@ interface ChartInnings {
   team: any;
   overs: ChartOver[];
   cumulative: { over: number; total: number }[];
+  extrasBreakdown: { type: string; runs: number }[];
+  runsTypeBreakdown: { runs: string; count: number }[];
 }
 
 // Manhattan chart: a column of rows, each a label plus a proportionally-filled bar View - the
@@ -279,6 +281,155 @@ function WormChartSvg({ innings }: { innings: ChartInnings[] }) {
           <View style={[styles.legendDot, { backgroundColor: colors.wicket500 }]} />
           <Text style={styles.legendText}>Wicket that over</Text>
         </View>
+      </View>
+    </View>
+  );
+}
+
+const EXTRA_LABELS: Record<string, string> = {
+  wide: 'Wides',
+  'no-ball': 'No Balls',
+  bye: 'Byes',
+  'leg-bye': 'Leg Byes',
+  penalty: 'Penalty',
+};
+
+// Mobile port of web-app/components/insights/ExtrasChart.tsx - clustered vertical bars (one per
+// team per extra type), same axis/cluster approach as ManhattanChartSvg above but categorical
+// (extra type) instead of sequential (over number) on the x-axis.
+function ExtrasChartSvg({ innings }: { innings: ChartInnings[] }) {
+  const types = Object.keys(EXTRA_LABELS).filter((type) =>
+    innings.some((inn) => (inn.extrasBreakdown.find((e) => e.type === type)?.runs ?? 0) > 0)
+  );
+
+  const maxRuns = Math.max(1, ...innings.flatMap((inn) => inn.extrasBreakdown.map((e) => e.runs)));
+
+  const width = Math.max(280, types.length * 64);
+  const height = 170;
+  const paddingLeft = 20;
+  const paddingRight = 10;
+  const paddingTop = 16;
+  const paddingBottom = 22;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const clusterWidth = chartWidth / types.length;
+  const barGap = 4;
+  const barWidth = Math.max(8, (clusterWidth - barGap * (innings.length + 1)) / innings.length);
+
+  const yFor = (runs: number) => paddingTop + chartHeight - (runs / maxRuns) * chartHeight;
+  const baselineY = paddingTop + chartHeight;
+
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <Svg width={width} height={height}>
+          {types.map((type, typeIdx) => {
+            const clusterX = paddingLeft + typeIdx * clusterWidth;
+            return (
+              <React.Fragment key={type}>
+                {innings.map((inn, teamIdx) => {
+                  const runs = inn.extrasBreakdown.find((e) => e.type === type)?.runs ?? 0;
+                  if (runs === 0) return null;
+                  const barX = clusterX + barGap + teamIdx * (barWidth + barGap);
+                  const barY = yFor(runs);
+                  const barH = Math.max(0, baselineY - barY);
+                  const color = CHART_TEAM_COLORS[teamIdx % 2];
+                  return (
+                    <React.Fragment key={teamIdx}>
+                      <Rect x={barX} y={barY} width={barWidth} height={barH} fill={color} opacity={0.9} rx={1.5} />
+                      <SvgText x={barX + barWidth / 2} y={barY - 4} textAnchor="middle" fontSize={9} fill={colors.inkMuted}>
+                        {runs}
+                      </SvgText>
+                    </React.Fragment>
+                  );
+                })}
+                <SvgText x={clusterX + clusterWidth / 2} y={height - paddingBottom + 14} textAnchor="middle" fontSize={9} fill={colors.inkMuted}>
+                  {EXTRA_LABELS[type]}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+          <SvgLine x1={paddingLeft} x2={width - paddingRight} y1={baselineY} y2={baselineY} stroke={colors.borderStrong} strokeWidth={1} />
+        </Svg>
+      </ScrollView>
+      <View style={styles.chartLegendRow}>
+        {innings.map((inn, i) => (
+          <View key={i} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
+            <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const RUNS_TYPE_ORDER = ['0', '1', '2', '3', '4', '5', '6+'];
+
+// Mobile port of web-app/components/insights/RunsTypeChart.tsx - same clustered-bar approach as
+// ExtrasChartSvg above, bucketed by runs scored off the bat instead of extra type.
+function RunsTypeChartSvg({ innings }: { innings: ChartInnings[] }) {
+  const buckets = RUNS_TYPE_ORDER.filter((runs) =>
+    innings.some((inn) => (inn.runsTypeBreakdown.find((r) => r.runs === runs)?.count ?? 0) > 0)
+  );
+
+  const maxCount = Math.max(1, ...innings.flatMap((inn) => inn.runsTypeBreakdown.map((r) => r.count)));
+
+  const width = Math.max(280, buckets.length * 56);
+  const height = 170;
+  const paddingLeft = 20;
+  const paddingRight = 10;
+  const paddingTop = 16;
+  const paddingBottom = 22;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const clusterWidth = chartWidth / buckets.length;
+  const barGap = 4;
+  const barWidth = Math.max(8, (clusterWidth - barGap * (innings.length + 1)) / innings.length);
+
+  const yFor = (count: number) => paddingTop + chartHeight - (count / maxCount) * chartHeight;
+  const baselineY = paddingTop + chartHeight;
+
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <Svg width={width} height={height}>
+          {buckets.map((runs, bucketIdx) => {
+            const clusterX = paddingLeft + bucketIdx * clusterWidth;
+            return (
+              <React.Fragment key={runs}>
+                {innings.map((inn, teamIdx) => {
+                  const count = inn.runsTypeBreakdown.find((r) => r.runs === runs)?.count ?? 0;
+                  if (count === 0) return null;
+                  const barX = clusterX + barGap + teamIdx * (barWidth + barGap);
+                  const barY = yFor(count);
+                  const barH = Math.max(0, baselineY - barY);
+                  const color = CHART_TEAM_COLORS[teamIdx % 2];
+                  return (
+                    <React.Fragment key={teamIdx}>
+                      <Rect x={barX} y={barY} width={barWidth} height={barH} fill={color} opacity={0.9} rx={1.5} />
+                      <SvgText x={barX + barWidth / 2} y={barY - 4} textAnchor="middle" fontSize={9} fill={colors.inkMuted}>
+                        {count}
+                      </SvgText>
+                    </React.Fragment>
+                  );
+                })}
+                <SvgText x={clusterX + clusterWidth / 2} y={height - paddingBottom + 14} textAnchor="middle" fontSize={9} fill={colors.inkMuted}>
+                  {runs}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+          <SvgLine x1={paddingLeft} x2={width - paddingRight} y1={baselineY} y2={baselineY} stroke={colors.borderStrong} strokeWidth={1} />
+        </Svg>
+      </ScrollView>
+      <View style={styles.chartLegendRow}>
+        {innings.map((inn, i) => (
+          <View key={i} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
+            <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -505,6 +656,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     : 6;
 
   const hasChartData = !!chartInnings?.some((inn) => inn.overs.some((o) => o.runs > 0 || o.wickets > 0));
+  const hasExtrasData = !!chartInnings?.some((inn) => inn.extrasBreakdown?.some((e) => e.runs > 0));
+  const hasRunsTypeData = !!chartInnings?.some((inn) => inn.runsTypeBreakdown?.some((r) => r.count > 0));
 
   return (
     <ScrollView
@@ -926,6 +1079,26 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           <Text style={styles.reportsHint}>Cumulative team total after each over</Text>
           <View style={styles.chartListCard}>
             <WormChartSvg innings={chartInnings} />
+          </View>
+        </View>
+      )}
+
+      {hasExtrasData && chartInnings && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Extras</Text>
+          <Text style={styles.reportsHint}>Extra runs conceded, by type</Text>
+          <View style={styles.chartListCard}>
+            <ExtrasChartSvg innings={chartInnings} />
+          </View>
+        </View>
+      )}
+
+      {hasRunsTypeData && chartInnings && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Type of Runs</Text>
+          <Text style={styles.reportsHint}>Deliveries off the bat, by runs scored</Text>
+          <View style={styles.chartListCard}>
+            <RunsTypeChartSvg innings={chartInnings} />
           </View>
         </View>
       )}

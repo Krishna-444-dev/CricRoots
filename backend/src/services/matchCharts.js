@@ -49,10 +49,52 @@ function computeCumulative(overs) {
   });
 }
 
+const EXTRA_TYPES = ['wide', 'no-ball', 'bye', 'leg-bye', 'penalty'];
+
+/**
+ * Total runs contributed by each extra type across an innings. ball.runs
+ * already carries the full run value for an extra delivery - for wides/
+ * no-balls that includes the mandatory 1 (matchController.recordBall's
+ * caller adds it in before the ball is ever persisted, see
+ * BallByBallScoring.tsx's handleRecordBall), for byes/leg-byes/penalty
+ * it's just whatever runs were run - so no type-specific arithmetic is
+ * needed here beyond grouping by extraType.
+ */
+function computeExtrasBreakdown(balls) {
+  const totals = Object.fromEntries(EXTRA_TYPES.map((type) => [type, 0]));
+  for (const ball of balls || []) {
+    if (ball.isExtra && ball.extraType in totals) {
+      totals[ball.extraType] += ball.runs || 0;
+    }
+  }
+  return EXTRA_TYPES.map((type) => ({ type, runs: totals[type] }));
+}
+
+const RUNS_TYPE_BUCKETS = ['0', '1', '2', '3', '4', '5', '6+'];
+
+/**
+ * How many deliveries produced each run value off the bat. Extra-type balls
+ * (wides/no-balls/byes/leg-byes/penalty) are excluded - this is about shot
+ * outcomes, not extras, and computeExtrasBreakdown above already covers
+ * those runs. Wicket deliveries with no run scored still land in the '0'
+ * bucket since they're real deliveries faced, same as a genuine dot ball.
+ */
+function computeRunsTypeBreakdown(balls) {
+  const totals = Object.fromEntries(RUNS_TYPE_BUCKETS.map((bucket) => [bucket, 0]));
+  for (const ball of balls || []) {
+    if (ball.isExtra) continue;
+    const runs = ball.runs || 0;
+    const bucket = runs >= 6 ? '6+' : String(runs);
+    totals[bucket] = (totals[bucket] || 0) + 1;
+  }
+  return RUNS_TYPE_BUCKETS.map((runs) => ({ runs, count: totals[runs] }));
+}
+
 /**
  * Given a Match document (with `innings` populated or not - only
  * innings.team's identity is read here, not its full shape), returns
- * Manhattan/Worm chart data for both innings, in team1/team2 order.
+ * Manhattan/Worm/Extras/Runs-type chart data for both innings, in
+ * team1/team2 order.
  */
 function getMatchCharts(match) {
   return (match.innings || []).map((innings) => {
@@ -60,7 +102,9 @@ function getMatchCharts(match) {
     return {
       team: innings.team,
       overs,
-      cumulative: computeCumulative(overs)
+      cumulative: computeCumulative(overs),
+      extrasBreakdown: computeExtrasBreakdown(innings.balls),
+      runsTypeBreakdown: computeRunsTypeBreakdown(innings.balls)
     };
   });
 }
@@ -68,5 +112,7 @@ function getMatchCharts(match) {
 module.exports = {
   computeOverBreakdown,
   computeCumulative,
+  computeExtrasBreakdown,
+  computeRunsTypeBreakdown,
   getMatchCharts
 };

@@ -8,6 +8,8 @@ import { apiFetch } from '@/lib/apiFetch';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
 import ManhattanChart from '@/components/insights/ManhattanChart';
 import WormChart from '@/components/insights/WormChart';
+import ExtrasChart from '@/components/insights/ExtrasChart';
+import RunsTypeChart from '@/components/insights/RunsTypeChart';
 import FieldingPlan from '@/components/insights/FieldingPlan';
 import PredictionWidget from '@/components/match/PredictionWidget';
 import styles from './page.module.css';
@@ -16,6 +18,8 @@ interface ChartInnings {
   team: { _id: string; name: string } | string | null;
   overs: { over: number; runs: number; wickets: number }[];
   cumulative: { over: number; total: number }[];
+  extrasBreakdown: { type: string; runs: number }[];
+  runsTypeBreakdown: { runs: string; count: number }[];
 }
 
 interface KeyMoment {
@@ -688,6 +692,14 @@ export default function MatchPage() {
                   <div className="bg-surface border border-border rounded-xl p-4">
                     <h4 className="text-sm font-semibold text-ink-secondary mb-2">Worm Chart</h4>
                     <WormChart innings={chartsInnings} />
+                  </div>
+                  <div className="bg-surface border border-border rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-ink-secondary mb-2">Extras</h4>
+                    <ExtrasChart innings={chartsInnings} />
+                  </div>
+                  <div className="bg-surface border border-border rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-ink-secondary mb-2">Type of Runs</h4>
+                    <RunsTypeChart innings={chartsInnings} />
                   </div>
                 </div>
               </div>
