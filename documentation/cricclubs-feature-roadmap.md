@@ -247,6 +247,16 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   crashed the *entire* page (this bug predates the restructure; the old flat layout had the exact
   same unconditional access, it just never got exercised because there was less on the page to hit
   it). Added consistent null-safe fallbacks throughout rather than leaving it latent.
+- **Per-match documents** (`d15dcd3`): CricClubs' match Info tab shows a "Match Documents" row -
+  CricRoots had a tournament-level document library (built earlier this session) but nothing scoped
+  to an individual match. Same `documents[]` shape/pattern, reusing the existing PDF/Word upload
+  middleware rather than adding a second one. Verified end-to-end against the real backend (upload,
+  list, download link, delete including the underlying file) before cleanup.
+- **Checked whether the 57MB Matches-list bug had siblings elsewhere**: Teams (683KB), Players
+  (756KB), Tournaments (289KB) list endpoints are all fast and reasonably sized even at this
+  session's full simulated-data scale (~1,560 teams/players, 579 matches) - the Matches bug was
+  unique to Match being the one model with a genuinely huge nested array (ball-by-ball data),
+  nothing else in this codebase has an equivalent unbounded nested payload today.
 
 ### Backlog (not started, roughly in priority order)
 
