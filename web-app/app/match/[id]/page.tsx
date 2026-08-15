@@ -404,6 +404,12 @@ export default function MatchPage() {
   const nameFor = (id: string | null | undefined) => (id ? playerDirectory.get(id) : undefined);
   const inningsWithBalls = ([0, 1] as const).filter((idx) => match.innings[idx]?.balls?.length > 0);
   const teamNameFor = (idx: 0 | 1) => (idx === 0 ? match.team1?.name : match.team2?.name) ?? 'Team';
+  // Both sides must be real, present values - a bare `user?.id === match.createdBy?._id` reads
+  // as true for a logged-out viewer (undefined) on a match with no createdBy set (undefined),
+  // spuriously granting organizer-only controls to any anonymous visitor. Found live: this
+  // match's createdBy is genuinely null, and the old unguarded check showed Umpires/Documents
+  // upload controls to a signed-out browser.
+  const isCreator = Boolean(user?.id) && Boolean(match.createdBy?._id) && user!.id === match.createdBy!._id;
 
   return (
     <div className={styles.container}>
@@ -534,7 +540,7 @@ export default function MatchPage() {
               )}
             </div>
 
-            {user?.id === match.createdBy?._id && (
+            {isCreator && (
               <div className="bg-surface border border-border rounded-xl p-4 mb-4">
                 <h3 className="text-sm font-bold text-ink mb-1">Umpires</h3>
                 <p className="text-xs text-ink-muted mb-3">
@@ -592,7 +598,7 @@ export default function MatchPage() {
                 the backend's canManageMatch is actually broader (also allows umpires/rostered
                 players), but matching the creator-only visual gate already established for
                 Umpires keeps this section's behavior predictable rather than surprising. */}
-            {((match.documents?.length ?? 0) > 0 || user?.id === match.createdBy?._id) && (
+            {((match.documents?.length ?? 0) > 0 || isCreator) && (
               <div className="bg-surface border border-border rounded-xl p-4 mb-4">
                 <h3 className="text-sm font-bold text-ink mb-3">Match Documents</h3>
                 {(match.documents?.length ?? 0) > 0 ? (
@@ -602,7 +608,7 @@ export default function MatchPage() {
                         <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-pitch-400 hover:text-pitch-300 truncate">
                           📄 {doc.fileName} <span className="text-ink-muted">({doc.category})</span>
                         </a>
-                        {user?.id === match.createdBy?._id && (
+                        {isCreator && (
                           <button
                             onClick={() => handleRemoveDocument(doc._id)}
                             className="text-xs text-wicket-400 hover:underline shrink-0"
@@ -616,7 +622,7 @@ export default function MatchPage() {
                 ) : (
                   <p className="text-xs text-ink-muted mb-3">No documents uploaded yet.</p>
                 )}
-                {user?.id === match.createdBy?._id && (
+                {isCreator && (
                   <div className="flex gap-2">
                     <input
                       value={uploadCategory}

@@ -70,7 +70,9 @@ export default function NewsDetailPage({ params }: { params: { id: string } }) {
         </p>
         <div className="text-ink-secondary whitespace-pre-wrap leading-relaxed">{post.body}</div>
 
-        {user?.id === post.author?._id && (
+        {/* Boolean(...) on both sides - a bare equality reads as true for a logged-out viewer
+            on a post with no author populated, since undefined === undefined. */}
+        {Boolean(user?.id) && Boolean(post.author?._id) && user?.id === post.author?._id && (
           <button onClick={handleDelete} className="mt-6 text-sm text-wicket-500 hover:text-wicket-400 transition-colors">
             Delete post
           </button>

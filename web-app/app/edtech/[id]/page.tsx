@@ -59,7 +59,9 @@ export default function LessonDetailPage({ params }: { params: { id: string } })
         </p>
         <div className="text-ink-secondary whitespace-pre-wrap leading-relaxed">{lesson.content}</div>
 
-        {user?.id === lesson.author?._id && (
+        {/* Boolean(...) on both sides - a bare equality reads as true for a logged-out viewer
+            on a lesson with no author populated, since undefined === undefined. */}
+        {Boolean(user?.id) && Boolean(lesson.author?._id) && user?.id === lesson.author?._id && (
           <button onClick={handleDelete} className="mt-6 text-sm text-wicket-500 hover:text-wicket-400 transition-colors">
             Delete lesson
           </button>

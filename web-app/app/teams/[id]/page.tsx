@@ -85,11 +85,18 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
     return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">Team not found.</p></main>;
   }
 
+  // Every `!!x &&` guard below matters: a bare `user?.id === maybeUndefinedId` reads as true
+  // for a logged-out viewer whenever the right-hand side also fails to resolve to a real id
+  // (undefined === undefined), spuriously granting captain/coach-only controls to anonymous
+  // visitors (found and fixed as a real live bug on the match detail page's createdBy check).
   const captainUserId = playerUserId(team.captain);
-  const isCaptain = user?.id === captainUserId;
+  const isCaptain = !!captainUserId && user?.id === captainUserId;
   const viceCaptainUserId = team.viceCaptain ? playerUserId(team.viceCaptain) : null;
   const isViceCaptain = !!viceCaptainUserId && user?.id === viceCaptainUserId;
-  const isCoach = team.coaches.some(c => user?.id === playerUserId(c));
+  const isCoach = team.coaches.some(c => {
+    const coachUserId = playerUserId(c);
+    return !!coachUserId && user?.id === coachUserId;
+  });
   // Admin-level: day-to-day roster/team management is delegable to vice-captain/coaches.
   // Structural actions (delete team, role assignment) stay isCaptain-only below.
   const isAdmin = isCaptain || isViceCaptain || isCoach;

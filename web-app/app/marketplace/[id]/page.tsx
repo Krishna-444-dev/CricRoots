@@ -68,7 +68,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           {added ? 'Added to cart' : 'Add to Cart'}
         </Button>
 
-        {user?.id === product.seller?._id && (
+        {/* Boolean(...) on both sides - a bare equality reads as true for a logged-out viewer
+            on a product with no seller populated, since undefined === undefined. */}
+        {Boolean(user?.id) && Boolean(product.seller?._id) && user?.id === product.seller?._id && (
           <button onClick={handleDelete} className="mt-4 text-sm text-wicket-500 hover:text-wicket-400 transition-colors">
             Remove listing
           </button>

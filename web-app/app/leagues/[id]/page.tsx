@@ -50,7 +50,10 @@ export default function LeagueDetailPage({ params }: { params: { id: string } })
     return <main className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><p className="text-ink-secondary">League not found.</p></main>;
   }
 
-  const isOrganizer = user?.id === league.organizer?._id;
+  // Both sides must be real, present values - a bare `user?.id === league.organizer?._id` reads
+  // as true for a logged-out viewer on a league with no organizer populated, since undefined
+  // === undefined (see the identical bug found and fixed on the match detail page).
+  const isOrganizer = Boolean(user?.id) && Boolean(league.organizer?._id) && user!.id === league.organizer!._id;
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-8">
