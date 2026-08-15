@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Match = require('../models/Match');
 const Player = require('../models/Player');
 const { hierarchicalBlend, blendWithPrior } = require('../utils/statUtils');
+const { computeMatchMVPPoints } = require('./mvpCalculator');
 
 function oid(id) {
   return new mongoose.Types.ObjectId(id);
@@ -1091,6 +1092,79 @@ async function getTournamentBowlingLeaderboard(tournamentId, limit = 10, divisio
   ]);
 }
 
+/**
+ * Fielding leaderboard scoped to a single tournament, ranked by total dismissals
+ * (catches + run outs + stumpings) descending. Same match-query + division-scoping
+ * shape as getTournamentBattingLeaderboard (division: null matters for a non-divisioned
+ * tournament, same reason as there); dismissal counting mirrors getFieldingStats, just
+ * grouped across all fielders in one pass instead of one player at a time.
+ */
+async function getTournamentFieldingLeaderboard(tournamentId, limit = 20, divisionName = null) {
+  return Match.aggregate([
+    { $match: { status: 'Completed', tournament: oid(tournamentId), division: divisionName } },
+    { $unwind: '$innings' },
+    { $unwind: '$innings.balls' },
+    { $match: { 'innings.balls.fielderId': { $ne: null }, 'innings.balls.isWicket': true } },
+    {
+      $group: {
+        _id: { match: '$_id', fielder: '$innings.balls.fielderId' },
+        catches: { $sum: { $cond: [{ $eq: ['$innings.balls.wicketType', 'caught'] }, 1, 0] } },
+        runOuts: { $sum: { $cond: [{ $eq: ['$innings.balls.wicketType', 'run out'] }, 1, 0] } },
+        stumpings: { $sum: { $cond: [{ $eq: ['$innings.balls.wicketType', 'stumped'] }, 1, 0] } }
+      }
+    },
+    {
+      $group: {
+        _id: '$_id.fielder',
+        // Counts matches where this fielder was credited with >=1 dismissal, not every
+        // match they fielded in - the ball schema has no "fielded but no wicket" signal.
+        matches: { $sum: 1 },
+        catches: { $sum: '$catches' },
+        runOuts: { $sum: '$runOuts' },
+        stumpings: { $sum: '$stumpings' }
+      }
+    },
+    {
+      $project: {
+        matches: 1,
+        catches: 1,
+        runOuts: 1,
+        stumpings: 1,
+        dismissals: { $add: ['$catches', '$runOuts', '$stumpings'] }
+      }
+    },
+    { $match: { dismissals: { $gt: 0 } } },
+    { $sort: { dismissals: -1 } },
+    { $limit: limit }
+  ]);
+}
+
+/**
+ * "Top Performer of Series": sums each player's computeMatchMVPPoints (the same
+ * points used to auto-pick each individual match's Man of the Match) across every
+ * Completed match in the tournament (division) - a genuine tournament-wide MVP
+ * ranking, internally consistent with what wins each match's MVP award, rather than
+ * a separately-invented metric. division: null matters for the same reason as the
+ * batting/bowling leaderboards above.
+ */
+async function getTournamentTopPerformers(tournamentId, limit = 20, divisionName = null) {
+  const matches = await Match.find({ status: 'Completed', tournament: oid(tournamentId), division: divisionName })
+    .select('innings')
+    .lean();
+
+  const totals = new Map(); // playerId (string) -> summed MVP points across matches
+  for (const match of matches) {
+    for (const [playerId, matchPoints] of computeMatchMVPPoints(match)) {
+      totals.set(playerId, (totals.get(playerId) || 0) + matchPoints);
+    }
+  }
+
+  return [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([playerId, points]) => ({ _id: playerId, points: round(points) }));
+}
+
 function round(n) {
   return Math.round(n * 100) / 100;
 }
@@ -1182,5 +1256,7 @@ module.exports = {
   getBowlingLeaderboard,
   getTournamentBattingLeaderboard,
   getTournamentBowlingLeaderboard,
+  getTournamentFieldingLeaderboard,
+  getTournamentTopPerformers,
   getTournamentMatchStatistics
 };

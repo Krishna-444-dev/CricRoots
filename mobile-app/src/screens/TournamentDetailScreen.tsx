@@ -135,7 +135,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const [statsError, setStatsError] = useState('');
 
   // Top performers - lazy-loaded the first time the Awards tab is opened.
-  const [leaderboard, setLeaderboard] = useState<{ batsmen: any[]; bowlers: any[] } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<{ batsmen: any[]; bowlers: any[]; fielding: any[]; topPerformers: any[] } | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
   // Announcements - GET is public, POST is organizer-only (enforced server-side too)
@@ -214,7 +214,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     setLeaderboardLoading(true);
     api.tournaments
       .getLeaderboard(tournamentId, 20, hasDivisions ? selectedDivision : null)
-      .then((res: any) => setLeaderboard({ batsmen: res.batsmen, bowlers: res.bowlers }))
+      .then((res: any) => setLeaderboard({ batsmen: res.batsmen, bowlers: res.bowlers, fielding: res.fielding, topPerformers: res.topPerformers }))
       .catch(() => {})
       .finally(() => setLeaderboardLoading(false));
   }, [section, tournamentId, tournament?.divisions?.length, selectedDivision]);
@@ -833,6 +833,37 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                     </View>
                   ))
                 )}
+
+                <Text style={[styles.groupTitle, { fontSize: 13, marginTop: 16 }]}>Leading Fielders</Text>
+                {leaderboard.fielding.length === 0 ? (
+                  <Text style={styles.muted}>No qualifying dismissals yet.</Text>
+                ) : (
+                  leaderboard.fielding.map((f, i) => (
+                    <View key={f.player._id} style={styles.leaderRow}>
+                      <Text style={styles.leaderName} numberOfLines={1}>{i + 1}. {f.player.name}</Text>
+                      <Text style={styles.leaderStat}>{f.dismissals} dis · {f.catches}c {f.runOuts}ro {f.stumpings}st</Text>
+                    </View>
+                  ))
+                )}
+
+                {/* Combined points ranking, not another department - gold-accented card to set it
+                    apart from the batting/bowling/fielding lists above. */}
+                <View style={styles.topPerformerCard}>
+                  <Text style={styles.topPerformerTitle}>🏅 Top Performer of Series</Text>
+                  <Text style={styles.muted}>
+                    Ranked by combined MVP points (batting + bowling + fielding) - the same scoring used to pick each match's Man of the Match.
+                  </Text>
+                  {leaderboard.topPerformers.length === 0 ? (
+                    <Text style={styles.muted}>No completed matches yet.</Text>
+                  ) : (
+                    leaderboard.topPerformers.map((p, i) => (
+                      <View key={p.player._id} style={styles.leaderRow}>
+                        <Text style={styles.leaderName} numberOfLines={1}>{i + 1}. {p.player.name}</Text>
+                        <Text style={styles.topPerformerPoints}>{p.points} pts</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
               </>
             )}
           </View>
@@ -1094,6 +1125,9 @@ const styles = StyleSheet.create({
   leaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
   leaderName: { color: colors.ink, fontSize: 13, flexShrink: 1 },
   leaderStat: { color: colors.inkSecondary, fontSize: 12 },
+  topPerformerCard: { marginTop: 20, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.gold500 + '55', padding: 12 },
+  topPerformerTitle: { color: colors.ink, fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  topPerformerPoints: { color: colors.gold500, fontSize: 12, fontWeight: '700' },
   messageRow: { marginBottom: 10, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10 },
   messageSender: { color: colors.gold500, fontSize: 11, fontWeight: '700', marginBottom: 2 },
   messageText: { color: colors.ink, fontSize: 13 },

@@ -217,7 +217,7 @@ export const tournamentsAPI = {
   getTournamentMatches: (tournamentId: string) => apiFetch<{ success: true; matches: any[] }>(`/tournaments/${tournamentId}/matches`),
   getStatistics: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/statistics`),
   getLeaderboard: (tournamentId: string, limit = 20, division?: string | null) =>
-    apiFetch<{ success: true; batsmen: any[]; bowlers: any[] }>(
+    apiFetch<{ success: true; batsmen: any[]; bowlers: any[]; fielding: any[]; topPerformers: any[] }>(
       `/tournaments/${tournamentId}/leaderboard?limit=${limit}${division ? `&division=${encodeURIComponent(division)}` : ''}`
     ),
   assignDivisions: (tournamentId: string, divisionCount: number) =>

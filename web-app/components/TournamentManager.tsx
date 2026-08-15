@@ -122,6 +122,20 @@ interface LeaderboardBowler {
   economyRate: number;
 }
 
+interface LeaderboardFielder {
+  player: { _id: string; name: string; specialization: string };
+  matches: number;
+  catches: number;
+  runOuts: number;
+  stumpings: number;
+  dismissals: number;
+}
+
+interface LeaderboardTopPerformer {
+  player: { _id: string; name: string; specialization: string };
+  points: number;
+}
+
 interface TournamentManagerProps {
   tournamentId?: string;
   // Pre-fills and opens the create-tournament form scoped to this league - set when arriving
@@ -144,7 +158,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [generatingFixtures, setGeneratingFixtures] = useState(false);
   const [computingAwards, setComputingAwards] = useState(false);
   const [awardsError, setAwardsError] = useState('');
-  const [leaderboard, setLeaderboard] = useState<{ batsmen: LeaderboardBatsman[]; bowlers: LeaderboardBowler[] } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<{ batsmen: LeaderboardBatsman[]; bowlers: LeaderboardBowler[]; fielding: LeaderboardFielder[]; topPerformers: LeaderboardTopPerformer[] } | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [groupStandings, setGroupStandings] = useState<GroupStandingsResponse[] | null>(null);
   const [groupStandingsLoading, setGroupStandingsLoading] = useState(false);
@@ -214,7 +228,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       const query = hasDivisions ? `?limit=20&division=${encodeURIComponent(selectedDivision!)}` : '?limit=20';
       fetch(`/api/tournaments/${selectedTournament._id}/leaderboard${query}`)
         .then(r => r.json())
-        .then(data => { if (data.success) setLeaderboard({ batsmen: data.batsmen, bowlers: data.bowlers }); })
+        .then(data => { if (data.success) setLeaderboard({ batsmen: data.batsmen, bowlers: data.bowlers, fielding: data.fielding, topPerformers: data.topPerformers }); })
         .finally(() => setLeaderboardLoading(false));
     }
   }, [activeTab, selectedTournament, selectedDivision]);
@@ -1380,7 +1394,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 ) : leaderboard.batsmen.length === 0 && leaderboard.bowlers.length === 0 ? (
                   <p className={styles.infoText}>No completed matches yet - top performers appear once some matches finish.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                       <h3 style={{ marginBottom: 8 }}>Leading Run Scorers</h3>
                       {leaderboard.batsmen.length === 0 ? (
@@ -1417,6 +1431,54 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                         ))
                       )}
                     </div>
+                    <div>
+                      <h3 style={{ marginBottom: 8 }}>Leading Fielders</h3>
+                      {leaderboard.fielding.length === 0 ? (
+                        <p className={styles.infoText}>No qualifying dismissals yet.</p>
+                      ) : (
+                        leaderboard.fielding.map((f, i) => (
+                          <div key={f.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                            <span className="text-ink">
+                              {i + 1}. {f.player.name}
+                            </span>
+                            <span className="text-ink-secondary font-mono">
+                              {f.dismissals} dis · {f.catches}c {f.runOuts}ro {f.stumpings}st
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Combined points ranking across batting/bowling/fielding - a different kind of
+                  list from the department-specific ones above, so it gets distinct gold styling
+                  rather than looking like a fourth department. */}
+              <div
+                className={styles.card}
+                style={{ marginTop: 20, border: '1px solid #F5A62355', background: 'linear-gradient(180deg, rgba(245,166,35,0.06), transparent)' }}
+              >
+                <h2 className="flex items-center gap-2">
+                  <span className="text-gold-500">🏅</span> Top Performer of Series{hasDivisions ? ` - ${selectedDivision}` : ''}
+                </h2>
+                <p className={styles.infoText} style={{ marginBottom: 8 }}>
+                  Ranked by combined MVP points (batting + bowling + fielding), the same scoring used to pick each match&apos;s Man of the Match.
+                </p>
+                {leaderboardLoading || !leaderboard ? (
+                  <p className={styles.infoText}>Loading...</p>
+                ) : leaderboard.topPerformers.length === 0 ? (
+                  <p className={styles.infoText}>No completed matches yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                    {leaderboard.topPerformers.map((p, i) => (
+                      <div key={p.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                        <span className="text-ink">
+                          {i + 1}. {p.player.name}
+                        </span>
+                        <span className="text-gold-500 font-mono font-semibold">{p.points} pts</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
