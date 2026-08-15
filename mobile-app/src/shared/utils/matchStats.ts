@@ -101,3 +101,43 @@ export function maidenOversFor(balls: BallEvent[], playerId: string): number {
   }
   return maidens;
 }
+
+// Groups an innings' balls into overs with the bowler and a short per-ball outcome label each -
+// ported 1:1 from web-app/lib/matchStats.ts's overByOver, for the Over by Over tab.
+export interface OverEntry {
+  over: number;
+  bowlerId: string | null;
+  balls: { label: string; isWicket: boolean }[];
+  runs: number;
+  wickets: number;
+  runningTotal: number;
+}
+export function overByOver(balls: BallEvent[]): OverEntry[] {
+  const overs: OverEntry[] = [];
+  let legalBallCount = 0;
+  let runningTotal = 0;
+
+  for (const b of balls) {
+    const overIndex = Math.floor(legalBallCount / 6);
+    if (!overs[overIndex]) {
+      overs[overIndex] = { over: overIndex, bowlerId: b.bowlerId ?? null, balls: [], runs: 0, wickets: 0, runningTotal: 0 };
+    }
+    const entry = overs[overIndex];
+    entry.runs += b.runs || 0;
+    if (b.isWicket) entry.wickets += 1;
+    runningTotal += b.runs || 0;
+    entry.runningTotal = runningTotal;
+
+    let label = String(b.runs || 0);
+    if (b.isExtra) {
+      const short: Record<string, string> = { wide: 'wd', 'no-ball': 'nb', bye: 'b', 'leg-bye': 'lb', penalty: 'pen' };
+      label = `${short[b.extraType] || b.extraType}${b.runs > 1 ? b.runs - 1 : ''}`;
+    }
+    if (b.isWicket) label = 'W';
+    entry.balls.push({ label, isWicket: b.isWicket });
+
+    if (isLegalDelivery(b)) legalBallCount += 1;
+  }
+
+  return overs;
+}
