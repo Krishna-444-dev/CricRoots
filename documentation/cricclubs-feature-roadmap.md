@@ -327,6 +327,16 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   `computeBoundaryBallBreakdown`); and a new Run Rate line chart (run rate after each over, distinct
   from the Worm chart's cumulative total), computed client-side from the already-shipped `cumulative`
   field.
+- **AI Insights phase report for completed matches** (`5f0efe2`): the AI Insights tab used to be a
+  dead end once a match ended ("only generated while a match is live"). New
+  `GET /api/matches/:id/tactical-report` (`postMatchTacticalReport.js`) computes a Powerplay/
+  Middle/Death run-rate-and-wickets comparison for both teams plus a one-line takeaway when the
+  death overs decided the game - pure backend arithmetic, no ML, reusing `matchCharts.js`'s
+  `computeOverBreakdown` so it agrees with the Manhattan/Worm charts. Deliberately scoped down
+  from an earlier draft that also tried to detect the game's "turning point": that already exists,
+  better, as `keyMoments.js`'s ball-level win-probability-swing detector (real ML model, not a
+  heuristic), already rendered on the Ball By Ball tab - re-checked before wiring the frontend
+  and cut the redundant part rather than shipping a worse duplicate.
 
 ### Backlog (not started, roughly in priority order)
 
