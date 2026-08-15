@@ -1,15 +1,19 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../shared/api/apiClient';
 
+const DEFAULT_NOTIF_PREFS = { push: true, email: true };
+
 export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const [resolvingStats, setResolvingStats] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifPrefs, setNotifPrefs] = useState(user?.notificationPreferences ?? DEFAULT_NOTIF_PREFS);
+  const [savingChannel, setSavingChannel] = useState<'push' | 'email' | null>(null);
 
   // Refetched on every focus (not just mount) so the badge clears promptly after reading a
   // thread and coming back, without needing a socket connection for this v1 pass.
@@ -21,6 +25,36 @@ export default function ProfileScreen({ navigation }: any) {
         .catch(() => {});
     }, [user])
   );
+
+  // Re-pulls the current preferences from the server on every focus (rather than trusting the
+  // in-memory `user` object, which only reflects login/register-time values - see useAuth's
+  // normalizeUser) so this stays correct after a toggle here, a app restart, etc.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      api.auth.getCurrentUser()
+        .then(({ user: freshUser }) => {
+          if (freshUser?.notificationPreferences) setNotifPrefs(freshUser.notificationPreferences);
+        })
+        .catch(() => {});
+    }, [user])
+  );
+
+  const toggleNotifPref = async (channel: 'push' | 'email', value: boolean) => {
+    const previous = notifPrefs;
+    setNotifPrefs((prev) => ({ ...prev, [channel]: value }));
+    setSavingChannel(channel);
+    try {
+      const payload = channel === 'push' ? { push: value } : { email: value };
+      const { notificationPreferences } = await api.users.updateNotificationPreferences(payload);
+      setNotifPrefs(notificationPreferences);
+    } catch (error) {
+      setNotifPrefs(previous);
+      Alert.alert('Could not update preference', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSavingChannel(null);
+    }
+  };
 
   const confirmLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
@@ -93,6 +127,28 @@ export default function ProfileScreen({ navigation }: any) {
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
       </TouchableOpacity>
 
+      <Text style={styles.sectionLabel}>Notifications</Text>
+
+      <View style={styles.row}>
+        <Ionicons name="notifications-outline" size={20} color={colors.pitch400} />
+        <Text style={styles.rowText}>Push notifications</Text>
+        <Switch
+          value={notifPrefs.push}
+          onValueChange={(value) => toggleNotifPref('push', value)}
+          disabled={savingChannel === 'push'}
+        />
+      </View>
+
+      <View style={styles.row}>
+        <Ionicons name="mail-outline" size={20} color={colors.pitch400} />
+        <Text style={styles.rowText}>Email notifications</Text>
+        <Switch
+          value={notifPrefs.email}
+          onValueChange={(value) => toggleNotifPref('email', value)}
+          disabled={savingChannel === 'email'}
+        />
+      </View>
+
       <TouchableOpacity style={styles.row} onPress={confirmLogout}>
         <Ionicons name="log-out-outline" size={20} color={colors.wicket400} />
         <Text style={[styles.rowText, { color: colors.wicket400 }]}>Log out</Text>
@@ -114,6 +170,10 @@ const styles = StyleSheet.create({
   avatarText: { color: colors.pitch400, fontSize: 28, fontWeight: 'bold' },
   name: { color: colors.ink, fontSize: 18, fontWeight: 'bold' },
   email: { color: colors.inkSecondary, fontSize: 13, marginTop: 2 },
+  sectionLabel: {
+    color: colors.inkMuted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
+    letterSpacing: 0.5, marginBottom: 8, marginTop: 4,
+  },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface,
     borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10,

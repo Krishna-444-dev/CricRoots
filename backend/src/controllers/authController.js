@@ -43,7 +43,14 @@ exports.register = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        // Included alongside the existing fields (not previously here) so a client that just
+        // registered/logged in already has these without a follow-up GET /auth/me round trip -
+        // e.g. the mobile Settings toggle for notificationPreferences reads this straight off
+        // the post-login user object. pushToken is null until the device registers one via
+        // PUT /api/users/push-token.
+        pushToken: user.pushToken,
+        notificationPreferences: user.notificationPreferences
       }
     });
   } catch (error) {
@@ -97,7 +104,14 @@ exports.login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        // Included alongside the existing fields (not previously here) so a client that just
+        // registered/logged in already has these without a follow-up GET /auth/me round trip -
+        // e.g. the mobile Settings toggle for notificationPreferences reads this straight off
+        // the post-login user object. pushToken is null until the device registers one via
+        // PUT /api/users/push-token.
+        pushToken: user.pushToken,
+        notificationPreferences: user.notificationPreferences
       }
     });
   } catch (error) {
