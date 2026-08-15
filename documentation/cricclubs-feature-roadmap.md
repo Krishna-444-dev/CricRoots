@@ -227,6 +227,26 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   dismissal-type charts - real seed data is 100% T20 so cross-format separation could only be verified
   by code review, not live data, but the single-format case matches the all-formats aggregate exactly
   on real data as a sanity check.
+- **Match detail page restructured into CricClubs-style tabs** (`c6c3b0f` web; mobile in a separate
+  commit) - explicit user ask: "follow cricclubs way of handling individual match data in various
+  tabs instead of single tab with lot of scrolling." The page had grown into one long scroll under
+  just 2 tabs (Scorecard/AI Insights) as feature after feature landed on it this session. Split into
+  6: Info, Ball By Ball, Full Scorecard, Over by Over, Charts, and AI Insights (ours, not
+  CricClubs'). Team score summary moved out of any single tab into a persistent header shown above
+  the tab bar regardless of which tab is open, matching CricClubs' layout. **Full Scorecard and Over
+  by Over are both new** - CricRoots never had either as a real feature. Full Scorecard was
+  previously only derivable from the client-only `liveState` snapshot, absent on any match not
+  scored through the live-scoring UI (every match this session's simulation scripts created, for
+  instance) - completed/simulated matches showed no batting/bowling card at all. Fixed by porting
+  mobile's already-correct compute-fresh-from-balls approach
+  (`mobile-app/src/shared/utils/matchStats.ts`) to web (`web-app/lib/matchStats.ts`) - the same
+  "mobile had it right, web didn't" pattern that already showed up once this session (Statistics
+  tab). Over by Over groups balls into per-bowler over rows with a short outcome chip per ball,
+  matching CricClubs' view. **Also found while testing edge cases**: `match.team1`/`team2` are
+  `null` on one old orphaned test match, and were accessed unconditionally in several places -
+  crashed the *entire* page (this bug predates the restructure; the old flat layout had the exact
+  same unconditional access, it just never got exercised because there was less on the page to hit
+  it). Added consistent null-safe fallbacks throughout rather than leaving it latent.
 
 ### Backlog (not started, roughly in priority order)
 
