@@ -156,4 +156,31 @@ section('generateLeagueMatches batting order is genuinely randomized per innings
   assert.ok(firstBatsmanIds.size > 1, 'expected the first ball of an innings to go to different batters across matches (randomized order), not always the same one');
 });
 
+section('World B (archetypeSignal:true) is byte-identical to World A in every table except archetypeEffect, for the same seed', () => {
+  const worldA = generatePopulation({ numBatters: 30, numBowlers: 20, seed: 77 });
+  const worldB = generatePopulation({ numBatters: 30, numBowlers: 20, seed: 77, archetypeSignal: true });
+  assert.deepStrictEqual(worldA.batters, worldB.batters);
+  assert.deepStrictEqual(worldA.bowlers, worldB.bowlers);
+  assert.deepStrictEqual([...worldA.interactions.entries()], [...worldB.interactions.entries()]);
+  assert.deepStrictEqual([...worldA.lineLengthEffect.entries()], [...worldB.lineLengthEffect.entries()]);
+  assert.deepStrictEqual([...worldA.batterLineLengthResponse.entries()], [...worldB.batterLineLengthResponse.entries()]);
+  assert.strictEqual(worldA.archetypeEffect, undefined);
+  assert.ok(worldB.archetypeEffect instanceof Map && worldB.archetypeEffect.size === 8, 'expected 8 (battingStyle x bowlingStyle) archetype effects in World B');
+});
+
+section('World B\'s archetype effect actually changes trueProbability relative to World A for the same matchup', () => {
+  const worldA = generatePopulation({ numBatters: 10, numBowlers: 10, seed: 88 });
+  const worldB = generatePopulation({ numBatters: 10, numBowlers: 10, seed: 88, archetypeSignal: true });
+  let foundDifference = false;
+  for (const b of worldA.batters) {
+    for (const w of worldA.bowlers) {
+      const pA = trueProbability(worldA, b._id, w._id, 'off-stump', 'good-length');
+      const pB = trueProbability(worldB, b._id, w._id, 'off-stump', 'good-length');
+      if (Math.abs(pA - pB) > 1e-9) { foundDifference = true; break; }
+    }
+    if (foundDifference) break;
+  }
+  assert.ok(foundDifference, 'expected at least one (batter, bowler) pair where World B\'s archetype term changes the true probability');
+});
+
 console.log('\nAll generator verification checks passed.');

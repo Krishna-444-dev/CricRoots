@@ -57,14 +57,22 @@ function logit(p) {
 }
 
 const BASE_RATE_LOGIT = logit(0.045); // matches the real product's own baseline dismissal rate
+const ARCHETYPE_EFFECT_SD = 0.35; // see world-b-design.md - same order of magnitude as lineLengthEffect's 0.3
 
 /**
  * Builds a population: players with real-schema-shaped fields plus hidden ground-truth
  * parameters, a sparse batter x bowler interaction table, and a fixed line/length effect table.
  * Everything here is drawn once and held fixed for the lifetime of one generated dataset - see
  * dataset-assumptions.md for what each component represents.
+ *
+ * `archetypeSignal` (default false, see world-b-design.md): when true, draws one additional
+ * fixed Normal(0, ARCHETYPE_EFFECT_SD) effect per (battingStyle, bowlingStyle) combination -
+ * "World B", where archetype genuinely predicts the outcome, vs the default "World A" where it
+ * does not. Drawn LAST, after every other table below, so the archetypeSignal:false and
+ * archetypeSignal:true populations are byte-identical in every other field for the same seed -
+ * this flag changes nothing about the existing five terms or their distributions.
  */
-function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1 } = {}) {
+function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archetypeSignal = false } = {}) {
   const rng = makeRng(seed);
 
   const batters = Array.from({ length: numBatters }, (_, i) => ({
@@ -117,7 +125,20 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1 } = {})
     }
   }
 
-  return { batters, bowlers, interactions, lineLengthEffect, batterLineLengthResponse, seed };
+  // Drawn last and only when requested - see the function-level doc comment above and
+  // world-b-design.md for why this ordering matters (keeps every earlier table byte-identical
+  // to the archetypeSignal:false population for the same seed).
+  let archetypeEffect;
+  if (archetypeSignal) {
+    archetypeEffect = new Map(); // `${battingStyle}|${bowlingStyle}` -> effect
+    for (const battingStyle of BATTING_STYLES) {
+      for (const bowlingStyle of BOWLING_STYLES) {
+        archetypeEffect.set(`${battingStyle}|${bowlingStyle}`, rng.normal(0, ARCHETYPE_EFFECT_SD));
+      }
+    }
+  }
+
+  return { batters, bowlers, interactions, lineLengthEffect, batterLineLengthResponse, archetypeEffect, seed };
 }
 
 /**
@@ -134,8 +155,14 @@ function trueProbability(population, batterId, bowlerId, line, length) {
   const interaction = population.interactions.get(`${batterId}|${bowlerId}`) || 0;
   const lineLength = population.lineLengthEffect.get(`${line}|${length}`) || 0;
   const response = population.batterLineLengthResponse.get(`${batterId}|${line}|${length}`) || 0;
+  // World B only (world-b-design.md) - absent (undefined) in every population generated with the
+  // default archetypeSignal:false, so this term is always exactly 0 there, matching the original
+  // five-term formula precisely.
+  const archetype = population.archetypeEffect
+    ? population.archetypeEffect.get(`${batter.battingStyle}|${bowler.bowlingStyle}`) || 0
+    : 0;
 
-  const logitP = BASE_RATE_LOGIT + batter.vulnerability + bowler.effectiveness + interaction + lineLength + response;
+  const logitP = BASE_RATE_LOGIT + batter.vulnerability + bowler.effectiveness + interaction + lineLength + response + archetype;
   return sigmoid(logitP);
 }
 

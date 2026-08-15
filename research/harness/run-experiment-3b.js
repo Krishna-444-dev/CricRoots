@@ -1,19 +1,11 @@
-// Runs a controlled experiment for real and writes raw results to research/results/<timestamp>/ -
-// metrics only, no interpretation or conclusion written here or anywhere else. Per explicit
-// instruction, results come back for joint interpretation before any conclusion is written down.
-//
-// Second experiment (research/results/2026-08-15T23-06-42-795Z/): identical evaluation pipeline
-// to the pilot - same metrics, same protocol, no tuning after seeing results. The only change was
-// the data-generating process: a realistic 16-team double round-robin league with randomized
-// batting order (research/synthetic/league-design.md) in place of the pilot's fixed two-team
-// roster, which produced an unrealistic sparsity distribution (94.7% of checkpoints at 50+
-// exact-matchup balls).
-//
-// Third experiment (this config): identical CONFIG to the second experiment (same population,
-// match, and split seeds - guarantees the exact same checkpoints), with one addition:
-// fullHierarchyNoArchetype (research/baselines.js), an ablation isolating whether the two
-// archetype-level rungs are specifically what drag fullHierarchy below singleLevelShrinkage
-// (research/diagnostics/experiment-2-diagnostic.md Finding 3).
+// Experiment 3b - "World B" (research/synthetic/world-b-design.md): identical CONFIG to
+// Experiment 3a (research/harness/run-experiment.js) - same population/match/split seeds, same
+// evaluation pipeline, same 6 methods - with one difference: archetypeSignal: true, so
+// battingStyle/bowlingStyle genuinely predict the outcome (measured realized effect: 8.84% of
+// logit-space variance, see world-b-design.md), instead of carrying ~0% signal as in World A.
+// World A's comparison numbers are Experiment 3a's results, already collected - not re-run here,
+// since the two configs are identical apart from this one flag and the pipeline is deterministic.
+// Metrics only, no interpretation written here - same discipline as every other run-experiment*.js.
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -32,12 +24,13 @@ const CONFIG = {
   ballsPerInnings: 35,
   matchSeed: 2,
   splitSeed: 3,
-  checkpointStride: 1
+  checkpointStride: 1,
+  archetypeSignal: true
 };
 
 async function main() {
   const startedAt = new Date().toISOString();
-  console.log('Starting third controlled experiment (archetype-ablation, same league data)...');
+  console.log('Starting Experiment 3b (World B - archetype carries genuine signal)...');
   console.log('Config:', CONFIG);
 
   const mongod = await MongoMemoryServer.create();

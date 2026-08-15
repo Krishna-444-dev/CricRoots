@@ -123,11 +123,12 @@ const HISTORICAL_METHODS = {
 async function runExperiment({
   numTeams = 16, battersPerTeam = 11, bowlersPerTeam = 6, rounds = 2, populationSeed = 1,
   testFraction = 0.15, ballsPerInnings = 35, matchSeed = 2, splitSeed = 3,
-  checkpointStride = 1 // evaluate every Nth ball within a test match; 1 = every ball
+  checkpointStride = 1, // evaluate every Nth ball within a test match; 1 = every ball
+  archetypeSignal = false // World B (research/synthetic/world-b-design.md) when true; World A (default) otherwise
 } = {}) {
   const rng = makeRng(splitSeed);
   const population = generatePopulation({
-    numBatters: numTeams * battersPerTeam, numBowlers: numTeams * bowlersPerTeam, seed: populationSeed
+    numBatters: numTeams * battersPerTeam, numBowlers: numTeams * bowlersPerTeam, seed: populationSeed, archetypeSignal
   });
   // See research/synthetic/league-design.md for why match generation is fixture-based (a
   // realistic double round-robin across numTeams teams) rather than a fixed pair of teams
@@ -225,7 +226,7 @@ async function runExperiment({
     meta: {
       numTeams, battersPerTeam, bowlersPerTeam, rounds,
       numTrainMatches, numTestMatches, ballsPerInnings, checkpointStride,
-      populationSeed, matchSeed, splitSeed
+      populationSeed, matchSeed, splitSeed, archetypeSignal
     }
   };
 }
