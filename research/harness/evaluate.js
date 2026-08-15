@@ -28,6 +28,7 @@ const baselines = require('../baselines');
 
 const Player = require(path.join(__dirname, '..', '..', 'backend', 'src', 'models', 'Player'));
 const Match = require(path.join(__dirname, '..', '..', 'backend', 'src', 'models', 'Match'));
+const { getLineLengthBreakdown } = require(path.join(__dirname, '..', '..', 'backend', 'src', 'services', 'tendencyAnalytics'));
 
 function fakeObjectId(rng) {
   // Real, well-formed ObjectIds (not referencing any real document) - Mongoose refs aren't
@@ -165,6 +166,14 @@ async function runExperiment({
         if (globalBallCounter % checkpointStride === 0) {
           // Predict ball i using only data inserted so far (all training matches + balls
           // 0..i-1 of THIS test match) - the DB has not yet seen `ball` itself.
+          // exactMatchupN: the individual (this exact batter vs this exact bowler, any
+          // line/length) sample size available at this exact checkpoint - the dimension
+          // metrics.js's sample-efficiency analysis buckets by (n=0,1,2,5,10,15,25,50+), not
+          // specific to any one method, so computed once per checkpoint rather than duplicated
+          // per method.
+          const exactMatchupBreakdown = await getLineLengthBreakdown({ batsmanIds: [ball.batsmanId], bowlerIds: [ball.bowlerId] });
+          const exactMatchupN = exactMatchupBreakdown.totalBalls;
+
           for (const [methodName, fn] of Object.entries(HISTORICAL_METHODS)) {
             const prediction = await fn(ball.batsmanId, ball.bowlerId, ball.line, ball.length, playerLookup);
             results.push({
@@ -176,6 +185,7 @@ async function runExperiment({
               length: ball.length,
               trueOutcome: ball.isWicket ? 1 : 0,
               pTrue: trueProbability(population, batsmanIdStr, bowlerIdStr, ball.line, ball.length),
+              exactMatchupN,
               method: methodName,
               prediction
             });
