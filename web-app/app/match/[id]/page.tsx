@@ -210,6 +210,18 @@ interface MVPEntry {
   points: number;
 }
 
+interface PhaseStats {
+  runs: number;
+  wickets: number;
+  overs: number;
+  runRate: number;
+}
+
+interface TacticalReport {
+  phases: { teamId: string; teamName: string; phases: { powerplay: PhaseStats; middle: PhaseStats; death: PhaseStats } }[];
+  takeaway: string | null;
+}
+
 // Player.profilePicture defaults to the literal string 'no-photo.jpg' (see
 // backend/src/models/Player.js), not a real URL - mirrors TournamentManager.tsx's PlayerAvatar
 // fallback-to-initials pattern for the Squads section below.
@@ -243,6 +255,7 @@ export default function MatchPage() {
   // MVP list collapses to the top few by default, same "Show all" toggle pattern the Tournament
   // Manager's Awards tab uses for its Top Performers lists (see TournamentManager.tsx).
   const [showAllMvp, setShowAllMvp] = useState(false);
+  const [tacticalReport, setTacticalReport] = useState<TacticalReport | null>(null);
   // Full rosters for the "Yet to bat" list on the Full Scorecard tab - battingBowlingOrder only
   // knows who has actually faced a ball, not who's registered but hasn't batted yet.
   const [team1Roster, setTeam1Roster] = useState<RosterPlayer[]>([]);
@@ -310,6 +323,15 @@ export default function MatchPage() {
     }, 10000);
     return () => clearInterval(interval);
   }, [matchId]);
+
+  // AI Insights tab's completed-match content - a static phase report, so it's fetched once
+  // when the match is confirmed Completed rather than joining the 10s live-poll interval above.
+  useEffect(() => {
+    if (match?.status !== 'Completed') return;
+    fetch(`/api/matches/${matchId}/tactical-report`).then((r) => r.json()).then((data) => {
+      if (data.success) setTacticalReport(data.report);
+    }).catch(() => {});
+  }, [matchId, match?.status]);
 
   // Squads section - GET /api/teams/:id per side, gated on team1/team2 actually being present
   // (a handful of old test matches have orphaned team refs, see the Match interface above) so
@@ -1307,12 +1329,51 @@ export default function MatchPage() {
               token={token || ''}
               isLive
             />
+          ) : match.status === 'Completed' ? (
+            tacticalReport ? (
+              <div className="bg-surface border border-border rounded-xl p-4">
+                <h3 className="text-sm font-bold text-ink mb-1">Phase Report</h3>
+                <p className="text-xs text-ink-muted mb-4">How each team's innings broke down across the powerplay, middle overs, and death overs.</p>
+                {tacticalReport.takeaway && (
+                  <p className="text-sm text-ink-secondary mb-4">{tacticalReport.takeaway}</p>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {tacticalReport.phases.map((teamPhase) => (
+                    <div key={teamPhase.teamId}>
+                      <div className="text-sm font-bold text-ink mb-2">{teamPhase.teamName}</div>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-ink-muted">
+                            <th className="text-left font-medium pb-1">Phase</th>
+                            <th className="text-right font-medium pb-1">Runs</th>
+                            <th className="text-right font-medium pb-1">Wkts</th>
+                            <th className="text-right font-medium pb-1">RR</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {([
+                            ['Powerplay', teamPhase.phases.powerplay],
+                            ['Middle', teamPhase.phases.middle],
+                            ['Death', teamPhase.phases.death],
+                          ] as [string, PhaseStats][]).map(([label, stats]) => (
+                            <tr key={label} className="border-t border-border">
+                              <td className="py-1 text-ink-secondary">{label}</td>
+                              <td className="py-1 text-right text-ink">{stats.runs}</td>
+                              <td className="py-1 text-right text-ink">{stats.wickets}</td>
+                              <td className="py-1 text-right text-ink">{stats.overs > 0 ? stats.runRate.toFixed(2) : '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-muted">AI tactical insights are only generated while a match is live - see the Charts and Ball By Ball tabs for this match’s full analysis.</p>
+            )
           ) : (
-            <p className="text-sm text-ink-muted">
-              {match.status === 'Scheduled'
-                ? 'Live win probability and tactical advice will appear here once this match starts.'
-                : 'AI tactical insights are only generated while a match is live - see the Charts and Ball By Ball tabs for this match’s full analysis.'}
-            </p>
+            <p className="text-sm text-ink-muted">Live win probability and tactical advice will appear here once this match starts.</p>
           )
         )}
       </div>

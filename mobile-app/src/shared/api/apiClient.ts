@@ -170,6 +170,16 @@ export const matchesAPI = {
   // manOfTheMatch (the #1 entry here) is picked from. Player names aren't included - resolve via
   // playerDirectory, same as everywhere else this screen shows a raw playerId.
   getMvp: (matchId: string) => apiFetch<{ success: true; mvp: { playerId: string; points: number }[] }>(`/matches/${matchId}/mvp`),
+  // Completed-match AI Insights content - Powerplay/Middle/Death phase comparison for both
+  // teams, distinct from the live tactical advisor (getAIInsights) which has no meaning once
+  // the match is over. See backend/src/services/postMatchTacticalReport.js.
+  getTacticalReport: (matchId: string) => apiFetch<{
+    success: true;
+    report: {
+      phases: { teamId: string; teamName: string; phases: Record<'powerplay' | 'middle' | 'death', { runs: number; wickets: number; overs: number; runRate: number }> }[];
+      takeaway: string | null;
+    };
+  }>(`/matches/${matchId}/tactical-report`),
   // Post-match player performance report - this match's figures vs. career average, recent
   // form, milestones/achievements, and the tactical-read cross-reference against the matchup
   // model. Public, no auth needed.

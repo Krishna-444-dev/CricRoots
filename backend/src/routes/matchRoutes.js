@@ -9,6 +9,7 @@ const {
   getScorecard,
   getMatchCharts,
   getMatchMVP,
+  getPostMatchTacticalReport,
   getAIInsights,
   getNextBowlerRecommendation,
   getKeyMomentsForMatch,
@@ -31,6 +32,7 @@ router.get('/:id', getMatch);
 router.get('/:id/scorecard', getScorecard);
 router.get('/:id/charts', getMatchCharts);
 router.get('/:id/mvp', getMatchMVP);
+router.get('/:id/tactical-report', getPostMatchTacticalReport);
 router.get('/:id/ai-insights', getAIInsights);
 router.get('/:id/next-bowler-recommendation', getNextBowlerRecommendation);
 router.get('/:id/key-moments', getKeyMomentsForMatch);

@@ -700,6 +700,12 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   // Mirrors web-app: collapses to the top few by default, same "Show all" toggle pattern
   // TournamentDetailScreen's Top Performers lists use.
   const [showAllMvp, setShowAllMvp] = useState(false);
+  // AI Insights tab's completed-match content (Powerplay/Middle/Death phase comparison) -
+  // mirrors web-app's tacticalReport.
+  const [tacticalReport, setTacticalReport] = useState<{
+    phases: { teamId: string; teamName: string; phases: Record<'powerplay' | 'middle' | 'death', { runs: number; wickets: number; overs: number; runRate: number }> }[];
+    takeaway: string | null;
+  } | null>(null);
   const [prediction, setPrediction] = useState<PredictionSplit | null>(null);
   const [predicting, setPredicting] = useState(false);
   // Player id -> display name, for the "View Report" links below - the directory endpoint
@@ -801,6 +807,27 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
       })
       .catch(() => {
         if (!cancelled) setMvpRanking(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [match?._id, match?.status]);
+
+  // AI Insights tab's completed-match content - static once the match is done, so fetched
+  // once on completion rather than joining any polling loop.
+  useEffect(() => {
+    if (!match || match.status !== 'Completed') {
+      setTacticalReport(null);
+      return;
+    }
+    let cancelled = false;
+    api.matches
+      .getTacticalReport(match._id)
+      .then(({ report }) => {
+        if (!cancelled) setTacticalReport(report);
+      })
+      .catch(() => {
+        if (!cancelled) setTacticalReport(null);
       });
     return () => {
       cancelled = true;
@@ -1632,6 +1659,44 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             isLive={match.status === 'Live'}
           />
         </View>
+      )}
+      {match.status === 'Completed' && (
+        tacticalReport ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Phase Report</Text>
+            <Text style={styles.matchSummaryText}>How each team's innings broke down across the powerplay, middle overs, and death overs.</Text>
+            {tacticalReport.takeaway && (
+              <Text style={[styles.matchSummaryText, { marginTop: 8 }]}>{tacticalReport.takeaway}</Text>
+            )}
+            {tacticalReport.phases.map((teamPhase) => (
+              <View key={teamPhase.teamId} style={{ marginTop: 14 }}>
+                <Text style={styles.squadTeamName}>{teamPhase.teamName}</Text>
+                <View style={styles.scorecardHeaderRow}>
+                  <Text style={[styles.scorecardHeaderCell, { flex: 1.4, textAlign: 'left' }]}>Phase</Text>
+                  <Text style={styles.scorecardHeaderCell}>Runs</Text>
+                  <Text style={styles.scorecardHeaderCell}>Wkts</Text>
+                  <Text style={styles.scorecardHeaderCell}>RR</Text>
+                </View>
+                {([
+                  ['Powerplay', teamPhase.phases.powerplay],
+                  ['Middle', teamPhase.phases.middle],
+                  ['Death', teamPhase.phases.death],
+                ] as const).map(([label, stats]) => (
+                  <View key={label} style={styles.scorecardRow}>
+                    <Text style={[styles.scorecardCell, { flex: 1.4, textAlign: 'left' }]}>{label}</Text>
+                    <Text style={styles.scorecardCell}>{stats.runs}</Text>
+                    <Text style={styles.scorecardCell}>{stats.wickets}</Text>
+                    <Text style={styles.scorecardCell}>{stats.overs > 0 ? stats.runRate.toFixed(2) : '-'}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.matchSummaryText}>AI tactical insights are only generated while a match is live - see the Charts and Ball By Ball tabs for this match's full analysis.</Text>
+          </View>
+        )
       )}
         </>
       )}

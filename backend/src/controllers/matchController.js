@@ -11,6 +11,7 @@ const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
 const { generateMatchArticle } = require('../services/matchArticleGenerator');
 const { generateMatchSummary } = require('../services/matchSummaryGenerator');
+const { generatePostMatchTacticalReport } = require('../services/postMatchTacticalReport');
 const { getMatchPerformanceReport, getBowlerLineLengthEffectiveness, getLiveMatchupPlan } = require('../services/tendencyAnalytics');
 const { blendWithPrior } = require('../utils/statUtils');
 const { resourcePercent, revisedTarget } = require('../services/rainRuleCalculator');
@@ -662,6 +663,40 @@ exports.getMatchMVP = async (req, res) => {
       success: true,
       mvp
     });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Post-match phase report (Powerplay/Middle/Death run rate comparison for both
+//          teams) - the AI Insights tab's completed-match content, since the live tactical
+//          advisor and the ball-level "key moments" below don't cover a phase-shape comparison.
+// @route   GET /api/matches/:id/tactical-report
+// @access  Public
+exports.getPostMatchTacticalReport = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id).populate('team1 team2', 'name').lean();
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    const report = generatePostMatchTacticalReport(match);
+
+    if (!report) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not enough recorded deliveries in both innings to build a phase report.'
+      });
+    }
+
+    res.status(200).json({ success: true, report });
   } catch (error) {
     res.status(500).json({
       success: false,
