@@ -192,6 +192,42 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   particular tab (mobile had it right the whole time). None of these three were caught by `tsc`/
   `node --check` - they only surfaced by loading the actual page and looking.
 
+- **Match-page bug fixes from a second round of CricClubs screenshots** (`7b549a9`, this time
+  match-center screenshots: player profile with per-format stats, match scorecard tabs, ball-by-ball
+  commentary, over-by-over score, a 9-chart Charts tab): the user separately flagged 3 real problems
+  while looking at the real app. The Matches list showed a "Score" link on every match including
+  Completed/Cancelled ones (list page never gated it, unlike the detail page, which already did).
+  No back navigation existed on the match detail page except the browser button - added `router.back()`
+  rather than a hardcoded destination, since matches are reached from several different places.
+  "Live Commentary" only ever showed the last 10 balls of whichever innings was "current," with no
+  way to see the other innings once the second one started - a completed match's first-innings
+  commentary was permanently unreachable. Rebuilt as a full ball-by-ball view for either innings via
+  a toggle, auto-following the live innings until the viewer picks one manually. **Also found while
+  testing**: `GET /api/matches` returned full ball-by-ball data for all matches with no projection -
+  57MB and 12+ seconds for the 579 real matches this session's simulations had accumulated,
+  effectively hanging the Matches page. Fixed with `.select('-innings.balls')` (down to 1.6MB/<1s),
+  and used the still-included innings totals to add inline live scores per team on each card,
+  matching what CricClubs' match list shows.
+- **Toss, partnerships, extras/type-of-runs charts, player-profile-by-format** (merged in one batch:
+  `22396cb`, `8547ded`, `83eb0dc`, `a907f3e`) - four more gaps from the same screenshot round, built
+  as 4 parallel worktree agents and merged in sequence, 2 of which needed real conflict resolution
+  (both extended `matchCharts.js`'s `getMatchCharts` return and the match page's Charts section -
+  resolved as simple concatenation both times, consistent with every prior batch's experience that
+  same-file edits in different regions merge cheaply). Toss: schema/backend support already existed
+  but had zero UI and a broken populate ref (`toss.winningTeam` had no `ref: 'Team'`, fixed as part of
+  this track) - now captured at the same call that transitions a match to Live, displayed in the
+  header. Partnerships: computed live from ball data (this session's established pattern - never a
+  separately-maintained running field), correctly handles the case where a batsman is dismissed
+  before their partner ever faces a ball (the ball log only records who's on strike, never the
+  non-striker, so that partner's identity isn't always recoverable - reported as a single-batsman
+  partnership rather than guessed). Extras/Type-of-Runs: two small hand-built-SVG charts from data
+  already tagged per ball, verified to partition each innings' total runs exactly with no double
+  counting. Player-profile-by-format: `getCareerStats` gained a `byFormat` breakdown (by
+  `Match.matchType`) alongside its existing all-formats aggregate, plus runs-per-innings and
+  dismissal-type charts - real seed data is 100% T20 so cross-format separation could only be verified
+  by code review, not live data, but the single-format case matches the all-formats aggregate exactly
+  on real data as a sanity check.
+
 ### Backlog (not started, roughly in priority order)
 
 - **Match notifications** — push/email when a followed team's match goes live or a tournament
