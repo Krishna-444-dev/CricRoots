@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, Image, Alert, TextInput } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect, Path } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
-import { Match, BallEvent, Prediction, Player, RosterTeam } from '../shared/types';
+import { Match, BallEvent, Prediction, Player, RosterTeam, MatchPhoto } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import AtTheCrease from '../components/AtTheCrease';
 import FieldingPlan from '../components/FieldingPlan';
@@ -36,6 +37,14 @@ function squadPlayerName(player?: Player | string | null): string {
   if (!player || typeof player === 'string') return 'TBD';
   const u = player.user;
   return u && typeof u === 'object' ? u.name || 'TBD' : 'TBD';
+}
+
+// Image-only subset of GroupDetailScreen.tsx's guessMimeType - the Gallery upload picker is
+// restricted to images (mediaTypes: ['images']), so no video branch is needed here.
+function guessImageMimeType(uri: string): string {
+  const ext = uri.split('?')[0].split('.').pop()?.toLowerCase();
+  const map: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+  return (ext && map[ext]) || 'image/jpeg';
 }
 
 // Player.profilePicture defaults to the literal string 'no-photo.jpg' (see
@@ -677,7 +686,7 @@ interface KeyMoment {
 // CricClubs-style tabbed match center, matching the web restructure (see MatchDetailScreen's
 // git history / web-app/app/match/[id]/page.tsx) - Info / Ball By Ball / Full Scorecard /
 // Over by Over / Charts, plus our own AI Insights tab.
-type TabKey = 'info' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'mvp' | 'aiInsights';
+type TabKey = 'info' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'mvp' | 'gallery' | 'aiInsights';
 
 interface MVPEntry {
   playerId: string;
@@ -726,6 +735,13 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const [umpirePickerOpen, setUmpirePickerOpen] = useState(false);
   const [umpireBusy, setUmpireBusy] = useState(false);
   const [umpireError, setUmpireError] = useState<string | null>(null);
+  // Gallery tab - upload via expo-image-picker (already a dependency, same library
+  // GroupDetailScreen.tsx uses for chat attachments), plus a full-screen lightbox for viewing
+  // a photo (null = closed).
+  const [photoCaption, setPhotoCaption] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<MatchPhoto | null>(null);
   // Squads - both teams' full rosters (GET /api/teams/:id per side), same populated shape as
   // TournamentDetailScreen's Teams tab (RosterTeam). One flag per team for the "Full Squad" toggle.
   const [squadTeams, setSquadTeams] = useState<{ team1: RosterTeam | null; team2: RosterTeam | null }>({ team1: null, team2: null });
@@ -973,6 +989,43 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const pickAndUploadPhoto = async () => {
+    if (!match) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Allow photo library access to add a match photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    setUploadingPhoto(true);
+    setPhotoError(null);
+    try {
+      const type = asset.mimeType || guessImageMimeType(asset.uri);
+      const name = asset.fileName || asset.uri.split('/').pop() || `photo-${Date.now()}.jpg`;
+      await api.matches.uploadPhoto(match._id, { uri: asset.uri, name, type }, photoCaption.trim() || undefined);
+      setPhotoCaption('');
+      load();
+    } catch (e) {
+      setPhotoError(e instanceof Error ? e.message : 'Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = async (photoId: string) => {
+    if (!match) return;
+    setPhotoError(null);
+    try {
+      await api.matches.deletePhoto(match._id, photoId);
+      setLightboxPhoto((prev) => (prev?._id === photoId ? null : prev));
+      load();
+    } catch (e) {
+      setPhotoError(e instanceof Error ? e.message : 'Failed to remove photo');
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     load();
@@ -1133,6 +1186,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           ['overByOver', 'Over by Over'],
           ['charts', 'Charts'],
           ['mvp', 'MVP'],
+          ['gallery', 'Gallery'],
           ['aiInsights', 'AI Insights'],
         ] as [TabKey, string][]).map(([key, label]) => (
           <TouchableOpacity
@@ -1645,6 +1699,48 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {activeTab === 'gallery' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Gallery</Text>
+
+          {/* Upload gated on isOwner - mirrors web-app's isCreator gate on its Match Documents
+              section (same rationale: backend's canManageMatch is broader, but a predictable
+              creator-only visual gate beats a surprising one). isOwner is already null-safe
+              (see computeCanScore in shared/utils/matchAuth.ts). */}
+          {isOwner && (
+            <View style={styles.umpireCard}>
+              <TextInput
+                value={photoCaption}
+                onChangeText={setPhotoCaption}
+                placeholder="Caption (optional)"
+                placeholderTextColor={colors.inkMuted}
+                style={styles.photoCaptionInput}
+              />
+              <TouchableOpacity
+                style={[styles.umpireAddButton, uploadingPhoto && { opacity: 0.5 }]}
+                onPress={pickAndUploadPhoto}
+                disabled={uploadingPhoto}
+              >
+                <Text style={styles.umpireAddButtonText}>{uploadingPhoto ? 'Uploading...' : '+ Add Photo'}</Text>
+              </TouchableOpacity>
+              {photoError && <Text style={styles.umpireError}>{photoError}</Text>}
+            </View>
+          )}
+
+          {(match.photos?.length ?? 0) === 0 ? (
+            <Text style={styles.reportsHint}>No photos uploaded yet.</Text>
+          ) : (
+            <View style={styles.galleryGrid}>
+              {match.photos!.map((photo) => (
+                <TouchableOpacity key={photo._id} style={styles.galleryTile} onPress={() => setLightboxPhoto(photo)}>
+                  <Image source={{ uri: resolveAttachmentUrl(photo.url) }} style={styles.galleryImage} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {activeTab === 'aiInsights' && (
         <>
       {/* AI Tactical Advisor - win probability + tactical advice, wired up with a REST fetch
@@ -1854,6 +1950,34 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           />
         </View>
       </View>
+    </Modal>
+
+    {/* Gallery lightbox - full-screen photo viewer, simple overlay (no carousel library, none
+        used anywhere else in this app). Delete gated the same isOwner check as the upload
+        control above. */}
+    <Modal visible={!!lightboxPhoto} animationType="fade" transparent onRequestClose={() => setLightboxPhoto(null)}>
+      <TouchableOpacity style={styles.lightboxOverlay} activeOpacity={1} onPress={() => setLightboxPhoto(null)}>
+        {lightboxPhoto && (
+          <>
+            <Image
+              source={{ uri: resolveAttachmentUrl(lightboxPhoto.url) }}
+              style={styles.lightboxImage}
+              resizeMode="contain"
+            />
+            {!!lightboxPhoto.caption && <Text style={styles.lightboxCaption}>{lightboxPhoto.caption}</Text>}
+            <View style={styles.lightboxActions}>
+              {isOwner && (
+                <TouchableOpacity onPress={() => handleRemovePhoto(lightboxPhoto._id)}>
+                  <Text style={styles.lightboxDelete}>Delete</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setLightboxPhoto(null)}>
+                <Text style={styles.lightboxClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </TouchableOpacity>
     </Modal>
     </>
   );
@@ -2169,4 +2293,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   pickerName: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+
+  photoCaptionInput: {
+    color: colors.ink,
+    fontSize: 13,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
+  galleryTile: { width: '33.33%', aspectRatio: 1, padding: 4 },
+  galleryImage: { width: '100%', height: '100%', borderRadius: 8, backgroundColor: colors.surfaceAlt },
+  lightboxOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  lightboxImage: { width: '100%', height: '70%' },
+  lightboxCaption: { color: colors.ink, fontSize: 14, marginTop: 14, textAlign: 'center' },
+  lightboxActions: { flexDirection: 'row', gap: 24, marginTop: 18, alignItems: 'center' },
+  lightboxDelete: { color: colors.wicket400, fontSize: 14, fontWeight: '700' },
+  lightboxClose: { color: colors.ink, fontSize: 14, fontWeight: '700' },
 });

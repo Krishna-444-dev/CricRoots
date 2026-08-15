@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry, RosterTeam } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry, RosterTeam, MatchPhoto } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -197,6 +197,12 @@ export const matchesAPI = {
   // (see scoringLockAPI/recordBall) without needing to be on either team's roster.
   addUmpire: (matchId: string, userId: string) => apiFetch(`/matches/${matchId}/umpires`, 'POST', { userId }),
   removeUmpire: (matchId: string, userId: string) => apiFetch(`/matches/${matchId}/umpires/${userId}`, 'DELETE'),
+  // Gallery tab - same multipart apiUpload helper tournamentsAPI.uploadDocument uses below.
+  // Caption is optional free text (not a category) - see Match.photos in the backend model.
+  uploadPhoto: (matchId: string, file: { uri: string; name: string; type: string }, caption?: string) =>
+    apiUpload<{ success: true; photos: MatchPhoto[] }>(`/matches/${matchId}/photos`, file, caption ? { caption } : undefined),
+  deletePhoto: (matchId: string, photoId: string) =>
+    apiFetch<{ success: true; photos: MatchPhoto[] }>(`/matches/${matchId}/photos/${photoId}`, 'DELETE'),
 };
 
 // --- Scoring lock (backend/src/routes/matchRoutes.js) ---

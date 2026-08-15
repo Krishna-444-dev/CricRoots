@@ -1,8 +1,11 @@
+const path = require('path');
+const fs = require('fs');
 const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const User = require('../models/User');
 const Tournament = require('../models/Tournament');
+const { MATCH_PHOTO_DIR } = require('../middleware/upload');
 const AIService = require('../utils/aiService');
 const { getMatchCharts } = require('../services/matchCharts');
 const { computeMatchMVP, computeMatchMVPPoints } = require('../services/mvpCalculator');
@@ -1089,6 +1092,73 @@ exports.removeMatchDocument = async (req, res) => {
     await match.save();
 
     res.status(200).json({ success: true, documents: match.documents });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Upload a match photo for the Gallery tab - same upload pattern as addMatchDocument
+//          above, distinct field since a photo is browsed for its own sake, not categorized.
+// @route   POST /api/matches/:id/photos
+// @access  Private (anyone canManageMatch permits - organizer, an appointed umpire, or a
+//          rostered player on either team)
+exports.addMatchPhoto = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (!(await canManageMatch(match, req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not authorized to upload a photo for this match' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    match.photos.push({
+      url: `/uploads/match-photos/${req.file.filename}`,
+      caption: (req.body.caption || '').toString().trim().slice(0, 200),
+      uploadedBy: req.user.id,
+      uploadedAt: new Date()
+    });
+    await match.save();
+
+    res.status(200).json({ success: true, photos: match.photos });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Remove a match photo. Unlike removeMatchDocument (which leaves the underlying file
+//          on disk - an existing, harmless-at-pilot-scale gap in this codebase), this also
+//          best-effort unlinks the file: photos are deleted far more casually than reference
+//          documents, so letting orphans accumulate here is a real disk-hygiene concern rather
+//          than a theoretical one.
+// @route   DELETE /api/matches/:id/photos/:photoId
+// @access  Private (anyone canManageMatch permits)
+exports.removeMatchPhoto = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (!(await canManageMatch(match, req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not authorized to remove this photo' });
+    }
+
+    const { photoId } = req.params;
+    const photo = match.photos.find((p) => p._id.toString() === photoId);
+    if (!photo) {
+      return res.status(404).json({ success: false, message: 'Photo not found' });
+    }
+    match.photos = match.photos.filter((p) => p._id.toString() !== photoId);
+    await match.save();
+
+    // Fire-and-forget: a missing file (already cleaned up, or predates this field) shouldn't
+    // fail the API response - same swallow-errors approach groupMessageController.js uses.
+    fs.unlink(path.join(MATCH_PHOTO_DIR, path.basename(photo.url)), () => {});
+
+    res.status(200).json({ success: true, photos: match.photos });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
