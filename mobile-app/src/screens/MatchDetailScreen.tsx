@@ -835,6 +835,13 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
 
       {activeTab === 'info' && (
         <>
+          {match.status === 'Completed' && !!match.summary && (
+            <View style={[styles.section, { marginTop: 14 }]}>
+              <Text style={styles.sectionTitle}>Match Summary</Text>
+              <Text style={styles.matchSummaryText}>{match.summary}</Text>
+            </View>
+          )}
+
           {match.toss?.winningTeam && (
             <Text style={[styles.tossText, styles.tossTextInTab]}>
               🪙 {teamName(match.toss.winningTeam as Match['team1'])} won the toss and elected to{' '}
@@ -1457,6 +1464,7 @@ const styles = StyleSheet.create({
 
   section: { marginTop: 22, paddingHorizontal: 16 },
   sectionTitle: { color: colors.ink, fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  matchSummaryText: { color: colors.inkSecondary, fontSize: 13, lineHeight: 19 },
 
   scoutingButton: {
     backgroundColor: colors.surface,

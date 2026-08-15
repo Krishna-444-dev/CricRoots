@@ -124,6 +124,7 @@ interface Match {
   }>;
   manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
   toss?: { winningTeam: { _id: string; name: string } | null; decision: string | null } | null;
+  summary?: string;
   createdBy?: { _id: string; name: string };
   umpires?: ({ _id: string; name: string } | string)[];
   documents?: { _id: string; url: string; fileName: string; category: string; uploadedAt: string }[];
@@ -521,6 +522,13 @@ export default function MatchPage() {
       <div className={styles.content}>
         {activeTab === 'info' && (
           <>
+            {match.status === 'Completed' && match.summary && (
+              <div className="bg-surface border border-border rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-ink mb-2">Match Summary</h3>
+                <p className="text-sm text-ink-secondary leading-relaxed">{match.summary}</p>
+              </div>
+            )}
+
             {match.toss?.winningTeam && (
               <div className="bg-surface border border-border rounded-xl p-4 mb-4">
                 <p className="text-sm text-ink-secondary">

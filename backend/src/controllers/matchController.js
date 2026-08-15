@@ -10,6 +10,7 @@ const { generateCommentary } = require('../services/commentaryGenerator');
 const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
 const { generateMatchArticle } = require('../services/matchArticleGenerator');
+const { generateMatchSummary } = require('../services/matchSummaryGenerator');
 const { getMatchPerformanceReport, getBowlerLineLengthEffectiveness, getLiveMatchupPlan } = require('../services/tendencyAnalytics');
 const { blendWithPrior } = require('../utils/statUtils');
 const { resourcePercent, revisedTarget } = require('../services/rainRuleCalculator');
@@ -285,6 +286,19 @@ exports.updateMatch = async (req, res) => {
     await match.populate('team2');
     await match.populate('toss.winningTeam');
     await match.populate(MAN_OF_THE_MATCH_POPULATE);
+
+    // Auto-generate the match page's post-match recap (Info tab) - every completed match, not
+    // just tournament ones (see matchSummaryGenerator.js for how this differs from the
+    // tournament-only news article below). Wrapped the same defensive way: a bug here must never
+    // fail match completion itself.
+    if (match.status === 'Completed' && !match.summary) {
+      try {
+        match.summary = await generateMatchSummary(match);
+        if (match.summary) await match.save();
+      } catch (summaryError) {
+        console.error('Match summary generation failed:', summaryError.message);
+      }
+    }
 
     // Refresh the tournament's points table if this match belongs to one
     // and just moved into a state that counts toward standings.

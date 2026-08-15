@@ -149,6 +149,7 @@ export interface Match {
   interruption?: Interruption | null;
   innings: Innings[];
   toss?: { winningTeam: Team | string; decision: string } | null;
+  summary?: string;
   result?: { winningTeam: string | null; margin: string; marginValue: number };
   manOfTheMatch?: Player | string | null;
   createdBy: User | string;

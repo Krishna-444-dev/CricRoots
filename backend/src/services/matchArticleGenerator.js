@@ -262,4 +262,4 @@ async function generateMatchArticle(match, tournament) {
   return post;
 }
 
-module.exports = { generateMatchArticle, computeMatchPerformances, pickHeroMoment };
+module.exports = { generateMatchArticle, computeMatchPerformances, pickHeroMoment, resultSentence, heroSentence };
