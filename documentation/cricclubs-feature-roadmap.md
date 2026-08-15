@@ -247,6 +247,12 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   crashed the *entire* page (this bug predates the restructure; the old flat layout had the exact
   same unconditional access, it just never got exercised because there was less on the page to hit
   it). Added consistent null-safe fallbacks throughout rather than leaving it latent.
+  Mobile got the identical restructure (`787bd3e`) as a background worktree agent, briefed with the
+  finished web diff as its reference pattern rather than redesigning from scratch - `tsc --noEmit`
+  clean, and a manual diff spot-check confirmed no section was dropped or duplicated. Two real,
+  pre-existing gaps surfaced in the process (not introduced by this restructure, just newly visible
+  once things were organized into tabs): mobile has no Man of the Match display and no Umpires
+  management UI at all, unlike web - noted in the backlog below.
 - **Per-match documents** (`d15dcd3`): CricClubs' match Info tab shows a "Match Documents" row -
   CricRoots had a tournament-level document library (built earlier this session) but nothing scoped
   to an individual match. Same `documents[]` shape/pattern, reusing the existing PDF/Word upload
@@ -260,6 +266,9 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
 
 ### Backlog (not started, roughly in priority order)
 
+- **Mobile match detail is missing two things web has**: a Man of the Match display, and any
+  Umpires-management UI at all (appoint/remove). Surfaced while porting the tab restructure to
+  mobile - pre-existing gaps, not something the restructure introduced or was in scope to fix.
 - **Match notifications** — push/email when a followed team's match goes live or a tournament
   posts an announcement (announcement chat already exists; notification delivery doesn't).
   Deliberately left out of both parallel batches so far — needs a new data model and touches
