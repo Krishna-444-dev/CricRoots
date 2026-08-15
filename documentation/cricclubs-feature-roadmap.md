@@ -174,6 +174,23 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
 - **Win-probability model retrained on real match outcomes** (`8eaacc2`, `ai-engine/`, unrelated to
   CricClubs but shipped in the same parallel batch): see `documentation/todo.md`'s AI/data section for
   the full writeup.
+- **Web navbar + Tournament Manager decluttered, plus 3 real bugs caught by actually browsing the
+  app** (`93aae22`): the top navbar's 12 flat links were overflowing the viewport at normal desktop
+  widths (Register button clipped off entirely) - grouped into Compete/Community dropdowns plus 3
+  standalone destinations, 5 top-level items instead of 12. The Tournament Manager's 10 flat tabs
+  (grown steadily all session - Teams and Documents were both added just hours earlier) became a
+  two-tier bar (Tournaments / Compete / Stats / Info, each with its own sub-tab row), with zero
+  changes to the underlying per-tab render logic. Screenshotting the actual result (Playwright,
+  headless Chromium against the live dev server) rather than trusting the code read alone surfaced
+  three real, unrelated bugs in the process: the web Standings tab's render condition only checked
+  the flat `tournament.groups` field, never `divisions`, so every divisioned tournament fell through
+  to a useless all-zero placeholder table despite the fetch effect already loading the real
+  division-scoped data; `getAllTournaments`/`getTournament` never populated `divisions.awards.*`, so
+  Winner/Runner-up/MVP cards showed "-" for every divisioned tournament; and the web Statistics tab
+  read the stale `tournament.statistics` embedded field instead of the live endpoint built earlier
+  this session specifically to fix "why are the stats 0" - it just never got wired into this
+  particular tab (mobile had it right the whole time). None of these three were caught by `tsc`/
+  `node --check` - they only surfaced by loading the actual page and looking.
 
 ### Backlog (not started, roughly in priority order)
 
