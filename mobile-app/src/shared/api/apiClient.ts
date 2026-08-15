@@ -166,6 +166,10 @@ export const matchesAPI = {
   getNextBowlerRecommendation: (matchId: string) => apiFetch(`/matches/${matchId}/next-bowler-recommendation`),
   getCharts: (matchId: string) => apiFetch<{ success: true; innings: any[] }>(`/matches/${matchId}/charts`),
   getKeyMoments: (matchId: string) => apiFetch<{ success: true; keyMoments: any[] }>(`/matches/${matchId}/key-moments`),
+  // Full ranked MVP points breakdown for this match - the same computeMatchMVPPoints score
+  // manOfTheMatch (the #1 entry here) is picked from. Player names aren't included - resolve via
+  // playerDirectory, same as everywhere else this screen shows a raw playerId.
+  getMvp: (matchId: string) => apiFetch<{ success: true; mvp: { playerId: string; points: number }[] }>(`/matches/${matchId}/mvp`),
   // Post-match player performance report - this match's figures vs. career average, recent
   // form, milestones/achievements, and the tactical-read cross-reference against the matchup
   // model. Public, no auth needed.
