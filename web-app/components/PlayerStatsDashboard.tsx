@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import styles from './PlayerStatsDashboard.module.css';
 import WagonWheel from './insights/WagonWheel';
+import RunsPerInnings, { RunsPerInningsEntry } from './insights/RunsPerInnings';
+import DismissalBreakdown, { DismissalEntry } from './insights/DismissalBreakdown';
 
 interface PlayerStats {
   _id: string;
@@ -26,6 +28,22 @@ interface PlayerStats {
     ducks: number;
     notOuts: number;
   };
+  byFormat: Array<{
+    matchType: string;
+    matches: number;
+    innings: number;
+    notOuts: number;
+    runs: number;
+    balls: number;
+    average: number;
+    strikeRate: number;
+    highestScore: number;
+    centuries: number;
+    halfCenturies: number;
+    ducks: number;
+    fours: number;
+    sixes: number;
+  }>;
   bowling: {
     matches: number;
     innings: number;
@@ -59,6 +77,12 @@ interface PlayerStats {
     runs: number;
     runsPercent: number;
   }>;
+  runsPerInnings: RunsPerInningsEntry[];
+  dismissalBreakdown: {
+    totalInnings: number;
+    notOut: number;
+    dismissals: DismissalEntry[];
+  };
   achievements: Array<{
     key: string;
     label: string;
@@ -312,6 +336,88 @@ export const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ play
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'batting' && stats && stats.byFormat.length > 0 && (
+          <div className={styles.card}>
+            <h3>Batting by Format</h3>
+            <div className={styles.tableWrap}>
+              <table className={styles.formatTable}>
+                <thead>
+                  <tr>
+                    <th>Format</th>
+                    <th>Mat</th>
+                    <th>Inns</th>
+                    <th>NO</th>
+                    <th>Runs</th>
+                    <th>Balls</th>
+                    <th>Ave</th>
+                    <th>SR</th>
+                    <th>HS</th>
+                    <th>100s</th>
+                    <th>50s</th>
+                    <th>0s</th>
+                    <th>4s</th>
+                    <th>6s</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className={styles.formatRowAll}>
+                    <td>All Formats</td>
+                    <td>{stats.batting.matches}</td>
+                    <td>{stats.batting.innings}</td>
+                    <td>{stats.batting.notOuts}</td>
+                    <td>{stats.batting.runs}</td>
+                    <td>{stats.batting.balls}</td>
+                    <td>{stats.batting.average.toFixed(2)}</td>
+                    <td>{stats.batting.strikeRate.toFixed(2)}</td>
+                    <td>{stats.batting.highestScore}</td>
+                    <td>{stats.batting.centuries}</td>
+                    <td>{stats.batting.halfCenturies}</td>
+                    <td>{stats.batting.ducks}</td>
+                    <td>{stats.batting.fours}</td>
+                    <td>{stats.batting.sixes}</td>
+                  </tr>
+                  {stats.byFormat.map((row) => (
+                    <tr key={row.matchType}>
+                      <td>{row.matchType}</td>
+                      <td>{row.matches}</td>
+                      <td>{row.innings}</td>
+                      <td>{row.notOuts}</td>
+                      <td>{row.runs}</td>
+                      <td>{row.balls}</td>
+                      <td>{row.average.toFixed(2)}</td>
+                      <td>{row.strikeRate.toFixed(2)}</td>
+                      <td>{row.highestScore}</td>
+                      <td>{row.centuries}</td>
+                      <td>{row.halfCenturies}</td>
+                      <td>{row.ducks}</td>
+                      <td>{row.fours}</td>
+                      <td>{row.sixes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'batting' && stats && stats.runsPerInnings.length > 0 && (
+          <div className={styles.card}>
+            <h3>Runs per Innings</h3>
+            <RunsPerInnings innings={stats.runsPerInnings} />
+          </div>
+        )}
+
+        {activeTab === 'batting' && stats && stats.dismissalBreakdown.totalInnings > 0 && (
+          <div className={styles.card}>
+            <h3>Dismissal Type</h3>
+            <DismissalBreakdown
+              dismissals={stats.dismissalBreakdown.dismissals}
+              notOut={stats.dismissalBreakdown.notOut}
+              totalInnings={stats.dismissalBreakdown.totalInnings}
+            />
           </div>
         )}
 

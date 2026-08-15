@@ -28,6 +28,128 @@ function zoneLabel(zone: string): string {
   return zone.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+// Same fixed order/colors as web's DismissalBreakdown.tsx (validated dark categorical
+// set - see that file's comment) so the two platforms read as one system.
+const DISMISSAL_ORDER: Array<{ key: string; label: string; color: string }> = [
+  { key: 'notOut', label: 'Not Out', color: '#3987e5' },
+  { key: 'caught', label: 'Caught', color: '#d95926' },
+  { key: 'bowled', label: 'Bowled', color: '#199e70' },
+  { key: 'lbw', label: 'LBW', color: '#c98500' },
+  { key: 'run out', label: 'Run Out', color: '#d55181' },
+  { key: 'stumped', label: 'Stumped', color: '#008300' },
+  { key: 'hit wicket', label: 'Hit Wicket', color: '#9085e9' },
+  { key: 'retired', label: 'Retired', color: '#e66767' },
+  { key: 'unknown', label: 'Unknown', color: '#6B7A99' },
+];
+
+const FORMAT_COLUMNS: Array<{ key: string; label: string }> = [
+  { key: 'matches', label: 'Mat' },
+  { key: 'innings', label: 'Inns' },
+  { key: 'notOuts', label: 'NO' },
+  { key: 'runs', label: 'Runs' },
+  { key: 'balls', label: 'Balls' },
+  { key: 'average', label: 'Ave' },
+  { key: 'strikeRate', label: 'SR' },
+  { key: 'highestScore', label: 'HS' },
+  { key: 'centuries', label: '100s' },
+  { key: 'halfCenturies', label: '50s' },
+  { key: 'ducks', label: '0s' },
+  { key: 'fours', label: '4s' },
+  { key: 'sixes', label: '6s' },
+];
+
+// By-format batting table - a horizontally-scrolling grid since React Native has no
+// <table>. `allFormats` is the existing career aggregate, shown as a highlighted first
+// row alongside the per-matchType breakdown rows.
+function FormatTable({
+  allFormats,
+  byFormat,
+}: {
+  allFormats: PlayerCareerStats['batting'];
+  byFormat: PlayerCareerStats['byFormat'];
+}) {
+  const rows = [
+    { matchType: 'All Formats', ...allFormats, isAll: true },
+    ...byFormat.map(r => ({ ...r, isAll: false })),
+  ];
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View>
+        <View style={styles.formatRow}>
+          <Text style={[styles.formatCell, styles.formatHeaderCell, styles.formatNameCell]}>Format</Text>
+          {FORMAT_COLUMNS.map(col => (
+            <Text key={col.key} style={[styles.formatCell, styles.formatHeaderCell]}>{col.label}</Text>
+          ))}
+        </View>
+        {rows.map(row => (
+          <View key={row.matchType} style={[styles.formatRow, row.isAll && styles.formatRowAll]}>
+            <Text style={[styles.formatCell, styles.formatNameCell, row.isAll && styles.formatNameCellAll]}>
+              {row.matchType}
+            </Text>
+            {FORMAT_COLUMNS.map(col => {
+              const value = (row as any)[col.key];
+              const display = (col.key === 'average' || col.key === 'strikeRate')
+                ? Number(value).toFixed(2)
+                : String(value);
+              return <Text key={col.key} style={styles.formatCell}>{display}</Text>;
+            })}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// Runs-per-innings bar chart, mobile's Views-based equivalent of web's inline-SVG bar
+// chart (same as how the Wagon Wheel section below is bars, not an SVG diagram, on
+// this screen). Not-out innings get a gold dot above the bar, matching web's marker.
+function RunsPerInningsChart({ innings }: { innings: PlayerCareerStats['runsPerInnings'] }) {
+  const maxRuns = Math.max(1, ...innings.map(i => i.runs));
+  const recent = innings.slice(-20);
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={styles.runsChart}>
+        {recent.map((inn, idx) => (
+          <View key={inn.matchId + idx} style={styles.runsBarColumn}>
+            {inn.notOut && <View style={styles.runsNotOutDot} />}
+            <View style={[styles.runsBar, { height: Math.max(3, (inn.runs / maxRuns) * 100) }]} />
+            <Text style={styles.runsBarLabel}>{inn.runs}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// Dismissal-type breakdown as proportion bars (one row per type + not-out) - mobile's
+// equivalent of web's donut chart, in the same row-of-bars idiom as the Wagon Wheel
+// section on this screen, using the same fixed color order as web's pie legend.
+function DismissalBreakdownRows({ dismissalBreakdown }: { dismissalBreakdown: PlayerCareerStats['dismissalBreakdown'] }) {
+  const byKey = new Map(dismissalBreakdown.dismissals.map(d => [d.wicketType, d.count]));
+  byKey.set('notOut', dismissalBreakdown.notOut);
+  const total = dismissalBreakdown.totalInnings;
+  const rows = DISMISSAL_ORDER
+    .map(def => ({ ...def, count: byKey.get(def.key) || 0 }))
+    .filter(r => r.count > 0);
+
+  return (
+    <View style={styles.wagonWheel}>
+      {rows.map(row => {
+        const pct = total > 0 ? Math.round((row.count / total) * 1000) / 10 : 0;
+        return (
+          <View key={row.key} style={styles.wagonRow}>
+            <Text style={styles.wagonZoneLabel}>{row.label}</Text>
+            <View style={styles.wagonBarTrack}>
+              <View style={[styles.wagonBarFill, { width: `${Math.max(pct, 4)}%`, backgroundColor: row.color }]} />
+            </View>
+            <Text style={styles.wagonStats}>{row.count} ({pct}%)</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 interface StatRow {
   label: string;
   value: string | number;
@@ -162,7 +284,7 @@ export default function PlayerStatsScreen({ route, navigation }: any) {
     );
   }
 
-  const { player, batting, bowling, fielding, overall, wagonWheel, achievements } = stats;
+  const { player, batting, byFormat, bowling, fielding, overall, wagonWheel, runsPerInnings, dismissalBreakdown, achievements } = stats;
   const sortedWagonWheel = [...(wagonWheel || [])].sort((a, b) => b.runsPercent - a.runsPercent);
   const maxRunsPercent = sortedWagonWheel.length > 0 ? Math.max(...sortedWagonWheel.map(z => z.runsPercent), 1) : 1;
 
@@ -221,6 +343,29 @@ export default function PlayerStatsScreen({ route, navigation }: any) {
           ]}
         />
       </View>
+
+      {byFormat.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Batting by Format</Text>
+          <FormatTable allFormats={batting} byFormat={byFormat} />
+        </View>
+      )}
+
+      {runsPerInnings.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Runs per Innings</Text>
+          <Text style={styles.sectionSubtitle}>Last {Math.min(20, runsPerInnings.length)} of {runsPerInnings.length} innings, oldest to newest</Text>
+          <RunsPerInningsChart innings={runsPerInnings} />
+        </View>
+      )}
+
+      {dismissalBreakdown.totalInnings > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Dismissal Type</Text>
+          <Text style={styles.sectionSubtitle}>How this player has gotten out across their career</Text>
+          <DismissalBreakdownRows dismissalBreakdown={dismissalBreakdown} />
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Bowling</Text>
@@ -373,6 +518,26 @@ const styles = StyleSheet.create({
   },
   statValue: { color: colors.ink, fontSize: 17, fontWeight: 'bold' },
   statLabel: { color: colors.inkMuted, fontSize: 11, marginTop: 4, textAlign: 'center' },
+
+  formatRow: {
+    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  formatRowAll: { backgroundColor: colors.surfaceAlt },
+  formatCell: {
+    width: 56, paddingVertical: 10, paddingHorizontal: 4, color: colors.ink, fontSize: 12,
+    fontWeight: '600', textAlign: 'right',
+  },
+  formatHeaderCell: {
+    color: colors.inkMuted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase',
+  },
+  formatNameCell: { width: 84, textAlign: 'left', color: colors.inkSecondary, fontWeight: '700' },
+  formatNameCellAll: { color: colors.gold400 },
+
+  runsChart: { flexDirection: 'row', alignItems: 'flex-end', height: 150, paddingHorizontal: 4, gap: 6 },
+  runsBarColumn: { alignItems: 'center', justifyContent: 'flex-end', width: 22, height: '100%' },
+  runsBar: { width: 12, backgroundColor: colors.pitch500, borderRadius: 3 },
+  runsBarLabel: { color: colors.inkMuted, fontSize: 9, marginTop: 4 },
+  runsNotOutDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.gold400, marginBottom: 3 },
 
   emptyBox: {
     backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border,

@@ -25,9 +25,11 @@ exports.getPlayerStats = async (req, res) => {
       });
     }
 
-    const [careerStats, wagonWheel] = await Promise.all([
+    const [careerStats, wagonWheel, runsPerInnings, dismissalBreakdown] = await Promise.all([
       tendencyAnalytics.getCareerStats(req.params.playerId),
-      tendencyAnalytics.getZoneBreakdown(req.params.playerId)
+      tendencyAnalytics.getZoneBreakdown(req.params.playerId),
+      tendencyAnalytics.getRunsPerInnings(req.params.playerId),
+      tendencyAnalytics.getDismissalBreakdown(req.params.playerId)
     ]);
     // Pass the already-computed careerStats through so getAchievements doesn't
     // re-run the same career-stats match query a second time.
@@ -40,6 +42,8 @@ exports.getPlayerStats = async (req, res) => {
         ...careerStats,
         recentForm: [],
         wagonWheel: wagonWheel.zones,
+        runsPerInnings,
+        dismissalBreakdown,
         achievements
       }
     });
