@@ -1,0 +1,289 @@
+{
+  "population": {
+    "numBatters": 176,
+    "numBowlers": 96,
+    "seed": 1
+  },
+  "baseRateLogit": -3.055049,
+  "fullEnumerationSampleCount": 709632,
+  "trueProbabilityDescriptiveStats": {
+    "mean": 0.0558,
+    "std": 0.0408,
+    "min": 0.0009,
+    "max": 0.6495
+  },
+  "selfCheckAgainstRealTrueProbability": {
+    "samples": 5000,
+    "maxAbsProbabilityDifference": 0
+  },
+  "logitSpaceVarianceDecomposition": {
+    "totalVariance": 0.539691,
+    "sumOfComponentVariances": 0.5428,
+    "unexplainedGapPct": -0.5761,
+    "componentVariances": {
+      "V": 0.185562,
+      "E": 0.178297,
+      "I": 0.046244,
+      "LL": 0.118883,
+      "R": 0.013814
+    },
+    "varianceSharePct": {
+      "V": 34.383,
+      "E": 33.0369,
+      "I": 8.5687,
+      "LL": 22.0279,
+      "R": 2.5596
+    }
+  },
+  "sparsity": {
+    "interactionTable": {
+      "nonZero": 2077,
+      "totalPossible": 16896,
+      "fraction": 0.1229
+    },
+    "responseTable": {
+      "nonZero": 1147,
+      "totalPossible": 7392,
+      "fraction": 0.1552
+    }
+  },
+  "archetypeAnova": {
+    "battingStyle": {
+      "etaSquaredPct": 0.0393,
+      "ssBetween": 150.527705,
+      "ssTotal": 382981.722192,
+      "groups": [
+        {
+          "group": "Left-hand",
+          "n": 346752,
+          "mean": -3.0438
+        },
+        {
+          "group": "Right-hand",
+          "n": 362880,
+          "mean": -3.0729
+        }
+      ]
+    },
+    "bowlingStyle": {
+      "etaSquaredPct": 0.8878,
+      "ssBetween": 3400.224105,
+      "ssTotal": 382981.722192,
+      "groups": [
+        {
+          "group": "Left-arm Fast",
+          "n": 177408,
+          "mean": -2.9702
+        },
+        {
+          "group": "Right-arm Fast",
+          "n": 162624,
+          "mean": -3.1695
+        },
+        {
+          "group": "Left-arm Spin",
+          "n": 162624,
+          "mean": -3.051
+        },
+        {
+          "group": "Right-arm Spin",
+          "n": 206976,
+          "mean": -3.0535
+        }
+      ]
+    },
+    "battingStyleXBowlingStyleCombo": {
+      "etaSquaredPct": 0.9295,
+      "ssBetween": 3559.957731,
+      "ssTotal": 382981.722192,
+      "groups": [
+        {
+          "group": "Left-hand|Left-arm Fast",
+          "n": 86688,
+          "mean": -2.9524
+        },
+        {
+          "group": "Left-hand|Right-arm Fast",
+          "n": 79464,
+          "mean": -3.1531
+        },
+        {
+          "group": "Left-hand|Left-arm Spin",
+          "n": 79464,
+          "mean": -3.0335
+        },
+        {
+          "group": "Left-hand|Right-arm Spin",
+          "n": 101136,
+          "mean": -3.0443
+        },
+        {
+          "group": "Right-hand|Left-arm Fast",
+          "n": 90720,
+          "mean": -2.9872
+        },
+        {
+          "group": "Right-hand|Right-arm Fast",
+          "n": 83160,
+          "mean": -3.1851
+        },
+        {
+          "group": "Right-hand|Left-arm Spin",
+          "n": 83160,
+          "mean": -3.0678
+        },
+        {
+          "group": "Right-hand|Right-arm Spin",
+          "n": 105840,
+          "mean": -3.0623
+        }
+      ]
+    }
+  },
+  "lineLengthTwoWayAnova": {
+    "linePct": 8.3658,
+    "lengthPct": 19.0561,
+    "interactionResidualPct": 72.5781
+  },
+  "shrinkageWeightTable": [
+    {
+      "n": 0,
+      "individualWeight": 0
+    },
+    {
+      "n": 1,
+      "individualWeight": 0.0625
+    },
+    {
+      "n": 2,
+      "individualWeight": 0.1176
+    },
+    {
+      "n": 3,
+      "individualWeight": 0.1667
+    },
+    {
+      "n": 4,
+      "individualWeight": 0.2105
+    },
+    {
+      "n": 5,
+      "individualWeight": 0.25
+    },
+    {
+      "n": 6,
+      "individualWeight": 0.2857
+    },
+    {
+      "n": 7,
+      "individualWeight": 0.3182
+    },
+    {
+      "n": 8,
+      "individualWeight": 0.3478
+    },
+    {
+      "n": 9,
+      "individualWeight": 0.375
+    },
+    {
+      "n": 10,
+      "individualWeight": 0.4
+    },
+    {
+      "n": 11,
+      "individualWeight": 0.4231
+    },
+    {
+      "n": 12,
+      "individualWeight": 0.4444
+    },
+    {
+      "n": 13,
+      "individualWeight": 0.4643
+    },
+    {
+      "n": 14,
+      "individualWeight": 0.4828
+    },
+    {
+      "n": 15,
+      "individualWeight": 0.5
+    },
+    {
+      "n": 16,
+      "individualWeight": 0.5161
+    },
+    {
+      "n": 17,
+      "individualWeight": 0.5313
+    },
+    {
+      "n": 18,
+      "individualWeight": 0.5455
+    },
+    {
+      "n": 19,
+      "individualWeight": 0.5588
+    },
+    {
+      "n": 20,
+      "individualWeight": 0.5714
+    }
+  ],
+  "experiment2ExactMatchupNByBin": [
+    {
+      "range": "0-0",
+      "checkpointCount": 737,
+      "meanExactMatchupN": 0,
+      "meanIndividualWeightAtK15": 0
+    },
+    {
+      "range": "1-1",
+      "checkpointCount": 555,
+      "meanExactMatchupN": 1,
+      "meanIndividualWeightAtK15": 0.0625
+    },
+    {
+      "range": "2-4",
+      "checkpointCount": 882,
+      "meanExactMatchupN": 2.77,
+      "meanIndividualWeightAtK15": 0.1557
+    },
+    {
+      "range": "5-9",
+      "checkpointCount": 328,
+      "meanExactMatchupN": 6.08,
+      "meanIndividualWeightAtK15": 0.2885
+    },
+    {
+      "range": "10-14",
+      "checkpointCount": 18,
+      "meanExactMatchupN": 10.72,
+      "meanIndividualWeightAtK15": 0.4168
+    },
+    {
+      "range": "15-24",
+      "checkpointCount": 0,
+      "meanExactMatchupN": null,
+      "meanIndividualWeightAtK15": null
+    },
+    {
+      "range": "25-49",
+      "checkpointCount": 0,
+      "meanExactMatchupN": null,
+      "meanIndividualWeightAtK15": null
+    },
+    {
+      "range": "50+",
+      "checkpointCount": 0,
+      "meanExactMatchupN": null,
+      "meanIndividualWeightAtK15": null
+    }
+  ],
+  "rawExactMatchupCoverage": {
+    "totalCheckpoints": 2520,
+    "nonNullPredictions": 110,
+    "checkpointsWithPairLevelDataButNoBucketMatch": 1673
+  }
+}
