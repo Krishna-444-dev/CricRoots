@@ -99,8 +99,63 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   Golden Duck — all per-innings — plus Century of Wickets, All-Rounder, Wicketkeeper Great as
   career milestones), added to `GET /api/player-stats/:playerId` and displayed as a new
   Achievements card on `PlayerStatsDashboard`.
+- **League → Tournament → group-stage → knockout-bracket** (`af99c20`, `e9d7628`): new `League`
+  model; tournaments can belong to a league, get split into groups (`assignGroups`), get a
+  round-robin fixture list generated within each group, and progress through an auto-seeded
+  Quarterfinal → Semifinal → Final bracket (`generateKnockoutStage`/`advanceKnockoutRound`) derived
+  from group standings. Also shipped `simulateTournament.js`/`matchSimulator.js`/
+  `runTournamentSimulation.js`, a reusable ops toolkit that plays a full realistic tournament
+  (ball-by-ball, through the real controller functions via a fake req/res harness) for demo/
+  load-testing — since proven correct across 200+ simulated matches.
+- **Live tournament statistics + house rules document upload** (`4e85b0c`): `tournament.statistics`
+  was a stored sub-document nothing ever wrote to (always all-zero regardless of matches played) —
+  replaced with `getTournamentMatchStatistics()`, computed live from the tournament's own Completed
+  matches. Also added real PDF/Word upload for a tournament's house rules (separate from the
+  existing free-text rules field), web + mobile.
+- **Top Performers leaderboard** (`84bfa8a`, `5b99cb4`): `GET /api/tournaments/:id/leaderboard` —
+  top run-scorers / wicket-takers for a tournament, same average-based ranking `computeAwards`'s
+  bestBatsman/bestBowler already use, surfaced top 20 per department (bumped up from an initial 5)
+  on a new section of the Awards tab, web + mobile.
+- **Division as a first-class tournament concept** (`de76a48`, plus simulation-toolkit support in
+  `d48ffdd` and this doc's own follow-up commit): prompted directly by screenshots of the real
+  CricClubs Atlanta Cricket League app showing Division modeled as a filterable dimension *within*
+  one Tournament/Series (League → Series → Division → tabs), not as separate tournaments — which is
+  how an earlier pass in this same session had modeled it (2 sibling `Tournament` documents), before
+  being explicitly rebuilt properly per the user's choice. Added `tournament.divisions[]` (each with
+  its own `teams`/`groups`/`awards`) and `match.division`, with every division-aware endpoint
+  (`assignDivisions` (new), `assignGroups`, `generateFixtures`, `getTournamentStandings`,
+  `generateKnockoutStage`, `advanceKnockoutRound`, `computeAwards`, `getTournamentLeaderboard`)
+  branching on `tournament.divisions?.length > 0` first and falling through to the pre-existing flat
+  logic unchanged — fully additive, verified backward-compatible with the 3 tournaments that
+  predate divisions. Web + mobile both got a division pill/chip selector scoping the
+  Standings/Bracket/Awards/Matches tabs. Proven end-to-end with a real 40-team, 2-division run
+  (`runDivisionedTournament.js`, new — factors the match-playing loop out into
+  `matchOrchestration.js` so it and `runTournamentSimulation.js` share one proven implementation
+  instead of two copies): 20 teams/division, 2 groups/division, independent group stage +
+  knockout bracket + winner + leaderboard per division, zero player overlap between divisions
+  confirmed at the roster level.
+  - Caught proactively during schema design, not after a bad run: `Tournament.updateStandings()`
+    only filtered matches by `round: 'Group'`, which — once divisions exist — would fold every
+    division's group-stage matches into one polluted flat table (group names like "Group A" repeat
+    across divisions). Fixed by also filtering `division: null`, so the flat `tournament.standings`
+    field only ever reflects a non-divisioned tournament's own matches; a divisioned tournament's
+    flat `standings`/`groups` now correctly stay at all-zero schema defaults, unused.
+  - **Explicitly deferred, not built** — the same CricClubs screenshots also showed a Fielding
+    (Most Catches) leaderboard tab, a "Top Performer of Series" ranked list with a points column
+    (vs. this app's plain top-20-by-average list), a Division-scoped Teams tab with
+    captain/vice-captain badges and player photos, and a multi-document library (6 PDFs: rules,
+    registration guide, captain guide, nomination sheet — vs. this app's single house-rules
+    upload). The user was explicitly offered a menu bundling these in with the Division rebuild and
+    chose the Division-only option — see backlog below.
 
 ### Backlog (not started, roughly in priority order)
+
+- **CricClubs-parity gaps surfaced by the Division screenshots, deliberately deferred**: Fielding
+  (Most Catches) leaderboard alongside the existing batting/bowling ones; "Top Performer of Series"
+  as a ranked list with an actual points column, not just sorted-by-average; a division-scoped Teams
+  tab showing each team's roster with captain/vice-captain badges and player photos; a multi-document
+  library (the current house-rules upload only supports one file). Not requested yet — build only if
+  asked.
 
 - **Match notifications** — push/email when a followed team's match goes live or a tournament
   posts an announcement (announcement chat already exists; notification delivery doesn't).
