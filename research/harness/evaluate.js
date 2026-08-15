@@ -23,7 +23,7 @@
 // historical-only methods until that's fixed as its own, separate piece of work.
 const mongoose = require('mongoose');
 const path = require('path');
-const { generatePopulation, generateMatches, trueProbability, makeRng } = require('../synthetic/generator');
+const { generatePopulation, generateLeagueMatches, trueProbability, makeRng } = require('../synthetic/generator');
 const baselines = require('../baselines');
 
 const Player = require(path.join(__dirname, '..', '..', 'backend', 'src', 'models', 'Player'));
@@ -120,17 +120,26 @@ const HISTORICAL_METHODS = {
  *   { matchIdx, ballGlobalIndex, batsmanId, bowlerId, line, length, trueOutcome, pTrue, method, prediction }
  */
 async function runExperiment({
-  numBatters = 40, numBowlers = 40, populationSeed = 1,
-  numTrainMatches = 120, numTestMatches = 25, ballsPerInnings = 40, matchSeed = 2, splitSeed = 3,
+  numTeams = 16, battersPerTeam = 11, bowlersPerTeam = 6, rounds = 2, populationSeed = 1,
+  testFraction = 0.15, ballsPerInnings = 35, matchSeed = 2, splitSeed = 3,
   checkpointStride = 1 // evaluate every Nth ball within a test match; 1 = every ball
 } = {}) {
   const rng = makeRng(splitSeed);
-  const population = generatePopulation({ numBatters, numBowlers, seed: populationSeed });
-  const { matches } = generateMatches({
-    population, numMatches: numTrainMatches + numTestMatches, ballsPerInnings, seed: matchSeed
+  const population = generatePopulation({
+    numBatters: numTeams * battersPerTeam, numBowlers: numTeams * bowlersPerTeam, seed: populationSeed
+  });
+  // See research/synthetic/league-design.md for why match generation is fixture-based (a
+  // realistic double round-robin across numTeams teams) rather than a fixed pair of teams
+  // reused every match - the pilot experiment's flawed sparsity distribution came directly from
+  // the latter. This is the only change from the pilot experiment; everything below this point
+  // (train/test split mechanics, leakage prevention, checkpoint evaluation) is unchanged.
+  const { matches } = generateLeagueMatches({
+    population, numTeams, battersPerTeam, bowlersPerTeam, rounds, ballsPerInnings, seed: matchSeed
   });
 
   const shuffled = seededShuffle(matches, splitSeed);
+  const numTestMatches = Math.round(matches.length * testFraction);
+  const numTrainMatches = matches.length - numTestMatches;
   const trainMatches = shuffled.slice(0, numTrainMatches);
   const testMatches = shuffled.slice(numTrainMatches, numTrainMatches + numTestMatches);
 
@@ -210,7 +219,14 @@ async function runExperiment({
     await Match.deleteOne({ _id: created._id });
   }
 
-  return { results, meta: { numTrainMatches, numTestMatches, ballsPerInnings, checkpointStride, populationSeed, matchSeed, splitSeed } };
+  return {
+    results,
+    meta: {
+      numTeams, battersPerTeam, bowlersPerTeam, rounds,
+      numTrainMatches, numTestMatches, ballsPerInnings, checkpointStride,
+      populationSeed, matchSeed, splitSeed
+    }
+  };
 }
 
 module.exports = { runExperiment };

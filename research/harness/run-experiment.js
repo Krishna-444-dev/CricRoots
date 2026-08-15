@@ -1,7 +1,13 @@
-// Runs the first controlled experiment for real and writes raw results to
-// research/results/<timestamp>/ - metrics only, no interpretation or conclusion written here or
-// anywhere else. Per explicit instruction, results come back for joint interpretation before any
-// conclusion is written down.
+// Runs a controlled experiment for real and writes raw results to research/results/<timestamp>/ -
+// metrics only, no interpretation or conclusion written here or anywhere else. Per explicit
+// instruction, results come back for joint interpretation before any conclusion is written down.
+//
+// Second experiment (this config): identical evaluation pipeline to the pilot
+// (research/results/2026-08-15T22-44-34-033Z/) - same metrics, same protocol, no tuning after
+// seeing results. The only change is the data-generating process: a realistic 16-team double
+// round-robin league with randomized batting order (research/synthetic/league-design.md) in
+// place of the pilot's fixed two-team roster, which produced an unrealistic sparsity
+// distribution (94.7% of checkpoints at 50+ exact-matchup balls).
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -11,11 +17,12 @@ const { runExperiment } = require('./evaluate');
 const { summarizeByMethod } = require('../metrics');
 
 const CONFIG = {
-  numBatters: 40,
-  numBowlers: 40,
+  numTeams: 16,
+  battersPerTeam: 11,
+  bowlersPerTeam: 6,
+  rounds: 2,
   populationSeed: 1,
-  numTrainMatches: 100,
-  numTestMatches: 25,
+  testFraction: 0.15,
   ballsPerInnings: 35,
   matchSeed: 2,
   splitSeed: 3,
@@ -24,7 +31,7 @@ const CONFIG = {
 
 async function main() {
   const startedAt = new Date().toISOString();
-  console.log('Starting first controlled experiment...');
+  console.log('Starting second controlled experiment (league/fixture-based data)...');
   console.log('Config:', CONFIG);
 
   const mongod = await MongoMemoryServer.create();

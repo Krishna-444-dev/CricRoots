@@ -226,4 +226,124 @@ function generateMatches({ population, numMatches = 200, ballsPerInnings = 60, s
   };
 }
 
-module.exports = { generatePopulation, trueProbability, generateMatches, makeRng, LINES, LENGTHS };
+function seededShuffleInPlace(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng.uniform(0, i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * A double round-robin fixture list for `numTeams` teams - every team plays every other team
+ * exactly `rounds` times (rounds=2: home and away, a standard real league structure - not picked
+ * to engineer any particular result, see league-design.md). Returns an array of
+ * [teamIndexA, teamIndexB] pairs, order shuffled deterministically.
+ */
+function generateFixtures({ numTeams, rounds = 2, seed }) {
+  const rng = makeRng(seed);
+  const fixtures = [];
+  for (let r = 0; r < rounds; r++) {
+    for (let a = 0; a < numTeams; a++) {
+      for (let b = a + 1; b < numTeams; b++) {
+        fixtures.push([a, b]);
+      }
+    }
+  }
+  return seededShuffleInPlace(fixtures, rng);
+}
+
+/**
+ * League-structured match generation - see league-design.md for why this replaces the pilot
+ * experiment's fixed-two-team approach. `population` must have at least
+ * numTeams * battersPerTeam batters and numTeams * bowlersPerTeam bowlers (generatePopulation's
+ * numBatters/numBowlers should be sized accordingly by the caller). Batting order is
+ * re-shuffled every innings (not fixed at roster order) - see league-design.md for why that
+ * matters independent of the fixture-schedule fix. generatePopulation/trueProbability are used
+ * completely unchanged - only the roster/fixture/order structure around them is new.
+ */
+function generateLeagueMatches({
+  population, numTeams = 16, battersPerTeam = 11, bowlersPerTeam = 6,
+  rounds = 2, ballsPerInnings = 35, seed = 2
+} = {}) {
+  const rng = makeRng(seed);
+
+  if (population.batters.length < numTeams * battersPerTeam) {
+    throw new Error(`Population has ${population.batters.length} batters, needs at least ${numTeams * battersPerTeam} for ${numTeams} teams of ${battersPerTeam}`);
+  }
+  if (population.bowlers.length < numTeams * bowlersPerTeam) {
+    throw new Error(`Population has ${population.bowlers.length} bowlers, needs at least ${numTeams * bowlersPerTeam} for ${numTeams} teams of ${bowlersPerTeam}`);
+  }
+
+  const teams = Array.from({ length: numTeams }, (_, i) => ({
+    batters: population.batters.slice(i * battersPerTeam, (i + 1) * battersPerTeam),
+    bowlers: population.bowlers.slice(i * bowlersPerTeam, (i + 1) * bowlersPerTeam)
+  }));
+
+  const fixtures = generateFixtures({ numTeams, rounds, seed: seed + 1000 });
+
+  const inningsFor = (battingRoster, bowlingRoster) => {
+    // Fresh random batting order every innings - see league-design.md.
+    const battingOrder = seededShuffleInPlace([...battingRoster], rng);
+    const balls = [];
+    let strikerIdx = 0;
+    let wickets = 0;
+    let runs = 0;
+    for (let i = 0; i < ballsPerInnings && wickets < battingOrder.length - 1; i++) {
+      const batter = battingOrder[strikerIdx];
+      const bowler = rng.pick(bowlingRoster);
+      const line = rng.pick(LINES);
+      const length = rng.pick(LENGTHS);
+      const pTrue = trueProbability(population, batter._id, bowler._id, line, length);
+      const isWicket = rng.bernoulli(pTrue);
+      const runsThisBall = isWicket ? 0 : rng.pick([0, 0, 1, 1, 1, 2, 4, 6]);
+      runs += runsThisBall;
+      balls.push({
+        ballNumber: i + 1,
+        batsmanId: batter._id,
+        bowlerId: bowler._id,
+        runs: runsThisBall,
+        isWicket,
+        wicketType: isWicket ? 'bowled' : null,
+        isExtra: false,
+        extraType: 'none',
+        line,
+        length,
+        shotType: null,
+        shotZone: null,
+        fielderId: null,
+        fielderPosition: null
+      });
+      if (isWicket) {
+        wickets += 1;
+        strikerIdx = Math.min(strikerIdx + 1, battingOrder.length - 1);
+      }
+    }
+    return { runs, wickets, overs: Math.floor(ballsPerInnings / 6), balls };
+  };
+
+  const matches = fixtures.map(([teamAIdx, teamBIdx], m) => {
+    const teamA = teams[teamAIdx];
+    const teamB = teams[teamBIdx];
+    const teamABats = rng.chance(0.5);
+    const inn1 = teamABats ? inningsFor(teamA.batters, teamB.bowlers) : inningsFor(teamB.batters, teamA.bowlers);
+    const inn2 = teamABats ? inningsFor(teamB.batters, teamA.bowlers) : inningsFor(teamA.batters, teamB.bowlers);
+
+    return {
+      _synthetic: true,
+      title: `Synthetic Match ${m} (Team ${teamAIdx} vs Team ${teamBIdx})`,
+      matchType: 'T20',
+      status: 'Completed',
+      venue: 'Synthetic Ground',
+      totalOvers: Math.ceil(ballsPerInnings / 6),
+      innings: [inn1, inn2]
+    };
+  });
+
+  return { matches, teams, fixtures };
+}
+
+module.exports = {
+  generatePopulation, trueProbability, generateMatches, generateLeagueMatches, generateFixtures,
+  makeRng, LINES, LENGTHS
+};

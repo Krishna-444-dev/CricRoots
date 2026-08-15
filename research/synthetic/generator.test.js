@@ -4,7 +4,7 @@
 // assertion-and-throw checks, because "we assumed the generator does X" is exactly the kind of
 // claim this whole program exists to stop taking on faith.
 const assert = require('assert');
-const { generatePopulation, trueProbability, generateMatches, makeRng } = require('./generator');
+const { generatePopulation, trueProbability, generateMatches, generateLeagueMatches, generateFixtures, makeRng } = require('./generator');
 
 function section(name, fn) {
   process.stdout.write(`${name} ... `);
@@ -103,6 +103,57 @@ section('generated match documents use real schema enum values for line/length/b
       }
     }
   }
+});
+
+section('generateFixtures produces exactly C(numTeams,2) x rounds fixtures, every team appearing the same number of times', () => {
+  const fixtures = generateFixtures({ numTeams: 8, rounds: 2, seed: 1 });
+  assert.strictEqual(fixtures.length, (8 * 7 / 2) * 2);
+  const appearances = new Array(8).fill(0);
+  for (const [a, b] of fixtures) { appearances[a]++; appearances[b]++; }
+  for (const count of appearances) assert.strictEqual(count, 2 * (8 - 1)); // plays every other team twice
+});
+
+section('generateLeagueMatches produces the realistic sparsity distribution league-design.md predicted (verifying the DATA, not tuning based on evaluation metrics)', () => {
+  // This checks the a priori prediction in league-design.md: after fixing the fixed-two-team
+  // flaw, the large majority of (batter, bowler) pairs should stay in the single-digit-to-low-
+  // teens exposure range across the whole season, not accumulate into the 50+ regime the pilot
+  // experiment incorrectly produced. This is a check on the GENERATED DATA's structure, decided
+  // before regenerating - not a post-hoc adjustment based on the evaluation harness's output
+  // metrics, which this file has no access to and never will.
+  const pop = generatePopulation({ numBatters: 176, numBowlers: 96, seed: 1 });
+  const { matches, teams } = generateLeagueMatches({
+    population: pop, numTeams: 16, battersPerTeam: 11, bowlersPerTeam: 6, rounds: 2, ballsPerInnings: 35, seed: 2
+  });
+  assert.strictEqual(teams.length, 16);
+  assert.strictEqual(matches.length, (16 * 15 / 2) * 2);
+
+  const pairCounts = new Map();
+  for (const m of matches) {
+    for (const inn of m.innings) {
+      for (const ball of inn.balls) {
+        const key = `${ball.batsmanId}|${ball.bowlerId}`;
+        pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
+      }
+    }
+  }
+  const counts = [...pairCounts.values()];
+  const fractionSparse = counts.filter((c) => c <= 15).length / counts.length;
+  const fractionDense = counts.filter((c) => c >= 50).length / counts.length;
+  console.log(`\n    (${counts.length} distinct pairs faced at least one ball; ${(fractionSparse * 100).toFixed(1)}% at <=15 balls, ${(fractionDense * 100).toFixed(1)}% at >=50 balls)`);
+  assert.ok(fractionSparse > 0.8, `expected the large majority of pairs to stay in the sparse (<=15) regime per league-design.md's prediction, got ${(fractionSparse * 100).toFixed(1)}%`);
+  assert.ok(fractionDense < 0.05, `expected very few pairs to reach the dense (50+) regime, got ${(fractionDense * 100).toFixed(1)}%`);
+});
+
+section('generateLeagueMatches batting order is genuinely randomized per innings, not fixed at roster order', () => {
+  const pop = generatePopulation({ numBatters: 22, numBowlers: 12, seed: 5 });
+  const { matches } = generateLeagueMatches({ population: pop, numTeams: 2, battersPerTeam: 11, bowlersPerTeam: 6, rounds: 3, ballsPerInnings: 20, seed: 6 });
+  const firstBatsmanIds = new Set();
+  for (const m of matches) {
+    for (const inn of m.innings) {
+      if (inn.balls.length > 0) firstBatsmanIds.add(inn.balls[0].batsmanId);
+    }
+  }
+  assert.ok(firstBatsmanIds.size > 1, 'expected the first ball of an innings to go to different batters across matches (randomized order), not always the same one');
 });
 
 console.log('\nAll generator verification checks passed.');
