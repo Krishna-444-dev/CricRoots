@@ -166,6 +166,9 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   // Top performers - lazy-loaded the first time the Awards tab is opened.
   const [leaderboard, setLeaderboard] = useState<{ batsmen: any[]; bowlers: any[]; fielding: any[]; topPerformers: any[] } | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  // Mirrors web-app's TournamentManager.tsx: each list shows just #1 by default (CricClubs'
+  // pattern) with a toggle to see the rest, one flag per list.
+  const [expandedLeaderboard, setExpandedLeaderboard] = useState({ batsmen: false, bowlers: false, fielding: false, topPerformers: false });
 
   // Announcements - GET is public, POST is organizer-only (enforced server-side too)
   const [announcements, setAnnouncements] = useState<any[] | null>(null);
@@ -897,40 +900,61 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                 {leaderboard.batsmen.length === 0 ? (
                   <Text style={styles.muted}>No qualifying innings yet.</Text>
                 ) : (
-                  leaderboard.batsmen.map((b, i) => (
-                    <View key={b.player._id} style={styles.leaderRow}>
-                      <Text style={styles.leaderName} numberOfLines={1}>
-                        {b.player._id === resolveId(awards?.bestBatsman) ? '🏆 ' : ''}{i + 1}. {b.player.name}
-                      </Text>
-                      <Text style={styles.leaderStat}>{b.runs} runs · avg {b.average} · SR {b.strikeRate}</Text>
-                    </View>
-                  ))
+                  <>
+                    {(expandedLeaderboard.batsmen ? leaderboard.batsmen : leaderboard.batsmen.slice(0, 1)).map((b, i) => (
+                      <View key={b.player._id} style={styles.leaderRow}>
+                        <Text style={styles.leaderName} numberOfLines={1}>
+                          {b.player._id === resolveId(awards?.bestBatsman) ? '🏆 ' : ''}{i + 1}. {b.player.name}
+                        </Text>
+                        <Text style={styles.leaderStat}>{b.runs} runs · avg {b.average} · SR {b.strikeRate}</Text>
+                      </View>
+                    ))}
+                    {leaderboard.batsmen.length > 1 && (
+                      <TouchableOpacity onPress={() => setExpandedLeaderboard((prev) => ({ ...prev, batsmen: !prev.batsmen }))}>
+                        <Text style={styles.showAllLink}>{expandedLeaderboard.batsmen ? 'Show less' : `Show all ${leaderboard.batsmen.length} →`}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
 
                 <Text style={[styles.groupTitle, { fontSize: 13, marginTop: 16 }]}>Leading Wicket Takers</Text>
                 {leaderboard.bowlers.length === 0 ? (
                   <Text style={styles.muted}>No qualifying spells yet.</Text>
                 ) : (
-                  leaderboard.bowlers.map((b, i) => (
-                    <View key={b.player._id} style={styles.leaderRow}>
-                      <Text style={styles.leaderName} numberOfLines={1}>
-                        {b.player._id === resolveId(awards?.bestBowler) ? '🏆 ' : ''}{i + 1}. {b.player.name}
-                      </Text>
-                      <Text style={styles.leaderStat}>{b.wickets} wkts · avg {b.average} · econ {b.economyRate}</Text>
-                    </View>
-                  ))
+                  <>
+                    {(expandedLeaderboard.bowlers ? leaderboard.bowlers : leaderboard.bowlers.slice(0, 1)).map((b, i) => (
+                      <View key={b.player._id} style={styles.leaderRow}>
+                        <Text style={styles.leaderName} numberOfLines={1}>
+                          {b.player._id === resolveId(awards?.bestBowler) ? '🏆 ' : ''}{i + 1}. {b.player.name}
+                        </Text>
+                        <Text style={styles.leaderStat}>{b.wickets} wkts · avg {b.average} · econ {b.economyRate}</Text>
+                      </View>
+                    ))}
+                    {leaderboard.bowlers.length > 1 && (
+                      <TouchableOpacity onPress={() => setExpandedLeaderboard((prev) => ({ ...prev, bowlers: !prev.bowlers }))}>
+                        <Text style={styles.showAllLink}>{expandedLeaderboard.bowlers ? 'Show less' : `Show all ${leaderboard.bowlers.length} →`}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
 
                 <Text style={[styles.groupTitle, { fontSize: 13, marginTop: 16 }]}>Leading Fielders</Text>
                 {leaderboard.fielding.length === 0 ? (
                   <Text style={styles.muted}>No qualifying dismissals yet.</Text>
                 ) : (
-                  leaderboard.fielding.map((f, i) => (
-                    <View key={f.player._id} style={styles.leaderRow}>
-                      <Text style={styles.leaderName} numberOfLines={1}>{i + 1}. {f.player.name}</Text>
-                      <Text style={styles.leaderStat}>{f.dismissals} dis · {f.catches}c {f.runOuts}ro {f.stumpings}st</Text>
-                    </View>
-                  ))
+                  <>
+                    {(expandedLeaderboard.fielding ? leaderboard.fielding : leaderboard.fielding.slice(0, 1)).map((f, i) => (
+                      <View key={f.player._id} style={styles.leaderRow}>
+                        <Text style={styles.leaderName} numberOfLines={1}>{i + 1}. {f.player.name}</Text>
+                        <Text style={styles.leaderStat}>{f.dismissals} dis · {f.catches}c {f.runOuts}ro {f.stumpings}st</Text>
+                      </View>
+                    ))}
+                    {leaderboard.fielding.length > 1 && (
+                      <TouchableOpacity onPress={() => setExpandedLeaderboard((prev) => ({ ...prev, fielding: !prev.fielding }))}>
+                        <Text style={styles.showAllLink}>{expandedLeaderboard.fielding ? 'Show less' : `Show all ${leaderboard.fielding.length} →`}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
 
                 {/* Combined points ranking, not another department - gold-accented card to set it
@@ -943,12 +967,19 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                   {leaderboard.topPerformers.length === 0 ? (
                     <Text style={styles.muted}>No completed matches yet.</Text>
                   ) : (
-                    leaderboard.topPerformers.map((p, i) => (
-                      <View key={p.player._id} style={styles.leaderRow}>
-                        <Text style={styles.leaderName} numberOfLines={1}>{i + 1}. {p.player.name}</Text>
-                        <Text style={styles.topPerformerPoints}>{p.points} pts</Text>
-                      </View>
-                    ))
+                    <>
+                      {(expandedLeaderboard.topPerformers ? leaderboard.topPerformers : leaderboard.topPerformers.slice(0, 1)).map((p, i) => (
+                        <View key={p.player._id} style={styles.leaderRow}>
+                          <Text style={styles.leaderName} numberOfLines={1}>{i + 1}. {p.player.name}</Text>
+                          <Text style={styles.topPerformerPoints}>{p.points} pts</Text>
+                        </View>
+                      ))}
+                      {leaderboard.topPerformers.length > 1 && (
+                        <TouchableOpacity onPress={() => setExpandedLeaderboard((prev) => ({ ...prev, topPerformers: !prev.topPerformers }))}>
+                          <Text style={styles.showAllLink}>{expandedLeaderboard.topPerformers ? 'Show less' : `Show all ${leaderboard.topPerformers.length} →`}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
                   )}
                 </View>
               </>
@@ -1231,6 +1262,7 @@ const styles = StyleSheet.create({
   leaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
   leaderName: { color: colors.ink, fontSize: 13, flexShrink: 1 },
   leaderStat: { color: colors.inkSecondary, fontSize: 12 },
+  showAllLink: { color: colors.pitch400, fontSize: 12, fontWeight: '600', marginTop: 6 },
   topPerformerCard: { marginTop: 20, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.gold500 + '55', padding: 12 },
   topPerformerTitle: { color: colors.ink, fontSize: 15, fontWeight: '700', marginBottom: 6 },
   topPerformerPoints: { color: colors.gold500, fontSize: 12, fontWeight: '700' },

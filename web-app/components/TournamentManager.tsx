@@ -226,6 +226,10 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [awardsError, setAwardsError] = useState('');
   const [leaderboard, setLeaderboard] = useState<{ batsmen: LeaderboardBatsman[]; bowlers: LeaderboardBowler[]; fielding: LeaderboardFielder[]; topPerformers: LeaderboardTopPerformer[] } | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  // Each Top Performers list shows just the #1 entry by default (CricClubs' pattern) - a full
+  // top-20 list per department read as a wall of text. One flag per list, not per-division,
+  // so switching divisions doesn't unexpectedly collapse a list the viewer just expanded.
+  const [expandedLeaderboard, setExpandedLeaderboard] = useState({ batsmen: false, bowlers: false, fielding: false, topPerformers: false });
   const [liveStats, setLiveStats] = useState<Tournament['statistics'] | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [groupStandings, setGroupStandings] = useState<GroupStandingsResponse[] | null>(null);
@@ -1537,6 +1541,21 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 )}
               </div>
 
+              {(() => {
+                // CricClubs shows just the #1 entry per department with a way to see the rest,
+                // not a full top-20 wall of text. `key` picks which list's expand flag to flip;
+                // `count` decides whether a toggle is worth showing at all (a list of 1 has
+                // nothing to expand into).
+                const leaderboardToggle = (key: keyof typeof expandedLeaderboard, count: number) => count > 1 && (
+                  <button
+                    onClick={() => setExpandedLeaderboard(prev => ({ ...prev, [key]: !prev[key] }))}
+                    className="text-xs font-medium text-pitch-400 hover:text-pitch-300 mt-2"
+                  >
+                    {expandedLeaderboard[key] ? 'Show less' : `Show all ${count} →`}
+                  </button>
+                );
+                return (
+              <>
               <div className={styles.card} style={{ marginTop: 20 }}>
                 <h2>Top Performers{hasDivisions ? ` - ${selectedDivision}` : ''}</h2>
                 {leaderboardLoading || !leaderboard ? (
@@ -1550,17 +1569,20 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                       {leaderboard.batsmen.length === 0 ? (
                         <p className={styles.infoText}>No qualifying innings yet.</p>
                       ) : (
-                        leaderboard.batsmen.map((b, i) => (
-                          <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
-                            <span className="text-ink">
-                              {b.player._id === awards?.bestBatsman?._id && '🏆 '}
-                              {i + 1}. {b.player.name}
-                            </span>
-                            <span className="text-ink-secondary font-mono">
-                              {b.runs} runs · avg {b.average} · SR {b.strikeRate}
-                            </span>
-                          </div>
-                        ))
+                        <>
+                          {(expandedLeaderboard.batsmen ? leaderboard.batsmen : leaderboard.batsmen.slice(0, 1)).map((b, i) => (
+                            <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                              <span className="text-ink">
+                                {b.player._id === awards?.bestBatsman?._id && '🏆 '}
+                                {i + 1}. {b.player.name}
+                              </span>
+                              <span className="text-ink-secondary font-mono">
+                                {b.runs} runs · avg {b.average} · SR {b.strikeRate}
+                              </span>
+                            </div>
+                          ))}
+                          {leaderboardToggle('batsmen', leaderboard.batsmen.length)}
+                        </>
                       )}
                     </div>
                     <div>
@@ -1568,17 +1590,20 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                       {leaderboard.bowlers.length === 0 ? (
                         <p className={styles.infoText}>No qualifying spells yet.</p>
                       ) : (
-                        leaderboard.bowlers.map((b, i) => (
-                          <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
-                            <span className="text-ink">
-                              {b.player._id === awards?.bestBowler?._id && '🏆 '}
-                              {i + 1}. {b.player.name}
-                            </span>
-                            <span className="text-ink-secondary font-mono">
-                              {b.wickets} wkts · avg {b.average} · econ {b.economyRate}
-                            </span>
-                          </div>
-                        ))
+                        <>
+                          {(expandedLeaderboard.bowlers ? leaderboard.bowlers : leaderboard.bowlers.slice(0, 1)).map((b, i) => (
+                            <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                              <span className="text-ink">
+                                {b.player._id === awards?.bestBowler?._id && '🏆 '}
+                                {i + 1}. {b.player.name}
+                              </span>
+                              <span className="text-ink-secondary font-mono">
+                                {b.wickets} wkts · avg {b.average} · econ {b.economyRate}
+                              </span>
+                            </div>
+                          ))}
+                          {leaderboardToggle('bowlers', leaderboard.bowlers.length)}
+                        </>
                       )}
                     </div>
                     <div>
@@ -1586,16 +1611,19 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                       {leaderboard.fielding.length === 0 ? (
                         <p className={styles.infoText}>No qualifying dismissals yet.</p>
                       ) : (
-                        leaderboard.fielding.map((f, i) => (
-                          <div key={f.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
-                            <span className="text-ink">
-                              {i + 1}. {f.player.name}
-                            </span>
-                            <span className="text-ink-secondary font-mono">
-                              {f.dismissals} dis · {f.catches}c {f.runOuts}ro {f.stumpings}st
-                            </span>
-                          </div>
-                        ))
+                        <>
+                          {(expandedLeaderboard.fielding ? leaderboard.fielding : leaderboard.fielding.slice(0, 1)).map((f, i) => (
+                            <div key={f.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                              <span className="text-ink">
+                                {i + 1}. {f.player.name}
+                              </span>
+                              <span className="text-ink-secondary font-mono">
+                                {f.dismissals} dis · {f.catches}c {f.runOuts}ro {f.stumpings}st
+                              </span>
+                            </div>
+                          ))}
+                          {leaderboardToggle('fielding', leaderboard.fielding.length)}
+                        </>
                       )}
                     </div>
                   </div>
@@ -1620,18 +1648,24 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 ) : leaderboard.topPerformers.length === 0 ? (
                   <p className={styles.infoText}>No completed matches yet.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-                    {leaderboard.topPerformers.map((p, i) => (
-                      <div key={p.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
-                        <span className="text-ink">
-                          {i + 1}. {p.player.name}
-                        </span>
-                        <span className="text-gold-500 font-mono font-semibold">{p.points} pts</span>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                      {(expandedLeaderboard.topPerformers ? leaderboard.topPerformers : leaderboard.topPerformers.slice(0, 1)).map((p, i) => (
+                        <div key={p.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                          <span className="text-ink">
+                            {i + 1}. {p.player.name}
+                          </span>
+                          <span className="text-gold-500 font-mono font-semibold">{p.points} pts</span>
+                        </div>
+                      ))}
+                    </div>
+                    {leaderboardToggle('topPerformers', leaderboard.topPerformers.length)}
+                  </>
                 )}
               </div>
+                </>
+                );
+              })()}
             </>
           );
         })()}
