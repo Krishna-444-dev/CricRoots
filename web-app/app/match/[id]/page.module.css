@@ -84,17 +84,19 @@
   display: flex;
   background: #131C2E;
   border-bottom: 1px solid #243049;
+  overflow-x: auto;
 }
 
 .tab {
-  flex: 1;
-  padding: 16px;
+  flex: 0 0 auto;
+  padding: 16px 18px;
   border: none;
   background: none;
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
   color: #6B7A99;
+  white-space: nowrap;
   transition: all 0.2s ease;
   border-bottom: 2px solid transparent;
 }
@@ -287,6 +289,159 @@
   font-size: 20px;
   font-weight: 700;
   color: #4ADE80;
+}
+
+.scorecardInnings {
+  background: #131C2E;
+  border: 1px solid #243049;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.scorecardInningsTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #F1F5F9;
+  margin: 0 0 14px 0;
+}
+
+.scorecardHeaderRow,
+.scorecardRow {
+  display: grid;
+  grid-template-columns: 1fr repeat(5, 44px);
+  align-items: center;
+  gap: 4px;
+}
+
+.scorecardHeaderRow {
+  padding-bottom: 6px;
+  border-bottom: 1px solid #243049;
+  margin-bottom: 4px;
+}
+
+.scorecardHeaderCell {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6B7A99;
+  text-align: right;
+}
+
+.scorecardHeaderCell:first-child {
+  text-align: left;
+}
+
+.scorecardRow {
+  padding: 7px 0;
+  border-bottom: 1px solid #1A2436;
+}
+
+.scorecardRow:last-child {
+  border-bottom: none;
+}
+
+.scorecardPlayerName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #F1F5F9;
+}
+
+.scorecardDismissal {
+  font-size: 11px;
+  color: #6B7A99;
+  margin-top: 1px;
+}
+
+.scorecardCell {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #96A3BC;
+  text-align: right;
+}
+
+.scorecardSectionLabel {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6B7A99;
+  margin: 16px 0 8px 0;
+}
+
+.scorecardSectionLabel:first-child {
+  margin-top: 0;
+}
+
+.overRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #1A2436;
+}
+
+.overRow:last-child {
+  border-bottom: none;
+}
+
+.overLabel {
+  flex: 0 0 auto;
+  width: 92px;
+  font-size: 12px;
+  color: #6B7A99;
+}
+
+.overBowlerName {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #F1F5F9;
+}
+
+.overBalls {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.overBallChip {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #1E2841;
+  border: 1px solid #2F3E5C;
+  font-size: 11px;
+  font-weight: 700;
+  color: #96A3BC;
+}
+
+.overBallChipWicket {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #F87171;
+}
+
+.overSummary {
+  flex: 0 0 auto;
+  width: 90px;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #6B7A99;
+}
+
+.overSummaryTotal {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #F1F5F9;
 }
 
 .wicketBadge {

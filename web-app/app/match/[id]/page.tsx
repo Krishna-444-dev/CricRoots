@@ -12,6 +12,7 @@ import ExtrasChart from '@/components/insights/ExtrasChart';
 import RunsTypeChart from '@/components/insights/RunsTypeChart';
 import FieldingPlan from '@/components/insights/FieldingPlan';
 import PredictionWidget from '@/components/match/PredictionWidget';
+import { battingStatsFor, bowlingStatsFor, dismissalFor, maidenOversFor, battingBowlingOrder, overByOver } from '@/lib/matchStats';
 import styles from './page.module.css';
 
 interface Partnership {
@@ -45,6 +46,7 @@ interface Ball {
   ballNumber: number;
   batsmanId?: string;
   bowlerId?: string;
+  fielderId?: string;
   runs: number;
   isWicket: boolean;
   wicketType: string | null;
@@ -81,7 +83,8 @@ interface BowlerScorecardEntry {
 // Snapshot of who's currently batting/bowling and their live figures - saved by the scorer's
 // client on every ball (see innings.liveState in the backend Match model) so this can be
 // shown here without a separate endpoint. Absent on older matches scored before this existed,
-// or if the current innings hasn't started yet.
+// or if the current innings hasn't started yet - the Full Scorecard tab below doesn't depend on
+// this at all, it's computed fresh from balls (see lib/matchStats.ts) so it works regardless.
 interface LiveState {
   currentBatsmen: [ScoreboardPlayer | null, ScoreboardPlayer | null];
   currentBowler: ScoreboardPlayer | null;
@@ -102,8 +105,10 @@ interface Interruption {
 interface Match {
   _id: string;
   title: string;
-  team1: { _id: string; name: string };
-  team2: { _id: string; name: string };
+  // Nullable - a small number of old test matches have orphaned team refs (a Team document
+  // that no longer exists); every usage below must fall back gracefully rather than crash.
+  team1: { _id: string; name: string } | null;
+  team2: { _id: string; name: string } | null;
   status: string;
   venue: string;
   matchType: string;
@@ -166,6 +171,8 @@ function overBallLabel(balls: Ball[], index: number): string {
   return '';
 }
 
+type TabKey = 'info' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'ai-insights';
+
 export default function MatchPage() {
   const params = useParams();
   const router = useRouter();
@@ -183,17 +190,21 @@ export default function MatchPage() {
   const [umpireError, setUmpireError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'scorecard' | 'ai-insights'>('scorecard');
-  // Which innings' commentary is showing. Auto-follows whichever innings is currently being
-  // bowled (tracks the same "current" logic as the scorecard below) across every poll, until
-  // the viewer manually picks a side - then it stops following, the same way a chat view stops
-  // auto-scrolling once you scroll up yourself. Commentary is stored per-ball in the DB and
-  // never deleted, so both innings' full commentary stays viewable forever, not just while live.
-  const [commentaryInningsIdx, setCommentaryInningsIdx] = useState<0 | 1>(0);
+  // CricClubs-style tabbed match center - Info / Ball By Ball / Full Scorecard / Over by Over /
+  // Charts, plus our own AI Insights tab (not something CricClubs has). Defaults to Info so a
+  // freshly-opened match leads with context (toss, MVP, live snapshot) rather than dumping
+  // straight into a wall of ball-by-ball detail.
+  const [activeTab, setActiveTab] = useState<TabKey>('info');
+  // Which innings' commentary/scorecard/over-by-over is showing. Auto-follows whichever innings
+  // is currently being bowled across every poll, until the viewer manually picks a side - then
+  // it stops following, the same way a chat view stops auto-scrolling once you scroll up
+  // yourself. Commentary is stored per-ball in the DB and never deleted, so both innings' full
+  // detail stays viewable forever, not just while live.
+  const [selectedInningsIdx, setSelectedInningsIdx] = useState<0 | 1>(0);
   const [followCurrentInnings, setFollowCurrentInnings] = useState(true);
   useEffect(() => {
     if (!match || !followCurrentInnings) return;
-    setCommentaryInningsIdx((match.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0);
+    setSelectedInningsIdx((match.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0);
   }, [match, followCurrentInnings]);
 
   useEffect(() => {
@@ -341,10 +352,14 @@ export default function MatchPage() {
   // match.status alone can't tell those apart.
   const currentInnings = match.innings[(match.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0];
   const targetScore = match.interruption ? match.interruption.target : (match.innings[0]?.runs || 0);
+  const nameFor = (id: string | null | undefined) => (id ? playerDirectory.get(id) : undefined);
+  const inningsWithBalls = ([0, 1] as const).filter((idx) => match.innings[idx]?.balls?.length > 0);
+  const teamNameFor = (idx: 0 | 1) => (idx === 0 ? match.team1?.name : match.team2?.name) ?? 'Team';
 
   return (
     <div className={styles.container}>
-      {/* Header */}
+      {/* Header - persistent across every tab, matching CricClubs' match center: title/status
+          up top, then the score summary always visible regardless of which tab is open. */}
       <div className={styles.header}>
         <div className={styles.headerContent}>
           <button
@@ -365,19 +380,6 @@ export default function MatchPage() {
               ⚡ Powerplay (overs 1-{powerplayOvers})
             </span>
           )}
-          {match.toss?.winningTeam && (
-            <p className="mt-2 text-sm text-ink-secondary">
-              🪙 {match.toss.winningTeam.name} won the toss and elected to {match.toss.decision === 'bowl' ? 'bowl' : 'bat'}.
-            </p>
-          )}
-          <Link href={`/match/${matchId}/scouting`} className="block mt-3 text-sm font-medium text-gold-500 hover:text-gold-400 transition-colors">
-            📋 Scouting Report &rarr;
-          </Link>
-          {(match.status === 'Scheduled' || match.status === 'Live') && user && (
-            <Link href={`/match/${matchId}/score`} className="block mt-2 text-sm font-medium text-pitch-400 hover:text-pitch-300 transition-colors">
-              🏏 Score this match &rarr;
-            </Link>
-          )}
           {match.manOfTheMatch?.user?.name && (
             <p className="mt-2 text-sm font-medium text-gold-500">
               🏆 Man of the Match: {match.manOfTheMatch.user.name}
@@ -386,143 +388,169 @@ export default function MatchPage() {
         </div>
       </div>
 
-      {user?.id === match.createdBy?._id && (
-        <div className="max-w-[1200px] mx-auto px-5 mt-4">
-          <div className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="text-sm font-bold text-ink mb-1">Umpires</h3>
-            <p className="text-xs text-ink-muted mb-3">
-              Umpires can score this match the same way you can, without needing to be on either team's roster.
-            </p>
-            {(match.umpires || []).length > 0 && (
-              <ul className="mb-3 space-y-1.5">
-                {(match.umpires || []).map((u) => {
-                  const uid = typeof u === 'string' ? u : u._id;
-                  const name = typeof u === 'string' ? uid : u.name;
-                  return (
-                    <li key={uid} className="flex items-center justify-between text-sm">
-                      <span className="text-ink-secondary">{name}</span>
-                      <button
-                        onClick={() => handleRemoveUmpire(uid)}
-                        disabled={umpireBusy}
-                        className="text-xs text-wicket-400 hover:underline disabled:opacity-50"
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <div className="flex gap-2">
-              <select
-                value={umpireToAdd}
-                onChange={(e) => setUmpireToAdd(e.target.value)}
-                className="flex-1 min-w-0 text-sm bg-surface-alt border border-border-strong rounded-lg px-3 py-1.5 text-ink"
-              >
-                <option value="">Select a person...</option>
-                {userOptions
-                  .filter((o) => !(match.umpires || []).some((u) => (typeof u === 'string' ? u : u._id) === o.userId))
-                  .filter((o) => o.userId !== match.createdBy?._id)
-                  .map((o) => (
-                    <option key={o.userId} value={o.userId}>{o.name}</option>
-                  ))}
-              </select>
-              <button
-                onClick={handleAddUmpire}
-                disabled={!umpireToAdd || umpireBusy}
-                className="text-sm px-3 py-1.5 bg-pitch-500 text-[#06170D] font-medium rounded-lg disabled:opacity-50"
-              >
-                Add
-              </button>
+      {/* Team Scores - moved out of a tab so it's visible no matter which tab is open. */}
+      <div className="max-w-[1200px] mx-auto px-5 mt-4">
+        <div className={styles.scoreBoard}>
+          <div className={styles.teamScoreContainer}>
+            <div className={styles.teamScore}>
+              <h2 className={styles.teamName}>{match.team1?.name ?? 'Team 1'}</h2>
+              <div className={styles.score}>
+                <span className={styles.runs}>{match.innings[0]?.runs || 0}</span>
+                <span className={styles.wickets}>/{match.innings[0]?.wickets || 0}</span>
+              </div>
+              <p className={styles.overs}>
+                ({(match.innings[0]?.overs || 0).toFixed(1)} overs)
+              </p>
             </div>
-            {umpireError && <p className="mt-2 text-xs text-wicket-400">{umpireError}</p>}
+
+            <div className={styles.vsContainer}>
+              <span className={styles.vs}>VS</span>
+            </div>
+
+            <div className={styles.teamScore}>
+              <h2 className={styles.teamName}>{match.team2?.name ?? 'Team 2'}</h2>
+              <div className={styles.score}>
+                <span className={styles.runs}>{match.innings[1]?.runs || 0}</span>
+                <span className={styles.wickets}>/{match.innings[1]?.wickets || 0}</span>
+              </div>
+              <p className={styles.overs}>
+                ({(match.innings[1]?.overs || 0).toFixed(1)} overs)
+              </p>
+            </div>
+          </div>
+
+          <div className={styles.targetContainer}>
+            <p className={styles.targetLabel}>{match.interruption ? 'Revised Target' : 'Target Score'}</p>
+            <p className={styles.targetValue}>{targetScore} runs</p>
           </div>
         </div>
-      )}
 
-      {/* Predict the Winner */}
-      <div className="max-w-[1200px] mx-auto px-5 mt-4">
-        <PredictionWidget
-          matchId={matchId}
-          matchStatus={match.status}
-          team1={match.team1}
-          team2={match.team2}
-        />
+        {match.interruption && (
+          <div className="mt-3 bg-gold-500/10 border border-gold-500/30 rounded-lg p-3 text-xs text-ink-secondary">
+            <p className="font-semibold text-gold-400 mb-1">
+              Rain rule applied — revised to {match.interruption.revisedOvers} overs
+            </p>
+            <p>
+              Par score {match.interruption.parScore} ({match.interruption.resourcePercentRemaining}% resources
+              remaining at the point of interruption, {match.interruption.wicketsLostAtInterruption} wicket(s) down).
+              This is an approximate rain-rule estimate inspired by the Duckworth-Lewis-Stern method, not the
+              official licensed calculation — treat it as a guide, not a binding result.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Tab Navigation */}
       <div className={styles.tabContainer}>
-        <button
-          className={`${styles.tab} ${activeTab === 'scorecard' ? styles.activeTab : ''}`}
-          onClick={() => setActiveTab('scorecard')}
-        >
-          📊 Scorecard
+        <button className={`${styles.tab} ${activeTab === 'info' ? styles.activeTab : ''}`} onClick={() => setActiveTab('info')}>
+          ℹ️ Info
         </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'ai-insights' ? styles.activeTab : ''}`}
-          onClick={() => setActiveTab('ai-insights')}
-        >
+        <button className={`${styles.tab} ${activeTab === 'ball-by-ball' ? styles.activeTab : ''}`} onClick={() => setActiveTab('ball-by-ball')}>
+          🏏 Ball By Ball
+        </button>
+        <button className={`${styles.tab} ${activeTab === 'scorecard' ? styles.activeTab : ''}`} onClick={() => setActiveTab('scorecard')}>
+          📊 Full Scorecard
+        </button>
+        <button className={`${styles.tab} ${activeTab === 'over-by-over' ? styles.activeTab : ''}`} onClick={() => setActiveTab('over-by-over')}>
+          🔢 Over by Over
+        </button>
+        <button className={`${styles.tab} ${activeTab === 'charts' ? styles.activeTab : ''}`} onClick={() => setActiveTab('charts')}>
+          📈 Charts
+        </button>
+        <button className={`${styles.tab} ${activeTab === 'ai-insights' ? styles.activeTab : ''}`} onClick={() => setActiveTab('ai-insights')}>
           🤖 AI Insights
         </button>
       </div>
 
       {/* Content */}
       <div className={styles.content}>
-        {activeTab === 'scorecard' ? (
+        {activeTab === 'info' && (
           <>
-            {/* Team Scores */}
-            <div className={styles.scoreBoard}>
-              <div className={styles.teamScoreContainer}>
-                <div className={styles.teamScore}>
-                  <h2 className={styles.teamName}>{match.team1.name}</h2>
-                  <div className={styles.score}>
-                    <span className={styles.runs}>{match.innings[0]?.runs || 0}</span>
-                    <span className={styles.wickets}>/{match.innings[0]?.wickets || 0}</span>
-                  </div>
-                  <p className={styles.overs}>
-                    ({(match.innings[0]?.overs || 0).toFixed(1)} overs)
-                  </p>
-                </div>
-
-                <div className={styles.vsContainer}>
-                  <span className={styles.vs}>VS</span>
-                </div>
-
-                <div className={styles.teamScore}>
-                  <h2 className={styles.teamName}>{match.team2.name}</h2>
-                  <div className={styles.score}>
-                    <span className={styles.runs}>{match.innings[1]?.runs || 0}</span>
-                    <span className={styles.wickets}>/{match.innings[1]?.wickets || 0}</span>
-                  </div>
-                  <p className={styles.overs}>
-                    ({(match.innings[1]?.overs || 0).toFixed(1)} overs)
-                  </p>
-                </div>
+            {match.toss?.winningTeam && (
+              <div className="bg-surface border border-border rounded-xl p-4 mb-4">
+                <p className="text-sm text-ink-secondary">
+                  🪙 {match.toss.winningTeam.name} won the toss and elected to {match.toss.decision === 'bowl' ? 'bowl' : 'bat'}.
+                </p>
               </div>
+            )}
 
-              <div className={styles.targetContainer}>
-                <p className={styles.targetLabel}>{match.interruption ? 'Revised Target' : 'Target Score'}</p>
-                <p className={styles.targetValue}>{targetScore} runs</p>
-              </div>
+            <div className="flex flex-wrap gap-4 mb-4">
+              <Link href={`/match/${matchId}/scouting`} className="text-sm font-medium text-gold-500 hover:text-gold-400 transition-colors">
+                📋 Scouting Report &rarr;
+              </Link>
+              {(match.status === 'Scheduled' || match.status === 'Live') && user && (
+                <Link href={`/match/${matchId}/score`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300 transition-colors">
+                  🏏 Score this match &rarr;
+                </Link>
+              )}
             </div>
 
-            {match.interruption && (
-              <div className="mt-3 bg-gold-500/10 border border-gold-500/30 rounded-lg p-3 text-xs text-ink-secondary">
-                <p className="font-semibold text-gold-400 mb-1">
-                  Rain rule applied — revised to {match.interruption.revisedOvers} overs
+            {user?.id === match.createdBy?._id && (
+              <div className="bg-surface border border-border rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-ink mb-1">Umpires</h3>
+                <p className="text-xs text-ink-muted mb-3">
+                  Umpires can score this match the same way you can, without needing to be on either team's roster.
                 </p>
-                <p>
-                  Par score {match.interruption.parScore} ({match.interruption.resourcePercentRemaining}% resources
-                  remaining at the point of interruption, {match.interruption.wicketsLostAtInterruption} wicket(s) down).
-                  This is an approximate rain-rule estimate inspired by the Duckworth-Lewis-Stern method, not the
-                  official licensed calculation — treat it as a guide, not a binding result.
-                </p>
+                {(match.umpires || []).length > 0 && (
+                  <ul className="mb-3 space-y-1.5">
+                    {(match.umpires || []).map((u) => {
+                      const uid = typeof u === 'string' ? u : u._id;
+                      const name = typeof u === 'string' ? uid : u.name;
+                      return (
+                        <li key={uid} className="flex items-center justify-between text-sm">
+                          <span className="text-ink-secondary">{name}</span>
+                          <button
+                            onClick={() => handleRemoveUmpire(uid)}
+                            disabled={umpireBusy}
+                            className="text-xs text-wicket-400 hover:underline disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <div className="flex gap-2">
+                  <select
+                    value={umpireToAdd}
+                    onChange={(e) => setUmpireToAdd(e.target.value)}
+                    className="flex-1 min-w-0 text-sm bg-surface-alt border border-border-strong rounded-lg px-3 py-1.5 text-ink"
+                  >
+                    <option value="">Select a person...</option>
+                    {userOptions
+                      .filter((o) => !(match.umpires || []).some((u) => (typeof u === 'string' ? u : u._id) === o.userId))
+                      .filter((o) => o.userId !== match.createdBy?._id)
+                      .map((o) => (
+                        <option key={o.userId} value={o.userId}>{o.name}</option>
+                      ))}
+                  </select>
+                  <button
+                    onClick={handleAddUmpire}
+                    disabled={!umpireToAdd || umpireBusy}
+                    className="text-sm px-3 py-1.5 bg-pitch-500 text-[#06170D] font-medium rounded-lg disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
+                {umpireError && <p className="mt-2 text-xs text-wicket-400">{umpireError}</p>}
+              </div>
+            )}
+
+            {match.team1 && match.team2 && (
+              <div className="mb-4">
+                <PredictionWidget
+                  matchId={matchId}
+                  matchStatus={match.status}
+                  team1={match.team1}
+                  team2={match.team2}
+                />
               </div>
             )}
 
             {/* At the Crease - live striker/non-striker/bowler figures, Cricbuzz-style */}
             {match.status === 'Live' && currentInnings.liveState && (
-              <div className="mt-4 bg-surface border border-border rounded-xl p-4">
+              <div className="mb-4 bg-surface border border-border rounded-xl p-4">
                 <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wide text-ink-muted">At the Crease</h3>
                 <div className="space-y-2">
                   {currentInnings.liveState.currentBatsmen.map((batsman, i) => {
@@ -566,7 +594,7 @@ export default function MatchPage() {
             where each of them has actually scored their runs (or, with too little data on
             them individually, similar batsmen pooled together). See FieldingPlan.tsx. */}
             {match.status === 'Live' && currentInnings.liveState && (
-              <div className="mt-4 bg-surface border border-border rounded-xl p-4">
+              <div className="mb-4 bg-surface border border-border rounded-xl p-4">
                 <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wide text-ink-muted">Recommended Field</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {currentInnings.liveState.currentBatsmen.map((batsman, i) => (
@@ -583,28 +611,15 @@ export default function MatchPage() {
               </div>
             )}
 
-            {/* Player Performance Reports */}
-            {playersWhoAppeared(match.innings).length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-base font-bold text-ink mb-1">Player Performance Reports</h3>
-                <p className="text-xs text-ink-muted mb-3">
-                  This match&apos;s numbers vs. career average, recent form, and a tactical read on every dismissal.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {playersWhoAppeared(match.innings).map((playerId) => (
-                    <Link
-                      key={playerId}
-                      href={`/match/${matchId}/report/${playerId}`}
-                      className="text-sm px-3 py-1.5 bg-surface border border-border rounded-full text-ink-secondary hover:text-pitch-400 hover:border-pitch-500/40 transition-colors"
-                    >
-                      {playerDirectory.get(playerId) ?? 'View report'} &rarr;
-                    </Link>
-                  ))}
-                </div>
-              </div>
+            {!match.toss?.winningTeam && match.status === 'Scheduled' && !currentInnings.liveState && (
+              <p className="text-sm text-ink-muted">More match context (toss, live snapshot) will appear here once scoring begins.</p>
             )}
+          </>
+        )}
 
-            {/* Recent Balls */}
+        {activeTab === 'ball-by-ball' && (
+          <>
+            {/* Recent Balls - compact at-a-glance strip for whichever innings is currently selected. */}
             <div className={styles.ballsSection}>
               <h3 className={styles.ballsTitle}>Recent Deliveries</h3>
               <div className={styles.ballsGrid}>
@@ -619,23 +634,23 @@ export default function MatchPage() {
 
             {/* Commentary - full ball-by-ball for whichever innings is selected, preserved and
                 scrollable for the entire match, not just a recent-deliveries snippet. */}
-            {(match.innings[0]?.balls?.length > 0 || match.innings[1]?.balls?.length > 0) && (() => {
-              const selectedInnings = match.innings[commentaryInningsIdx];
-              const inningsTeamName = commentaryInningsIdx === 0 ? match.team1.name : match.team2.name;
+            {inningsWithBalls.length > 0 && (() => {
+              const selectedInnings = match.innings[selectedInningsIdx];
+              const inningsTeamName = teamNameFor(selectedInningsIdx);
               return (
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <h3 className="text-base font-bold text-ink">Commentary</h3>
                     <div className="flex gap-1">
-                      {([0, 1] as const).filter((idx) => match.innings[idx]?.balls?.length > 0).map((idx) => (
+                      {inningsWithBalls.map((idx) => (
                         <button
                           key={idx}
-                          onClick={() => { setCommentaryInningsIdx(idx); setFollowCurrentInnings(false); }}
+                          onClick={() => { setSelectedInningsIdx(idx); setFollowCurrentInnings(false); }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                            commentaryInningsIdx === idx ? 'bg-pitch-500/15 text-pitch-400' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                            selectedInningsIdx === idx ? 'bg-pitch-500/15 text-pitch-400' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
                           }`}
                         >
-                          {idx === 0 ? match.team1.name : match.team2.name}
+                          {teamNameFor(idx)}
                         </button>
                       ))}
                     </div>
@@ -693,11 +708,161 @@ export default function MatchPage() {
                 </div>
               </div>
             )}
+          </>
+        )}
 
-            {/* Manhattan & Worm Charts */}
-            {chartsInnings.some((inn) => inn.overs.length > 0) && (
+        {activeTab === 'scorecard' && (
+          <>
+            {/* Full Scorecard - computed fresh from ball data (lib/matchStats.ts), not the
+                client-only liveState snapshot, so it works for every match regardless of status
+                or how it was scored (liveState is absent on any match not scored through the
+                live-scoring UI - e.g. every match this app's simulation scripts created). */}
+            {inningsWithBalls.length === 0 ? (
+              <p className="text-sm text-ink-muted">Scorecard will appear here once the match starts.</p>
+            ) : (
+              match.innings.map((innings, idx) => {
+                if (innings.balls.length === 0) return null;
+                const { battingOrder, bowlingOrder } = battingBowlingOrder(innings.balls);
+                return (
+                  <div key={idx} className={styles.scorecardInnings}>
+                    <h3 className={styles.scorecardInningsTitle}>
+                      {teamNameFor(idx as 0 | 1)} — {innings.runs}/{innings.wickets} ({innings.overs.toFixed(1)} ov)
+                    </h3>
+
+                    <p className={styles.scorecardSectionLabel}>Batting</p>
+                    <div className={styles.scorecardHeaderRow}>
+                      <span className={styles.scorecardHeaderCell}>Batsman</span>
+                      <span className={styles.scorecardHeaderCell}>R</span>
+                      <span className={styles.scorecardHeaderCell}>B</span>
+                      <span className={styles.scorecardHeaderCell}>4s</span>
+                      <span className={styles.scorecardHeaderCell}>6s</span>
+                      <span className={styles.scorecardHeaderCell}>SR</span>
+                    </div>
+                    {battingOrder.map((playerId) => {
+                      const stats = battingStatsFor(innings.balls, playerId);
+                      const dismissal = dismissalFor(innings.balls, playerId, nameFor);
+                      return (
+                        <div key={playerId} className={styles.scorecardRow}>
+                          <div>
+                            <p className={styles.scorecardPlayerName}>{playerDirectory.get(playerId) ?? 'Player'}</p>
+                            <p className={styles.scorecardDismissal}>{dismissal ?? 'not out'}</p>
+                          </div>
+                          <span className={styles.scorecardCell}>{stats.runs}</span>
+                          <span className={styles.scorecardCell}>{stats.ballsFaced}</span>
+                          <span className={styles.scorecardCell}>{stats.fours}</span>
+                          <span className={styles.scorecardCell}>{stats.sixes}</span>
+                          <span className={styles.scorecardCell}>{stats.strikeRate.toFixed(1)}</span>
+                        </div>
+                      );
+                    })}
+
+                    <p className={styles.scorecardSectionLabel}>Bowling</p>
+                    <div className={styles.scorecardHeaderRow}>
+                      <span className={styles.scorecardHeaderCell}>Bowler</span>
+                      <span className={styles.scorecardHeaderCell}>O</span>
+                      <span className={styles.scorecardHeaderCell}>M</span>
+                      <span className={styles.scorecardHeaderCell}>R</span>
+                      <span className={styles.scorecardHeaderCell}>W</span>
+                      <span className={styles.scorecardHeaderCell}>Econ</span>
+                    </div>
+                    {bowlingOrder.map((playerId) => {
+                      const stats = bowlingStatsFor(innings.balls, playerId);
+                      const maidens = maidenOversFor(innings.balls, playerId);
+                      return (
+                        <div key={playerId} className={styles.scorecardRow}>
+                          <span className={styles.scorecardPlayerName}>{playerDirectory.get(playerId) ?? 'Player'}</span>
+                          <span className={styles.scorecardCell}>{stats.overs.toFixed(1)}</span>
+                          <span className={styles.scorecardCell}>{maidens}</span>
+                          <span className={styles.scorecardCell}>{stats.runsConceded}</span>
+                          <span className={styles.scorecardCell}>{stats.wickets}</span>
+                          <span className={styles.scorecardCell}>{stats.economy.toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })
+            )}
+
+            {/* Player Performance Reports */}
+            {playersWhoAppeared(match.innings).length > 0 && (
               <div className="mt-6">
-                <h3 className="text-base font-bold text-ink mb-3">Match Analytics</h3>
+                <h3 className="text-base font-bold text-ink mb-1">Player Performance Reports</h3>
+                <p className="text-xs text-ink-muted mb-3">
+                  This match&apos;s numbers vs. career average, recent form, and a tactical read on every dismissal.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {playersWhoAppeared(match.innings).map((playerId) => (
+                    <Link
+                      key={playerId}
+                      href={`/match/${matchId}/report/${playerId}`}
+                      className="text-sm px-3 py-1.5 bg-surface border border-border rounded-full text-ink-secondary hover:text-pitch-400 hover:border-pitch-500/40 transition-colors"
+                    >
+                      {playerDirectory.get(playerId) ?? 'View report'} &rarr;
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'over-by-over' && (
+          <>
+            {inningsWithBalls.length === 0 ? (
+              <p className="text-sm text-ink-muted">Over-by-over detail will appear here once the match starts.</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h3 className="text-base font-bold text-ink">Over by Over Score</h3>
+                  <div className="flex gap-1">
+                    {inningsWithBalls.map((idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => { setSelectedInningsIdx(idx); setFollowCurrentInnings(false); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          selectedInningsIdx === idx ? 'bg-pitch-500/15 text-pitch-400' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                        }`}
+                      >
+                        {teamNameFor(idx)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {match.innings[selectedInningsIdx]?.balls?.length ? (
+                  <div className="bg-surface border border-border rounded-xl divide-y divide-border p-2">
+                    {overByOver(match.innings[selectedInningsIdx].balls).slice().reverse().map((o) => (
+                      <div key={o.over} className={styles.overRow}>
+                        <div className={styles.overLabel}>
+                          Over {o.over + 1}
+                          <span className={styles.overBowlerName}>{nameFor(o.bowlerId) ?? 'Bowler'}</span>
+                        </div>
+                        <div className={styles.overBalls}>
+                          {o.balls.map((b, i) => (
+                            <span key={i} className={`${styles.overBallChip} ${b.isWicket ? styles.overBallChipWicket : ''}`}>
+                              {b.label}
+                            </span>
+                          ))}
+                        </div>
+                        <div className={styles.overSummary}>
+                          {o.runs} run{o.runs === 1 ? '' : 's'}{o.wickets > 0 ? `, ${o.wickets}w` : ''}
+                          <span className={styles.overSummaryTotal}>{o.runningTotal}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-ink-muted">{teamNameFor(selectedInningsIdx)} haven't batted yet.</p>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {activeTab === 'charts' && (
+          <>
+            {chartsInnings.some((inn) => inn.overs.length > 0) ? (
+              <>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-surface border border-border rounded-xl p-4">
                     <h4 className="text-sm font-semibold text-ink-secondary mb-2">Manhattan Chart</h4>
@@ -718,15 +883,14 @@ export default function MatchPage() {
                 </div>
 
                 {/* Partnerships - chronological (not sorted by size), since the natural way to
-                    read a partnership breakdown is following the innings in order, same as the
-                    commentary/fall-of-wickets flow above rather than a leaderboard. */}
+                    read a partnership breakdown is following the innings in order. */}
                 {chartsInnings.some((inn) => inn.partnerships?.length > 0) && (
                   <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {chartsInnings.map((inn, idx) => (
                       inn.partnerships?.length > 0 && (
                         <div key={idx} className="bg-surface border border-border rounded-xl p-4">
                           <h4 className="text-sm font-semibold text-ink-secondary mb-2">
-                            Partnerships &mdash; {idx === 0 ? match.team1.name : match.team2.name}
+                            Partnerships &mdash; {teamNameFor(idx as 0 | 1)}
                           </h4>
                           <div className="space-y-1.5">
                             {inn.partnerships.map((p, i) => {
@@ -747,10 +911,14 @@ export default function MatchPage() {
                     ))}
                   </div>
                 )}
-              </div>
+              </>
+            ) : (
+              <p className="text-sm text-ink-muted">Charts will appear here once the match starts.</p>
             )}
           </>
-        ) : (
+        )}
+
+        {activeTab === 'ai-insights' && (
           <AITacticalAdvisor
             matchId={matchId}
             userId={user?.id || ''}
