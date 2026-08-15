@@ -11,6 +11,7 @@ const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
 const { generateMatchArticle } = require('../services/matchArticleGenerator');
 const { generateMatchSummary } = require('../services/matchSummaryGenerator');
+const { notifyMatchStatusChange } = require('../services/notificationService');
 const { getMatchPerformanceReport, getBowlerLineLengthEffectiveness, getLiveMatchupPlan } = require('../services/tendencyAnalytics');
 const { blendWithPrior } = require('../utils/statUtils');
 const { resourcePercent, revisedTarget } = require('../services/rainRuleCalculator');
@@ -254,6 +255,9 @@ exports.updateMatch = async (req, res) => {
     }
 
     const { status, toss, result, manOfTheMatch } = req.body;
+    // Captured before mutation so the notification block below can tell an actual transition
+    // into Live/Completed apart from a no-op re-save of a match that's already in that status.
+    const previousStatus = match.status;
     if (status) match.status = status;
     if (toss) match.toss = toss;
     if (result) match.result = result;
@@ -327,6 +331,18 @@ exports.updateMatch = async (req, res) => {
         }
       } catch (articleError) {
         console.error('Match article generation failed:', articleError.message);
+      }
+    }
+
+    // Notify every rostered player on either playing team when the match actually transitions
+    // into Live or Completed (not on a no-op re-save of a match already in that status - see
+    // `previousStatus` above). Wrapped the same defensive way as the other post-update side
+    // effects in this function: a notification bug must never fail match completion itself.
+    if (status && status !== previousStatus && ['Live', 'Completed'].includes(status)) {
+      try {
+        await notifyMatchStatusChange(match, status === 'Live' ? 'match_live' : 'match_completed');
+      } catch (notifyError) {
+        console.error('Match notification creation failed:', notifyError.message);
       }
     }
 

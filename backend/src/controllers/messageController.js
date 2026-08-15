@@ -2,6 +2,7 @@ const Message = require('../models/Message');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const Tournament = require('../models/Tournament');
+const { notifyTournamentAnnouncement } = require('../services/notificationService');
 
 async function isTeamMember(team, userId) {
   const playerProfile = await Player.findOne({ user: userId });
@@ -109,6 +110,16 @@ exports.postTournamentMessage = async (req, res) => {
     await message.populate('sender', 'name');
 
     req.socketManager.emitNewMessage('tournament', tournament._id, message);
+
+    // Notify every rostered player on any team registered in this tournament that a new
+    // announcement was posted. Wrapped defensively, same reasoning as matchController.js's
+    // post-update side effects: a notification bug must never fail posting the announcement
+    // itself.
+    try {
+      await notifyTournamentAnnouncement(tournament, message.text);
+    } catch (notifyError) {
+      console.error('Tournament announcement notification creation failed:', notifyError.message);
+    }
 
     res.status(201).json({ success: true, message });
   } catch (error) {
