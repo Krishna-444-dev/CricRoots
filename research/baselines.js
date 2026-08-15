@@ -11,7 +11,7 @@ const {
   getMatchupPlan,
   getLiveMatchupPlan
 } = require(path.join(__dirname, '..', 'backend', 'src', 'services', 'tendencyAnalytics'));
-const { blendWithPrior } = require(path.join(__dirname, '..', 'backend', 'src', 'utils', 'statUtils'));
+const { blendWithPrior, hierarchicalBlend } = require(path.join(__dirname, '..', 'backend', 'src', 'utils', 'statUtils'));
 
 function findBucket(breakdown, line, length) {
   return breakdown.buckets.find((b) => b.line === line && b.length === length) || null;
@@ -67,6 +67,30 @@ async function archetypeOnly(batsmanId, bowlerId, line, length, playerLookup) {
   return bucket ? bucket.dismissalRate / 100 : null;
 }
 
+/** Ablation baseline - isolates whether the two archetype-level rungs specifically are what
+ * drag fullHierarchy down (research/diagnostics/experiment-2-diagnostic.md Finding 3's
+ * falsifiable explanation). Uses the real, unmodified hierarchicalBlend (the same function
+ * getMatchupPlan calls) with just 2 levels - exact matchup, global - instead of getMatchupPlan's
+ * 4. Built the same way getMatchupPlan builds its own levels array (tendencyAnalytics.js:162-170:
+ * raw 0-100 dismissalRate scale, default k=15, {value, n} per level) so this differs from
+ * fullHierarchy in exactly one respect: the two archetype rungs are absent. Not a
+ * reimplementation of hierarchicalBlend and not a change to tendencyAnalytics.js/statUtils.js -
+ * calls their real exported functions with a different levels array. */
+async function fullHierarchyNoArchetype(batsmanId, bowlerId, line, length) {
+  const [exact, global] = await Promise.all([
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: [bowlerId] }),
+    getLineLengthBreakdown({})
+  ]);
+  const exactBucket = findBucket(exact, line, length);
+  const globalBucket = findBucket(global, line, length);
+  const levels = [
+    { value: exactBucket ? exactBucket.dismissalRate : 0, n: exactBucket ? exactBucket.balls : 0 },
+    { value: globalBucket ? globalBucket.dismissalRate : 0, n: globalBucket ? globalBucket.balls : 0 }
+  ];
+  const blended = hierarchicalBlend(levels);
+  return blended.value !== null ? blended.value / 100 : null;
+}
+
 /** Proposed method - the real, unmodified getMatchupPlan. */
 async function fullHierarchy(batsmanId, bowlerId, line, length) {
   const plan = await getMatchupPlan(batsmanId, bowlerId);
@@ -90,6 +114,7 @@ module.exports = {
   rawExactMatchup,
   singleLevelShrinkage,
   archetypeOnly,
+  fullHierarchyNoArchetype,
   fullHierarchy,
   fullHierarchyWithLive
 };

@@ -108,6 +108,7 @@ const HISTORICAL_METHODS = {
   rawExactMatchup: (b, w, l, n) => baselines.rawExactMatchup(b, w, l, n),
   singleLevelShrinkage: (b, w, l, n) => baselines.singleLevelShrinkage(b, w, l, n),
   archetypeOnly: (b, w, l, n, playerLookup) => baselines.archetypeOnly(b, w, l, n, playerLookup),
+  fullHierarchyNoArchetype: (b, w, l, n) => baselines.fullHierarchyNoArchetype(b, w, l, n),
   fullHierarchy: (b, w, l, n) => baselines.fullHierarchy(b, w, l, n)
 };
 
