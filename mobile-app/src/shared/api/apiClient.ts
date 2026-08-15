@@ -251,6 +251,10 @@ export const tournamentsAPI = {
 // --- Leagues (backend/src/routes/leagueRoutes.js) ---
 export const leaguesAPI = {
   getLeagues: () => apiFetch<{ success: true; leagues: any[] }>('/leagues'),
+  // Leagues the current user organizes or plays in - what the leagues screen shows by default.
+  // Every other league is search-only (see searchLeagues below), never fetched eagerly.
+  getMyLeagues: () => apiFetch<{ success: true; leagues: any[] }>('/leagues/mine'),
+  searchLeagues: (term: string) => apiFetch<{ success: true; leagues: any[] }>(`/leagues?search=${encodeURIComponent(term)}`),
   // GET /:id already includes this league's tournaments - no separate endpoint needed.
   getLeagueById: (leagueId: string) => apiFetch<{ success: true; league: any; tournaments: any[] }>(`/leagues/${leagueId}`),
   createLeague: (data: { name: string; description?: string; logo?: string; isPublic?: boolean }) =>

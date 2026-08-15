@@ -1,5 +1,7 @@
 const League = require('../models/League');
 const Tournament = require('../models/Tournament');
+const Team = require('../models/Team');
+const Player = require('../models/Player');
 
 // @desc    Create a new league
 // @route   POST /api/leagues
@@ -37,12 +39,55 @@ exports.createLeague = async (req, res) => {
   }
 };
 
-// @desc    Get all leagues
-// @route   GET /api/leagues
+// @desc    Get all leagues, optionally filtered by name - the frontend only calls this once the
+//          viewer actually searches (see getMyLeagues below for the leagues shown by default),
+//          so an absent `search` deliberately still returns everything rather than nothing, for
+//          any other caller of this same public endpoint that expects the old full-list behavior.
+// @route   GET /api/leagues?search=<term>
 // @access  Public
 exports.getAllLeagues = async (req, res) => {
   try {
-    const leagues = await League.find().populate('organizer').sort({ createdAt: -1 });
+    const { search } = req.query;
+    const query = search ? { name: { $regex: String(search).trim(), $options: 'i' } } : {};
+    const leagues = await League.find(query).populate('organizer').sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: leagues.length,
+      leagues
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Leagues the current user is actually involved in - organizing, or playing (rostered
+//          on a team registered in one of that league's tournaments). This is what the leagues
+//          page shows by default; every other league is only reachable via search (getAllLeagues
+//          above), not shown eagerly.
+// @route   GET /api/leagues/mine
+// @access  Private
+exports.getMyLeagues = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const organizedLeagueIds = (await League.find({ organizer: userId }).select('_id')).map((l) => l._id.toString());
+
+    let playedLeagueIds = [];
+    const myPlayer = await Player.findOne({ user: userId }).select('_id');
+    if (myPlayer) {
+      const myTeamIds = (await Team.find({ players: myPlayer._id }).select('_id')).map((t) => t._id);
+      if (myTeamIds.length > 0) {
+        const tournaments = await Tournament.find({ teams: { $in: myTeamIds }, league: { $ne: null } }).select('league');
+        playedLeagueIds = tournaments.map((t) => t.league.toString());
+      }
+    }
+
+    const allIds = [...new Set([...organizedLeagueIds, ...playedLeagueIds])];
+    const leagues = await League.find({ _id: { $in: allIds } }).populate('organizer').sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
