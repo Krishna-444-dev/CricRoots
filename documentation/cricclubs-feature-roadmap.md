@@ -392,6 +392,24 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   Live -> Completed produced exactly the expected notifications with no duplicate on a re-save
   no-op, posting a tournament announcement notified every rostered team's players, and the
   403-on-wrong-user / mark-all-read / unread-count paths all checked out.
+- **Match Story tab** (`4790690`): explicit user feedback that the AI-generated summary was too
+  short ("we want to tell a story... not just 2 lines") - new dedicated tab (placed right after
+  Info) with a 4-paragraph narrative from `matchStoryGenerator.js`: scene-setting (venue/
+  tournament/toss), first-innings shape (phase run rates, biggest partnership, top scorers),
+  the chase (target, phase shape, top bowlers, finish), and a result/Man-of-the-Match closer.
+  Distinct from the existing short `Match.summary` blurb (still shown on the Info tab card) -
+  this is `Match.story: [String]`, one entry per paragraph so the frontend renders each as its
+  own block without re-splitting a blob. Deliberately does NOT call `keyMoments.js`'s
+  win-probability model for a "turning point" beat - that's a real per-over AI-engine round trip,
+  fine for an on-demand tab load, too slow to make every match completion wait on - so the "how
+  it swung" narrative comes from phase run rates and partnerships instead, pure local arithmetic,
+  consistent with the rest of this codebase's "stats in backend, not ML at this scale" convention.
+  Found and fixed a real bug during verification (a full record-real-balls-via-the-actual-API
+  end-to-end test, not just calling the generator directly): the "leaned on `<bowler>` to stay in
+  the fight" sentence was crediting the *chasing* team with their opponent's bowling effort,
+  caused by a mis-derived `inn1Opponent` variable that actually pointed at the chasing team, not
+  the bowling team - fixed by using the correct `inn1Team` (the side that batted first, now
+  defending) directly.
 
 ### Backlog (not started, roughly in priority order)
 
