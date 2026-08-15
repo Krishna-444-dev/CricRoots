@@ -318,6 +318,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     const hasGroups = (selectedTournament?.groups?.length ?? 0) > 0;
     const hasDivisions = (selectedTournament?.divisions?.length ?? 0) > 0;
     if (activeTab === 'standings' && selectedTournament && (hasGroups || hasDivisions)) {
+      if (hasDivisions && !selectedDivision) return; // waiting on the division-default effect
       setGroupStandingsLoading(true);
       fetch(`/api/tournaments/${selectedTournament._id}/standings`)
         .then((r) => r.json())
@@ -1008,8 +1009,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
 
         {activeTab === 'standings' && selectedTournament && (
           <div className={styles.card}>
-            <h2>{selectedTournament.name} - Standings</h2>
-            {(selectedTournament.groups?.length ?? 0) > 0 ? (
+            <h2>{selectedTournament.name} - Standings{(selectedTournament.divisions?.length ?? 0) > 0 ? ` - ${selectedDivision}` : ''}</h2>
+            {(selectedTournament.groups?.length ?? 0) > 0 || (selectedTournament.divisions?.length ?? 0) > 0 ? (
               groupStandingsLoading || !groupStandings ? (
                 <p className={styles.infoText}>Loading group standings...</p>
               ) : (

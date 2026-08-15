@@ -213,6 +213,14 @@ exports.getAllTournaments = async (req, res) => {
       .populate({ path: 'awards.manOfTheTournament', populate: { path: 'user', select: 'name' } })
       .populate({ path: 'awards.bestBatsman', populate: { path: 'user', select: 'name' } })
       .populate({ path: 'awards.bestBowler', populate: { path: 'user', select: 'name' } })
+      .populate('divisions.teams')
+      .populate('divisions.groups.teams')
+      .populate('divisions.awards.winner')
+      .populate('divisions.awards.runnerUp')
+      .populate('divisions.awards.thirdPlace')
+      .populate({ path: 'divisions.awards.manOfTheTournament', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'divisions.awards.bestBatsman', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'divisions.awards.bestBowler', populate: { path: 'user', select: 'name' } })
       .sort({ [sortBy]: parseInt(order) });
 
     // tournament.statistics.completedMatches is a stored field nothing ever wrote to (always
@@ -261,7 +269,15 @@ exports.getTournament = async (req, res) => {
       .populate('awards.thirdPlace')
       .populate({ path: 'awards.manOfTheTournament', populate: { path: 'user', select: 'name' } })
       .populate({ path: 'awards.bestBatsman', populate: { path: 'user', select: 'name' } })
-      .populate({ path: 'awards.bestBowler', populate: { path: 'user', select: 'name' } });
+      .populate({ path: 'awards.bestBowler', populate: { path: 'user', select: 'name' } })
+      .populate('divisions.teams')
+      .populate('divisions.groups.teams')
+      .populate('divisions.awards.winner')
+      .populate('divisions.awards.runnerUp')
+      .populate('divisions.awards.thirdPlace')
+      .populate({ path: 'divisions.awards.manOfTheTournament', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'divisions.awards.bestBatsman', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'divisions.awards.bestBowler', populate: { path: 'user', select: 'name' } });
 
     if (!tournament) {
       return res.status(404).json({
