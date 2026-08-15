@@ -11,9 +11,12 @@ import ManhattanChart from '@/components/insights/ManhattanChart';
 import WormChart from '@/components/insights/WormChart';
 import ExtrasChart from '@/components/insights/ExtrasChart';
 import RunsTypeChart from '@/components/insights/RunsTypeChart';
+import BoundaryBallChart from '@/components/insights/BoundaryBallChart';
+import RunRateChart from '@/components/insights/RunRateChart';
 import FieldingPlan from '@/components/insights/FieldingPlan';
 import PredictionWidget from '@/components/match/PredictionWidget';
 import { battingStatsFor, bowlingStatsFor, dismissalFor, maidenOversFor, battingBowlingOrder, overByOver } from '@/lib/matchStats';
+import { resolveRefName } from '@/lib/resolveRef';
 import styles from './page.module.css';
 
 interface Partnership {
@@ -29,7 +32,15 @@ interface ChartInnings {
   cumulative: { over: number; total: number }[];
   extrasBreakdown: { type: string; runs: number }[];
   runsTypeBreakdown: { runs: string; count: number }[];
+  boundaryBallBreakdown: { ball: number; count: number; percent: number }[];
   partnerships: Partnership[];
+}
+
+// A team roster entry as returned by GET /api/teams/:id (players populated with their user's
+// name) - just enough shape for the "Yet to bat" list below.
+interface RosterPlayer {
+  _id: string;
+  user: { _id: string; name: string } | string | null;
 }
 
 interface KeyMoment {
@@ -232,6 +243,10 @@ export default function MatchPage() {
   // MVP list collapses to the top few by default, same "Show all" toggle pattern the Tournament
   // Manager's Awards tab uses for its Top Performers lists (see TournamentManager.tsx).
   const [showAllMvp, setShowAllMvp] = useState(false);
+  // Full rosters for the "Yet to bat" list on the Full Scorecard tab - battingBowlingOrder only
+  // knows who has actually faced a ball, not who's registered but hasn't batted yet.
+  const [team1Roster, setTeam1Roster] = useState<RosterPlayer[]>([]);
+  const [team2Roster, setTeam2Roster] = useState<RosterPlayer[]>([]);
   const [playerDirectory, setPlayerDirectory] = useState<Map<string, string>>(new Map());
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [umpireToAdd, setUmpireToAdd] = useState('');
@@ -265,6 +280,21 @@ export default function MatchPage() {
     if (!match || !followCurrentInnings) return;
     setSelectedInningsIdx((match.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0);
   }, [match, followCurrentInnings]);
+
+  // Team rosters for "Yet to bat" - fetched once per team id (not on every 10s poll), same
+  // scoping the scouting page uses for its own team lookups.
+  useEffect(() => {
+    if (match?.team1?._id) {
+      fetch(`/api/teams/${match.team1._id}`).then((r) => r.json()).then((data) => {
+        if (data.success) setTeam1Roster(data.team.players || []);
+      }).catch(() => {});
+    }
+    if (match?.team2?._id) {
+      fetch(`/api/teams/${match.team2._id}`).then((r) => r.json()).then((data) => {
+        if (data.success) setTeam2Roster(data.team.players || []);
+      }).catch(() => {});
+    }
+  }, [match?.team1?._id, match?.team2?._id]);
 
   useEffect(() => {
     fetchMatch();
@@ -495,6 +525,21 @@ export default function MatchPage() {
   const nameFor = (id: string | null | undefined) => (id ? playerDirectory.get(id) : undefined);
   const inningsWithBalls = ([0, 1] as const).filter((idx) => match.innings[idx]?.balls?.length > 0);
   const teamNameFor = (idx: 0 | 1) => (idx === 0 ? match.team1?.name : match.team2?.name) ?? 'Team';
+  const rosterFor = (idx: 0 | 1) => (idx === 0 ? team1Roster : team2Roster);
+  const rosterPlayerName = (p: RosterPlayer) => playerDirectory.get(p._id) ?? resolveRefName(p.user, 'Player');
+  // "Yet to bat" only makes sense while an innings is still in progress - once the batting
+  // side is all out (wickets down to one short of the full roster) or its overs allocation is
+  // used up, whoever's left just didn't get a turn, which isn't the same thing CricClubs shows
+  // this list for. totalOvers falls back through a mid-innings interruption's revised
+  // allocation (only ever applies to the second innings, see Interruption's comment) before the
+  // match's own total, and is skipped entirely for Test (no over cap).
+  const inningsInProgress = (idx: 0 | 1, innings: Match['innings'][number], roster: RosterPlayer[]) => {
+    if (roster.length === 0) return false;
+    const allOut = innings.wickets >= Math.max(1, roster.length - 1);
+    const oversAllocation = idx === 1 && match.interruption ? match.interruption.revisedOvers : match.totalOvers ?? 20;
+    const oversComplete = match.matchType !== 'Test' && innings.overs >= oversAllocation;
+    return !allOut && !oversComplete;
+  };
   // Both sides must be real, present values - a bare `user?.id === match.createdBy?._id` reads
   // as true for a logged-out viewer (undefined) on a match with no createdBy set (undefined),
   // spuriously granting organizer-only controls to any anonymous visitor. Found live: this
@@ -994,6 +1039,9 @@ export default function MatchPage() {
               match.innings.map((innings, idx) => {
                 if (innings.balls.length === 0) return null;
                 const { battingOrder, bowlingOrder } = battingBowlingOrder(innings.balls);
+                const roster = rosterFor(idx as 0 | 1);
+                const yetToBat = roster.filter((p) => !battingOrder.includes(p._id));
+                const showYetToBat = yetToBat.length > 0 && inningsInProgress(idx as 0 | 1, innings, roster);
                 return (
                   <div key={idx} className={styles.scorecardInnings}>
                     <h3 className={styles.scorecardInningsTitle}>
@@ -1026,27 +1074,36 @@ export default function MatchPage() {
                         </div>
                       );
                     })}
+                    {showYetToBat && (
+                      <p className={styles.scorecardYetToBat}>
+                        Yet to bat: {yetToBat.map((p) => rosterPlayerName(p)).join(' | ')}
+                      </p>
+                    )}
 
                     <p className={styles.scorecardSectionLabel}>Bowling</p>
-                    <div className={styles.scorecardHeaderRow}>
+                    <div className={styles.scorecardBowlingHeaderRow}>
                       <span className={styles.scorecardHeaderCell}>Bowler</span>
                       <span className={styles.scorecardHeaderCell}>O</span>
                       <span className={styles.scorecardHeaderCell}>M</span>
                       <span className={styles.scorecardHeaderCell}>R</span>
                       <span className={styles.scorecardHeaderCell}>W</span>
-                      <span className={styles.scorecardHeaderCell}>Econ</span>
+                      <span className={styles.scorecardHeaderCell}>ER</span>
+                      <span className={styles.scorecardHeaderCell}>WD</span>
+                      <span className={styles.scorecardHeaderCell}>NB</span>
                     </div>
                     {bowlingOrder.map((playerId) => {
                       const stats = bowlingStatsFor(innings.balls, playerId);
                       const maidens = maidenOversFor(innings.balls, playerId);
                       return (
-                        <div key={playerId} className={styles.scorecardRow}>
+                        <div key={playerId} className={styles.scorecardBowlingRow}>
                           <span className={styles.scorecardPlayerName}>{playerDirectory.get(playerId) ?? 'Player'}</span>
                           <span className={styles.scorecardCell}>{stats.overs.toFixed(1)}</span>
                           <span className={styles.scorecardCell}>{maidens}</span>
                           <span className={styles.scorecardCell}>{stats.runsConceded}</span>
                           <span className={styles.scorecardCell}>{stats.wickets}</span>
                           <span className={styles.scorecardCell}>{stats.economy.toFixed(2)}</span>
+                          <span className={styles.scorecardCell}>{stats.wides}</span>
+                          <span className={styles.scorecardCell}>{stats.noBalls}</span>
                         </div>
                       );
                     })}
@@ -1144,6 +1201,10 @@ export default function MatchPage() {
                     <WormChart innings={chartsInnings} />
                   </div>
                   <div className="bg-surface border border-border rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-ink-secondary mb-2">Run Rate</h4>
+                    <RunRateChart innings={chartsInnings} />
+                  </div>
+                  <div className="bg-surface border border-border rounded-xl p-4">
                     <h4 className="text-sm font-semibold text-ink-secondary mb-2">Extras</h4>
                     <ExtrasChart innings={chartsInnings} />
                   </div>
@@ -1152,6 +1213,24 @@ export default function MatchPage() {
                     <RunsTypeChart innings={chartsInnings} />
                   </div>
                 </div>
+
+                {/* Boundary Ball Percentage - one donut per innings (a combined chart would mix
+                    two innings' distributions together), same per-innings card treatment the
+                    Partnerships block below uses. */}
+                {chartsInnings.some((inn) => inn.boundaryBallBreakdown?.some((b) => b.count > 0)) && (
+                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {chartsInnings.map((inn, idx) => (
+                      inn.boundaryBallBreakdown?.some((b) => b.count > 0) && (
+                        <div key={idx} className="bg-surface border border-border rounded-xl p-4">
+                          <h4 className="text-sm font-semibold text-ink-secondary mb-2">
+                            Boundary Ball % &mdash; {teamNameFor(idx as 0 | 1)}
+                          </h4>
+                          <BoundaryBallChart data={inn.boundaryBallBreakdown} />
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
 
                 {/* Partnerships - chronological (not sorted by size), since the natural way to
                     read a partnership breakdown is following the innings in order. */}

@@ -374,6 +374,38 @@
   margin-top: 0;
 }
 
+.scorecardYetToBat {
+  font-size: 12px;
+  color: #6B7A99;
+  margin: 8px 0 0 0;
+  line-height: 1.5;
+}
+
+/* Bowling table has 7 stat columns (O/M/R/W/ER/WD/NB) vs. batting's 5 - its own grid template
+   rather than widening .scorecardHeaderRow/.scorecardRow, which the batting table above still uses. */
+.scorecardBowlingHeaderRow,
+.scorecardBowlingRow {
+  display: grid;
+  grid-template-columns: 1fr repeat(7, 38px);
+  align-items: center;
+  gap: 4px;
+}
+
+.scorecardBowlingHeaderRow {
+  padding-bottom: 6px;
+  border-bottom: 1px solid #243049;
+  margin-bottom: 4px;
+}
+
+.scorecardBowlingRow {
+  padding: 7px 0;
+  border-bottom: 1px solid #1A2436;
+}
+
+.scorecardBowlingRow:last-child {
+  border-bottom: none;
+}
+
 .overRow {
   display: flex;
   align-items: center;

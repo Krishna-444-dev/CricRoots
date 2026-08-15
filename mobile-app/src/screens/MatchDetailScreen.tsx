@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, Image } from 'react-native';
-import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect } from 'react-native-svg';
+import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect, Path } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
@@ -10,7 +10,7 @@ import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import AtTheCrease from '../components/AtTheCrease';
 import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
-import { resolveRefId } from '../shared/utils/resolveRef';
+import { resolveRefId, resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId } from '../shared/utils/matchAuth';
 import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver } from '../shared/utils/matchStats';
 import { getInitials } from '../shared/utils/formatters';
@@ -83,6 +83,20 @@ function playersWhoAppeared(innings: Match['innings']): string[] {
   return [...ids];
 }
 
+// "Yet to bat" only makes sense while an innings is still in progress - once the batting side
+// is all out (wickets down to one short of the full roster) or its overs allocation is used up,
+// whoever's left just didn't get a turn, which isn't what CricClubs shows this list for.
+// oversAllocation falls back through a mid-innings interruption's revised allocation (only ever
+// applies to the second innings, see Interruption's comment) before the match's own total, and
+// is skipped entirely for Test (no over cap). Mirrors web-app's inningsInProgress.
+function inningsInProgress(idx: 0 | 1, innings: Match['innings'][number], roster: RosterPlayer[], match: Match): boolean {
+  if (roster.length === 0) return false;
+  const allOut = innings.wickets >= Math.max(1, roster.length - 1);
+  const oversAllocation = idx === 1 && match.interruption ? match.interruption.revisedOvers : match.totalOvers ?? 20;
+  const oversComplete = match.matchType !== 'Test' && innings.overs >= oversAllocation;
+  return !allOut && !oversComplete;
+}
+
 function ballChip(ball: BallEvent): { label: string; style: any; textStyle: any } {
   if (ball.isWicket) return { label: 'W', style: styles.chipWicket, textStyle: styles.chipTextWicket };
   if (ball.isExtra) {
@@ -122,7 +136,15 @@ interface ChartInnings {
   cumulative: { over: number; total: number }[];
   extrasBreakdown: { type: string; runs: number }[];
   runsTypeBreakdown: { runs: string; count: number }[];
+  boundaryBallBreakdown: { ball: number; count: number; percent: number }[];
   partnerships: ChartPartnership[];
+}
+
+// A team roster entry from GET /api/teams/:id (players populated with their user's name) -
+// just enough shape for the "Yet to bat" list on the Full Scorecard tab.
+interface RosterPlayer {
+  _id: string;
+  user: { _id: string; name: string } | string | null;
 }
 
 // Manhattan chart: a column of rows, each a label plus a proportionally-filled bar View - the
@@ -483,6 +505,151 @@ function RunsTypeChartSvg({ innings }: { innings: ChartInnings[] }) {
   );
 }
 
+// Same fixed-order validated dark categorical set web's DismissalBreakdown.tsx / PlayerStatsScreen's
+// DISMISSAL_ORDER use (see that file's comment) - reused here rather than re-validated since it's
+// the same 6-of-8-slot subset.
+const BALL_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'];
+
+function polarToXY(cx: number, cy: number, r: number, degrees: number) {
+  const rad = (degrees * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function wedgePath(cx: number, cy: number, rOuter: number, rInner: number, startAngle: number, endAngle: number) {
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  const p1 = polarToXY(cx, cy, rOuter, startAngle);
+  const p2 = polarToXY(cx, cy, rOuter, endAngle);
+  const p3 = polarToXY(cx, cy, rInner, endAngle);
+  const p4 = polarToXY(cx, cy, rInner, startAngle);
+  return `M ${p1.x} ${p1.y} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rInner} ${rInner} 0 ${largeArc} 0 ${p4.x} ${p4.y} Z`;
+}
+
+// Mobile port of web-app/components/insights/BoundaryBallChart.tsx - a donut of what share of
+// an innings' boundaries (4s/6s off the bat) landed on each ball-of-the-over position.
+function BoundaryBallChartSvg({ data }: { data: ChartInnings['boundaryBallBreakdown'] }) {
+  const total = data.reduce((sum, d) => sum + d.count, 0);
+  const size = 200;
+  const cx = size / 2;
+  const cy = size / 2;
+  const rOuter = 84;
+  const rInner = 48;
+
+  let angle = -90;
+  const wedges = data
+    .filter((d) => d.count > 0)
+    .map((d) => {
+      const sweep = (d.count / total) * 360;
+      const startAngle = angle;
+      const endAngle = angle + sweep;
+      angle = endAngle;
+      return { ...d, startAngle, endAngle, color: BALL_COLORS[(d.ball - 1) % BALL_COLORS.length] };
+    });
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Svg width={size} height={size}>
+        {wedges.map((w) => (
+          <Path key={w.ball} d={wedgePath(cx, cy, rOuter, rInner, w.startAngle, w.endAngle)} fill={w.color} stroke={colors.surface} strokeWidth={2} />
+        ))}
+        <SvgText x={cx} y={cy - 4} textAnchor="middle" fontSize={20} fontWeight="800" fill={colors.ink}>
+          {total}
+        </SvgText>
+        <SvgText x={cx} y={cy + 14} textAnchor="middle" fontSize={10} fill={colors.inkMuted}>
+          boundaries
+        </SvgText>
+      </Svg>
+      <View style={styles.chartLegendRow}>
+        {wedges.map((w) => (
+          <View key={w.ball} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: w.color }]} />
+            <Text style={styles.legendText}>Ball {w.ball}: {w.count} ({w.percent}%)</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// Mobile port of web-app/components/insights/RunRateChart.tsx - run rate after over N =
+// cumulative runs / overs completed, derived from the same `cumulative` data WormChartSvg
+// already receives (see that web component's comment on the one known imprecision this carries
+// for an innings whose last over ended mid-over).
+function RunRateChartSvg({ innings }: { innings: ChartInnings[] }) {
+  const seriesByTeam = innings.map((inn) => inn.cumulative.map((c) => ({ over: c.over + 1, rate: c.total / (c.over + 1) })));
+  const maxOvers = Math.max(1, ...innings.map((inn) => inn.cumulative.length));
+  const maxRate = Math.max(1, ...seriesByTeam.flatMap((pts) => pts.map((p) => p.rate)));
+
+  const width = Math.max(320, maxOvers * 26);
+  const height = 200;
+  const paddingLeft = 32;
+  const paddingRight = 10;
+  const paddingTop = 16;
+  const paddingBottom = 22;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const labelStep = Math.max(1, Math.ceil(maxOvers / 12));
+
+  const xFor = (overNumber: number) => paddingLeft + (overNumber / maxOvers) * chartWidth;
+  const yFor = (rate: number) => paddingTop + chartHeight - (rate / maxRate) * chartHeight;
+  const baselineY = paddingTop + chartHeight;
+
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <Svg width={width} height={height}>
+          {[0, 0.5, 1].map((f) => (
+            <React.Fragment key={f}>
+              <SvgLine
+                x1={paddingLeft}
+                x2={width - paddingRight}
+                y1={paddingTop + chartHeight * (1 - f)}
+                y2={paddingTop + chartHeight * (1 - f)}
+                stroke={colors.border}
+                strokeWidth={1}
+                opacity={0.6}
+              />
+              <SvgText x={paddingLeft - 6} y={paddingTop + chartHeight * (1 - f) + 3} textAnchor="end" fontSize={9} fill={colors.inkMuted}>
+                {(maxRate * f).toFixed(1)}
+              </SvgText>
+            </React.Fragment>
+          ))}
+
+          {Array.from({ length: maxOvers + 1 }).map((_, overNumber) =>
+            overNumber % labelStep === 0 ? (
+              <SvgText
+                key={overNumber}
+                x={xFor(overNumber)}
+                y={height - paddingBottom + 14}
+                textAnchor="middle"
+                fontSize={9}
+                fill={colors.inkMuted}
+              >
+                {overNumber}
+              </SvgText>
+            ) : null
+          )}
+
+          {seriesByTeam.map((points, teamIdx) => {
+            if (points.length === 0) return null;
+            const linePoints = points.map((p) => `${xFor(p.over)},${yFor(p.rate)}`).join(' ');
+            return <Polyline key={teamIdx} points={linePoints} fill="none" stroke={CHART_TEAM_COLORS[teamIdx % 2]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />;
+          })}
+
+          <SvgLine x1={paddingLeft} x2={width - paddingRight} y1={baselineY} y2={baselineY} stroke={colors.borderStrong} strokeWidth={1} />
+        </Svg>
+      </ScrollView>
+      <View style={styles.chartLegendRow}>
+        {innings.map((inn, i) => (
+          <View key={i} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: CHART_TEAM_COLORS[i % 2] }]} />
+            <Text style={styles.legendText}>{chartTeamName(inn.team, `Team ${i + 1}`)}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 interface PredictionSplit {
   mine: Prediction | null;
   totalPredictions: number;
@@ -543,6 +710,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   // uses (see shared/utils/matchAuth.ts) - this screen's own "Score this match" button needs to
   // agree with what that screen will actually let someone do once they get there.
   const [players, setPlayers] = useState<Player[]>([]);
+  // Full rosters for the "Yet to bat" list on the Full Scorecard tab - battingBowlingOrder only
+  // knows who has actually faced a ball, not who's registered but hasn't batted yet. Mirrors
+  // web-app's team1Roster/team2Roster.
+  const [team1Roster, setTeam1Roster] = useState<RosterPlayer[]>([]);
+  const [team2Roster, setTeam2Roster] = useState<RosterPlayer[]>([]);
   // Umpire appointment modal + its own busy/error state - mirrors web-app's
   // umpireToAdd/umpireBusy/umpireError.
   const [umpirePickerOpen, setUmpirePickerOpen] = useState(false);
@@ -708,6 +880,27 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
     };
   }, [squadTeam1Id, squadTeam2Id]);
 
+  // Team rosters for "Yet to bat" - fetched once per team id (not on every reload), same
+  // scoping web-app's own team1Roster/team2Roster effect uses.
+  useEffect(() => {
+    const team1Id = resolveRefId(match?.team1);
+    const team2Id = resolveRefId(match?.team2);
+    let cancelled = false;
+    if (team1Id) {
+      api.teams.getTeamById(team1Id).then(({ team }) => {
+        if (!cancelled) setTeam1Roster(team.players || []);
+      }).catch(() => {});
+    }
+    if (team2Id) {
+      api.teams.getTeamById(team2Id).then(({ team }) => {
+        if (!cancelled) setTeam2Roster(team.players || []);
+      }).catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [resolveRefId(match?.team1), resolveRefId(match?.team2)]);
+
   const handlePredict = async (teamId: string) => {
     if (!match || !user || predicting) return;
     setPredicting(true);
@@ -824,6 +1017,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const hasChartData = !!chartInnings?.some((inn) => inn.overs.some((o) => o.runs > 0 || o.wickets > 0));
   const hasExtrasData = !!chartInnings?.some((inn) => inn.extrasBreakdown?.some((e) => e.runs > 0));
   const hasRunsTypeData = !!chartInnings?.some((inn) => inn.runsTypeBreakdown?.some((r) => r.count > 0));
+  const hasBoundaryBallData = !!chartInnings?.some((inn) => inn.boundaryBallBreakdown?.some((b) => b.count > 0));
 
   return (
     <>
@@ -1194,6 +1388,9 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
               if (b.batsmanId && !battingOrder.includes(b.batsmanId)) battingOrder.push(b.batsmanId);
               if (b.bowlerId && !bowlingOrder.includes(b.bowlerId)) bowlingOrder.push(b.bowlerId);
             }
+            const roster = idx === 0 ? team1Roster : team2Roster;
+            const yetToBat = roster.filter((p) => !battingOrder.includes(p._id));
+            const showYetToBat = yetToBat.length > 0 && inningsInProgress(idx as 0 | 1, innings, roster, match);
             return (
               <View key={idx} style={styles.scorecardInnings}>
                 <Text style={styles.scorecardTeamName}>
@@ -1229,6 +1426,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                     </View>
                   );
                 })}
+                {showYetToBat && (
+                  <Text style={styles.scorecardYetToBat}>
+                    Yet to bat: {yetToBat.map((p) => playerDirectory.get(p._id) ?? resolveRefName(p.user, 'Player')).join(' | ')}
+                  </Text>
+                )}
 
                 <View style={[styles.scorecardHeaderRow, { marginTop: 10 }]}>
                   <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Bowler</Text>
@@ -1236,7 +1438,9 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.scorecardHeaderCell}>M</Text>
                   <Text style={styles.scorecardHeaderCell}>R</Text>
                   <Text style={styles.scorecardHeaderCell}>W</Text>
-                  <Text style={styles.scorecardHeaderCell}>Econ</Text>
+                  <Text style={styles.scorecardHeaderCell}>ER</Text>
+                  <Text style={styles.scorecardHeaderCell}>WD</Text>
+                  <Text style={styles.scorecardHeaderCell}>NB</Text>
                 </View>
                 {bowlingOrder.map((playerId) => {
                   const stats = bowlingStatsFor(innings.balls, playerId);
@@ -1251,6 +1455,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                       <Text style={styles.scorecardCell}>{stats.runsConceded}</Text>
                       <Text style={styles.scorecardCell}>{stats.wickets}</Text>
                       <Text style={styles.scorecardCell}>{stats.economy.toFixed(2)}</Text>
+                      <Text style={styles.scorecardCell}>{stats.wides}</Text>
+                      <Text style={styles.scorecardCell}>{stats.noBalls}</Text>
                     </View>
                   );
                 })}
@@ -1480,6 +1686,16 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {hasChartData && chartInnings && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Run Rate</Text>
+          <Text style={styles.reportsHint}>Run rate after each over</Text>
+          <View style={styles.chartListCard}>
+            <RunRateChartSvg innings={chartInnings} />
+          </View>
+        </View>
+      )}
+
       {hasExtrasData && chartInnings && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Extras</Text>
@@ -1497,6 +1713,23 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           <View style={styles.chartListCard}>
             <RunsTypeChartSvg innings={chartInnings} />
           </View>
+        </View>
+      )}
+
+      {/* Boundary Ball Percentage - one donut per innings (a combined chart would mix two
+          innings' distributions together), same per-innings card treatment Partnerships below uses. */}
+      {hasBoundaryBallData && chartInnings && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Boundary Ball %</Text>
+          <Text style={styles.reportsHint}>Boundaries by ball-of-the-over position</Text>
+          {chartInnings.map((inn, idx) => (
+            inn.boundaryBallBreakdown?.some((b) => b.count > 0) && (
+              <View key={idx} style={[styles.chartListCard, { marginTop: idx > 0 ? 10 : 0 }]}>
+                <Text style={styles.scorecardTeamName}>{chartTeamName(inn.team, `Team ${idx + 1}`)}</Text>
+                <BoundaryBallChartSvg data={inn.boundaryBallBreakdown} />
+              </View>
+            )
+          ))}
         </View>
       )}
 
@@ -1756,6 +1989,7 @@ const styles = StyleSheet.create({
   scorecardNameCol: { flex: 3, textAlign: 'left' },
   scorecardNameText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600', textAlign: 'left' },
   scorecardDismissal: { color: colors.inkMuted, fontSize: 10, textAlign: 'left', marginTop: 1 },
+  scorecardYetToBat: { color: colors.inkMuted, fontSize: 11, marginTop: 8, lineHeight: 16 },
 
   partnershipRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   partnershipNames: { flex: 1, color: colors.inkSecondary, fontSize: 12, marginRight: 8 },

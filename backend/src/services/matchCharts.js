@@ -90,6 +90,38 @@ function computeRunsTypeBreakdown(balls) {
   return RUNS_TYPE_BUCKETS.map((runs) => ({ runs, count: totals[runs] }));
 }
 
+const BALL_POSITIONS = [1, 2, 3, 4, 5, 6];
+
+/**
+ * Of every boundary (4 or 6, off the bat - same isExtra-excluded convention
+ * computeRunsTypeBreakdown above uses for "off the bat") hit in an innings, what share landed
+ * on each ball-of-the-over position. Position is the legal-ball index within whichever over the
+ * boundary was actually bowled in (1-6), not the delivery's literal index in the innings - a
+ * wide/no-ball earlier in the same over doesn't shift a later legal ball's position, mirroring
+ * computeOverBreakdown's legalBallCount convention exactly.
+ */
+function computeBoundaryBallBreakdown(balls) {
+  const totals = Object.fromEntries(BALL_POSITIONS.map((p) => [p, 0]));
+  let legalBallCount = 0;
+
+  for (const ball of balls || []) {
+    if (!ball.isExtra && (ball.runs === 4 || ball.runs === 6)) {
+      const position = (legalBallCount % 6) + 1;
+      totals[position] += 1;
+    }
+
+    const isLegal = !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
+    if (isLegal) legalBallCount += 1;
+  }
+
+  const totalBoundaries = BALL_POSITIONS.reduce((sum, p) => sum + totals[p], 0);
+  return BALL_POSITIONS.map((position) => ({
+    ball: position,
+    count: totals[position],
+    percent: totalBoundaries > 0 ? Math.round((totals[position] / totalBoundaries) * 1000) / 10 : 0
+  }));
+}
+
 /**
  * Walks a single innings' balls chronologically and groups them into partnerships - each
  * stretch between wickets during which the same two batsmen were at the crease. `ball.runs`
@@ -141,8 +173,8 @@ function computePartnerships(balls) {
 /**
  * Given a Match document (with `innings` populated or not - only
  * innings.team's identity is read here, not its full shape), returns
- * Manhattan/Worm/Extras/Runs-type/Partnership chart data for both innings,
- * in team1/team2 order.
+ * Manhattan/Worm/Extras/Runs-type/Boundary-ball/Partnership chart data for
+ * both innings, in team1/team2 order.
  */
 function getMatchCharts(match) {
   return (match.innings || []).map((innings) => {
@@ -153,6 +185,7 @@ function getMatchCharts(match) {
       cumulative: computeCumulative(overs),
       extrasBreakdown: computeExtrasBreakdown(innings.balls),
       runsTypeBreakdown: computeRunsTypeBreakdown(innings.balls),
+      boundaryBallBreakdown: computeBoundaryBallBreakdown(innings.balls),
       partnerships: computePartnerships(innings.balls)
     };
   });
@@ -163,6 +196,7 @@ module.exports = {
   computeCumulative,
   computeExtrasBreakdown,
   computeRunsTypeBreakdown,
+  computeBoundaryBallBreakdown,
   computePartnerships,
   getMatchCharts
 };
