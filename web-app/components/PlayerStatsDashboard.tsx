@@ -186,6 +186,19 @@ export const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ play
 
       {/* Content */}
       <div className={styles.content}>
+        {activeTab === 'overview' && !stats && (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyStateIcon}>🏏</div>
+            <p className={styles.emptyStateTitle}>No player selected</p>
+            <p className={styles.emptyStateDescription}>
+              This page shows one player's full stats at a time - get here from a team roster or
+              your own profile. In the meantime, the Rankings tab has the real leaderboard.
+            </p>
+            <button className={styles.emptyStateAction} onClick={() => setActiveTab('rankings')}>
+              See Rankings →
+            </button>
+          </div>
+        )}
         {activeTab === 'overview' && stats && (
           <div className={styles.overviewGrid}>
             {/* Player Card */}

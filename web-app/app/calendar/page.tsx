@@ -161,7 +161,11 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Month grid - desktop/tablet only. A 7-column grid has no honest way to reflow to a
+              narrow screen (shrinking cells just makes every label unreadable), so below the sm
+              breakpoint this is replaced entirely by the agenda list below, rather than left
+              horizontally scrollable with no visible affordance to swipe. */}
+          <div className="hidden sm:block overflow-x-auto">
             <div className="min-w-[700px]">
               <div className="grid grid-cols-7 border-t border-l border-border rounded-t-xl overflow-hidden">
                 {WEEKDAY_LABELS.map(label => (
@@ -233,6 +237,60 @@ export default function CalendarPage() {
                 })}
               </div>
             </div>
+          </div>
+
+          {/* Agenda list - mobile only. Same underlying grid/data, just re-rendered as a vertical
+              list of days-with-events (empty days skipped, since scrolling past 20 blank days to
+              find the next fixture is worse than the grid it replaces). Team names are shown in
+              full - nothing here needs the grid's truncate-to-fit treatment. */}
+          <div className="sm:hidden flex flex-col gap-3">
+            {grid
+              .filter(({ inMonth }) => inMonth)
+              .map(({ date }) => {
+                const dayMatches = matches.filter(m => isSameDay(new Date(m.scheduledDate), date));
+                const dayTournaments = tournaments.filter(t => {
+                  const start = toDateOnly(new Date(t.startDate));
+                  const end = toDateOnly(new Date(t.endDate));
+                  return date >= start && date <= end;
+                });
+                if (dayMatches.length === 0 && dayTournaments.length === 0) return null;
+                const isToday = isSameDay(date, today);
+
+                return (
+                  <div key={date.toISOString()} className="bg-surface border border-border rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
+                          isToday ? 'bg-pitch-500 text-[#06170D]' : 'text-ink-secondary'
+                        }`}
+                      >
+                        {date.getDate()}
+                      </span>
+                      <span className="text-xs font-semibold text-ink-secondary">
+                        {date.toLocaleDateString(undefined, { weekday: 'long' })}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {dayTournaments.map(t => (
+                        <Link
+                          key={t._id}
+                          href="/tournaments"
+                          className="block text-xs font-semibold px-2 py-1 rounded bg-gold-500/15 text-gold-400 border border-gold-500/30"
+                        >
+                          {t.name}
+                        </Link>
+                      ))}
+                      {dayMatches.map(m => (
+                        <Link key={m._id} href={`/match/${m._id}`}>
+                          <Badge variant={MATCH_STATUS_VARIANT[m.status] ?? 'neutral'} pulse={m.status === 'Live'} className="!inline-flex w-full !justify-start">
+                            <span>{m.team1?.name} vs {m.team2?.name}</span>
+                          </Badge>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </>
       )}

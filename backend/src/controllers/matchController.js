@@ -183,13 +183,21 @@ exports.getAllMatches = async (req, res) => {
     // per-delivery tagging, ...), and including it here was returning 50+MB for a few hundred
     // real matches, taking 10+ seconds and effectively hanging the Matches page. innings.runs/
     // wickets/overs are kept so the list can still show live/final scores per team.
-    const matches = await Match.find()
+    // Optional ?status= and ?limit= - both no-ops for any existing caller that omits them
+    // (full unfiltered list, same as before), added for the home page's single-most-recent-
+    // result hero, which has no business paging through the entire matches collection to
+    // find one match.
+    const { status, limit } = req.query;
+    const query = status ? Match.find({ status }) : Match.find();
+    let matches = query
       .select('-innings.balls')
       .populate('team1')
       .populate('team2')
       .populate(MAN_OF_THE_MATCH_POPULATE)
       .populate({ path: 'umpires', select: 'name' })
       .sort({ scheduledDate: -1 });
+    if (limit) matches = matches.limit(Math.min(parseInt(limit, 10) || 0, 50));
+    matches = await matches;
 
     res.status(200).json({
       success: true,

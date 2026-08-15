@@ -88,6 +88,50 @@
   100% { transform: rotate(360deg); }
 }
 
+.emptyState {
+  text-align: center;
+  padding: 64px 20px;
+  border: 1px dashed #2A3654;
+  border-radius: 16px;
+}
+
+.emptyStateIcon {
+  font-size: 40px;
+  opacity: 0.6;
+  margin-bottom: 12px;
+}
+
+.emptyStateTitle {
+  color: #E8ECF4;
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+
+.emptyStateDescription {
+  color: #96A3BC;
+  font-size: 14px;
+  max-width: 42ch;
+  margin: 0 auto;
+}
+
+.emptyStateAction {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #22C55E;
+  color: #06170D;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.emptyStateAction:hover {
+  opacity: 0.9;
+}
+
 .overviewGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
