@@ -14,12 +14,20 @@ import FieldingPlan from '@/components/insights/FieldingPlan';
 import PredictionWidget from '@/components/match/PredictionWidget';
 import styles from './page.module.css';
 
+interface Partnership {
+  batsmen: string[];
+  runs: number;
+  balls: number;
+  outBatsmanId: string | null;
+}
+
 interface ChartInnings {
   team: { _id: string; name: string } | string | null;
   overs: { over: number; runs: number; wickets: number }[];
   cumulative: { over: number; total: number }[];
   extrasBreakdown: { type: string; runs: number }[];
   runsTypeBreakdown: { runs: string; count: number }[];
+  partnerships: Partnership[];
 }
 
 interface KeyMoment {
@@ -702,6 +710,37 @@ export default function MatchPage() {
                     <RunsTypeChart innings={chartsInnings} />
                   </div>
                 </div>
+
+                {/* Partnerships - chronological (not sorted by size), since the natural way to
+                    read a partnership breakdown is following the innings in order, same as the
+                    commentary/fall-of-wickets flow above rather than a leaderboard. */}
+                {chartsInnings.some((inn) => inn.partnerships?.length > 0) && (
+                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {chartsInnings.map((inn, idx) => (
+                      inn.partnerships?.length > 0 && (
+                        <div key={idx} className="bg-surface border border-border rounded-xl p-4">
+                          <h4 className="text-sm font-semibold text-ink-secondary mb-2">
+                            Partnerships &mdash; {idx === 0 ? match.team1.name : match.team2.name}
+                          </h4>
+                          <div className="space-y-1.5">
+                            {inn.partnerships.map((p, i) => {
+                              const names = p.batsmen.map((id) => playerDirectory.get(id) ?? 'Unknown');
+                              const label = names.length === 2 ? `${names[0]} & ${names[1]}` : (names[0] ?? 'Unknown');
+                              return (
+                                <div key={i} className="flex items-center justify-between text-sm">
+                                  <span className="text-ink-secondary">
+                                    {i + 1}. {label}
+                                  </span>
+                                  <span className="font-mono tabular-nums text-ink">{p.runs} ({p.balls})</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </>

@@ -69,12 +69,19 @@ interface ChartOver {
   runs: number;
   wickets: number;
 }
+interface ChartPartnership {
+  batsmen: string[];
+  runs: number;
+  balls: number;
+  outBatsmanId: string | null;
+}
 interface ChartInnings {
   team: any;
   overs: ChartOver[];
   cumulative: { over: number; total: number }[];
   extrasBreakdown: { type: string; runs: number }[];
   runsTypeBreakdown: { runs: string; count: number }[];
+  partnerships: ChartPartnership[];
 }
 
 // Manhattan chart: a column of rows, each a label plus a proportionally-filled bar View - the
@@ -1103,6 +1110,31 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {/* Partnerships - chronological, following the innings in order like the scorecard
+          above rather than sorted by size. */}
+      {chartInnings?.some((inn) => inn.partnerships?.length > 0) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Partnerships</Text>
+          {chartInnings.map((inn, idx) => (
+            inn.partnerships?.length > 0 && (
+              <View key={idx} style={styles.scorecardInnings}>
+                <Text style={styles.scorecardTeamName}>{teamName(match.innings[idx]?.team)}</Text>
+                {inn.partnerships.map((p, i) => {
+                  const names = p.batsmen.map((id) => playerDirectory.get(id) ?? 'Unknown');
+                  const label = names.length === 2 ? `${names[0]} & ${names[1]}` : (names[0] ?? 'Unknown');
+                  return (
+                    <View key={i} style={styles.partnershipRow}>
+                      <Text style={styles.partnershipNames} numberOfLines={1}>{i + 1}. {label}</Text>
+                      <Text style={styles.partnershipFigures}>{p.runs} ({p.balls})</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )
+          ))}
+        </View>
+      )}
+
       <View style={{ height: 32 }} />
     </ScrollView>
   );
@@ -1294,6 +1326,10 @@ const styles = StyleSheet.create({
   scorecardNameCol: { flex: 3, textAlign: 'left' },
   scorecardNameText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600', textAlign: 'left' },
   scorecardDismissal: { color: colors.inkMuted, fontSize: 10, textAlign: 'left', marginTop: 1 },
+
+  partnershipRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  partnershipNames: { flex: 1, color: colors.inkSecondary, fontSize: 12, marginRight: 8 },
+  partnershipFigures: { color: colors.ink, fontSize: 12, fontWeight: '600' },
 
   reportsHint: { color: colors.inkMuted, fontSize: 12, marginBottom: 10 },
   reportChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

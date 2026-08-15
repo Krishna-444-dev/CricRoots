@@ -91,10 +91,58 @@ function computeRunsTypeBreakdown(balls) {
 }
 
 /**
+ * Walks a single innings' balls chronologically and groups them into partnerships - each
+ * stretch between wickets during which the same two batsmen were at the crease. `ball.runs`
+ * is used as-is for the total (matchController.recordBall adds this same value straight to
+ * the innings total, so it already includes extras that count toward the team score, same
+ * as computeOverBreakdown above), and balls-faced only counts legal deliveries, mirroring
+ * the over-counting convention.
+ *
+ * The ball log only ever records who's on strike (batsmanId) - never the non-striker - and
+ * this app's scoring flow always attributes a dismissal to whoever is on strike (there's no
+ * separate "dismissed player" field, and no support for dismissing the non-striker, e.g. a
+ * non-striker run-out). So a partner's identity is only known once they themselves face a
+ * ball; if a batsman is out before their partner ever faces one (e.g. the innings' first
+ * ball is a wicket), that partner can't be recovered from the ball log and the partnership
+ * is reported with just the one known batsman.
+ */
+function computePartnerships(balls) {
+  const partnerships = [];
+  let current = { batsmen: [], runs: 0, balls: 0, outBatsmanId: null };
+
+  for (const ball of balls || []) {
+    if (ball.batsmanId) {
+      const id = ball.batsmanId.toString();
+      if (current.batsmen.length < 2 && !current.batsmen.includes(id)) {
+        current.batsmen.push(id);
+      }
+    }
+
+    current.runs += ball.runs || 0;
+
+    const isLegal = !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
+    if (isLegal) current.balls += 1;
+
+    if (ball.isWicket) {
+      const outId = ball.batsmanId ? ball.batsmanId.toString() : null;
+      current.outBatsmanId = outId;
+      partnerships.push(current);
+
+      const survivor = current.batsmen.find((id) => id !== outId) || null;
+      current = { batsmen: survivor ? [survivor] : [], runs: 0, balls: 0, outBatsmanId: null };
+    }
+  }
+
+  if (current.runs > 0 || current.balls > 0) partnerships.push(current);
+
+  return partnerships;
+}
+
+/**
  * Given a Match document (with `innings` populated or not - only
  * innings.team's identity is read here, not its full shape), returns
- * Manhattan/Worm/Extras/Runs-type chart data for both innings, in
- * team1/team2 order.
+ * Manhattan/Worm/Extras/Runs-type/Partnership chart data for both innings,
+ * in team1/team2 order.
  */
 function getMatchCharts(match) {
   return (match.innings || []).map((innings) => {
@@ -104,7 +152,8 @@ function getMatchCharts(match) {
       overs,
       cumulative: computeCumulative(overs),
       extrasBreakdown: computeExtrasBreakdown(innings.balls),
-      runsTypeBreakdown: computeRunsTypeBreakdown(innings.balls)
+      runsTypeBreakdown: computeRunsTypeBreakdown(innings.balls),
+      partnerships: computePartnerships(innings.balls)
     };
   });
 }
@@ -114,5 +163,6 @@ module.exports = {
   computeCumulative,
   computeExtrasBreakdown,
   computeRunsTypeBreakdown,
+  computePartnerships,
   getMatchCharts
 };
