@@ -319,6 +319,14 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   name, role, captain/VC badges), fetched from the already-fully-populated `GET /api/teams/:id`
   - no new backend work needed. Collapses to 5 players per team with a "Full Squad" toggle, same
   pattern as MVP/Awards. Guarded against the confirmed-orphaned test match (null `team1`/`team2`).
+- **Full Scorecard + Charts polish** (`68f5fdf`): bowling tables now show WD/NB columns (`matchStats.ts`'s
+  `bowlingStatsFor` on both platforms, cross-checked against raw ball-log counts on 3 real matches);
+  a "Yet to bat" list on the Full Scorecard (roster minus `battingBowlingOrder`, hidden once all-out
+  or the innings' over allocation is used up, respecting rain interruptions); a new Boundary Ball %
+  donut chart per innings (which position in the over boundaries land in - `matchCharts.js`'s new
+  `computeBoundaryBallBreakdown`); and a new Run Rate line chart (run rate after each over, distinct
+  from the Worm chart's cumulative total), computed client-side from the already-shipped `cumulative`
+  field.
 
 ### Backlog (not started, roughly in priority order)
 
