@@ -173,7 +173,12 @@ function overBallLabel(balls: Ball[], index: number): string {
   return '';
 }
 
-type TabKey = 'info' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'ai-insights';
+type TabKey = 'info' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'mvp' | 'ai-insights';
+
+interface MVPEntry {
+  playerId: string;
+  points: number;
+}
 
 export default function MatchPage() {
   const params = useParams();
@@ -185,6 +190,10 @@ export default function MatchPage() {
   const [powerplayOvers, setPowerplayOvers] = useState<number | null>(null);
   const [chartsInnings, setChartsInnings] = useState<ChartInnings[]>([]);
   const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([]);
+  const [mvpRanking, setMvpRanking] = useState<MVPEntry[]>([]);
+  // MVP list collapses to the top few by default, same "Show all" toggle pattern the Tournament
+  // Manager's Awards tab uses for its Top Performers lists (see TournamentManager.tsx).
+  const [showAllMvp, setShowAllMvp] = useState(false);
   const [playerDirectory, setPlayerDirectory] = useState<Map<string, string>>(new Map());
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [umpireToAdd, setUmpireToAdd] = useState('');
@@ -217,11 +226,13 @@ export default function MatchPage() {
     fetchMatch();
     fetchCharts();
     fetchKeyMoments();
+    fetchMvp();
     fetchPlayerDirectory();
     const interval = setInterval(() => {
       fetchMatch();
       fetchCharts();
       fetchKeyMoments();
+      fetchMvp();
     }, 10000);
     return () => clearInterval(interval);
   }, [matchId]);
@@ -277,6 +288,18 @@ export default function MatchPage() {
       const data = await response.json();
       if (data.success) {
         setChartsInnings(data.innings);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchMvp = async () => {
+    try {
+      const response = await fetch(`/api/matches/${matchId}/mvp`);
+      const data = await response.json();
+      if (data.success) {
+        setMvpRanking(data.mvp);
       }
     } catch (err) {
       console.error(err);
@@ -512,6 +535,9 @@ export default function MatchPage() {
         </button>
         <button className={`${styles.tab} ${activeTab === 'charts' ? styles.activeTab : ''}`} onClick={() => setActiveTab('charts')}>
           📈 Charts
+        </button>
+        <button className={`${styles.tab} ${activeTab === 'mvp' ? styles.activeTab : ''}`} onClick={() => setActiveTab('mvp')}>
+          🥇 MVP
         </button>
         <button className={`${styles.tab} ${activeTab === 'ai-insights' ? styles.activeTab : ''}`} onClick={() => setActiveTab('ai-insights')}>
           🤖 AI Insights
@@ -1037,6 +1063,37 @@ export default function MatchPage() {
               <p className="text-sm text-ink-muted">Charts will appear here once the match starts.</p>
             )}
           </>
+        )}
+
+        {activeTab === 'mvp' && (
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-ink-secondary mb-2">MVP Points</h4>
+            {mvpRanking.length === 0 ? (
+              <p className="text-sm text-ink-muted">MVP points will appear here once ball-by-ball data has been recorded.</p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  {(showAllMvp ? mvpRanking : mvpRanking.slice(0, 5)).map((p, i) => (
+                    <div key={p.playerId} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                      <span className="text-ink">
+                        {p.playerId === match.manOfTheMatch?._id && '🏆 '}
+                        {i + 1}. {playerDirectory.get(p.playerId) ?? 'Player'}
+                      </span>
+                      <span className="text-gold-500 font-mono font-semibold">{p.points} pts</span>
+                    </div>
+                  ))}
+                </div>
+                {mvpRanking.length > 5 && (
+                  <button
+                    onClick={() => setShowAllMvp((prev) => !prev)}
+                    className="text-xs font-medium text-pitch-400 hover:text-pitch-300 mt-2"
+                  >
+                    {showAllMvp ? 'Show less' : `Show all ${mvpRanking.length} →`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {activeTab === 'ai-insights' && (

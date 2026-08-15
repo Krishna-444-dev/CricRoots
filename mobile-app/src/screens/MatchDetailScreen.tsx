@@ -479,7 +479,12 @@ interface KeyMoment {
 // CricClubs-style tabbed match center, matching the web restructure (see MatchDetailScreen's
 // git history / web-app/app/match/[id]/page.tsx) - Info / Ball By Ball / Full Scorecard /
 // Over by Over / Charts, plus our own AI Insights tab.
-type TabKey = 'info' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'aiInsights';
+type TabKey = 'info' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'mvp' | 'aiInsights';
+
+interface MVPEntry {
+  playerId: string;
+  points: number;
+}
 
 export default function MatchDetailScreen({ route, navigation }: Props) {
   const { matchId } = route.params;
@@ -493,6 +498,10 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [chartInnings, setChartInnings] = useState<ChartInnings[] | null>(null);
   const [keyMoments, setKeyMoments] = useState<KeyMoment[] | null>(null);
+  const [mvpRanking, setMvpRanking] = useState<MVPEntry[] | null>(null);
+  // Mirrors web-app: collapses to the top few by default, same "Show all" toggle pattern
+  // TournamentDetailScreen's Top Performers lists use.
+  const [showAllMvp, setShowAllMvp] = useState(false);
   const [prediction, setPrediction] = useState<PredictionSplit | null>(null);
   const [predicting, setPredicting] = useState(false);
   // Player id -> display name, for the "View Report" links below - the directory endpoint
@@ -564,6 +573,26 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
       })
       .catch(() => {
         if (!cancelled) setKeyMoments(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [match?._id, match?.status]);
+
+  // MVP points breakdown - also a nice-to-have, non-blocking fetch.
+  useEffect(() => {
+    if (!match || match.status === 'Scheduled') {
+      setMvpRanking(null);
+      return;
+    }
+    let cancelled = false;
+    api.matches
+      .getMvp(match._id)
+      .then(({ mvp }) => {
+        if (!cancelled) setMvpRanking(mvp);
+      })
+      .catch(() => {
+        if (!cancelled) setMvpRanking(null);
       });
     return () => {
       cancelled = true;
@@ -821,6 +850,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           ['scorecard', 'Full Scorecard'],
           ['overByOver', 'Over by Over'],
           ['charts', 'Charts'],
+          ['mvp', 'MVP'],
           ['aiInsights', 'AI Insights'],
         ] as [TabKey, string][]).map(([key, label]) => (
           <TouchableOpacity
@@ -1233,6 +1263,31 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </>
       )}
 
+      {activeTab === 'mvp' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>MVP Points</Text>
+          {!mvpRanking || mvpRanking.length === 0 ? (
+            <Text style={styles.reportsHint}>MVP points will appear here once ball-by-ball data has been recorded.</Text>
+          ) : (
+            <>
+              {(showAllMvp ? mvpRanking : mvpRanking.slice(0, 5)).map((p, i) => (
+                <View key={p.playerId} style={styles.leaderRow}>
+                  <Text style={styles.leaderName} numberOfLines={1}>
+                    {p.playerId === resolveRefId(match.manOfTheMatch) ? '🏆 ' : ''}{i + 1}. {playerDirectory.get(p.playerId) ?? 'Player'}
+                  </Text>
+                  <Text style={styles.mvpPoints}>{p.points} pts</Text>
+                </View>
+              ))}
+              {mvpRanking.length > 5 && (
+                <TouchableOpacity onPress={() => setShowAllMvp((prev) => !prev)}>
+                  <Text style={styles.showAllLink}>{showAllMvp ? 'Show less' : `Show all ${mvpRanking.length} →`}</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
+      )}
+
       {activeTab === 'aiInsights' && (
         <>
       {/* AI Tactical Advisor - win probability + tactical advice, wired up with a REST fetch
@@ -1507,6 +1562,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   keyMomentDelta: { color: colors.gold400, fontSize: 11, fontWeight: '700', marginTop: 6 },
+
+  // MVP tab - mirrors TournamentDetailScreen's leaderRow/showAllLink Top Performers styling.
+  leaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
+  leaderName: { color: colors.ink, fontSize: 13, flexShrink: 1 },
+  mvpPoints: { color: colors.gold500, fontSize: 12, fontWeight: '700' },
+  showAllLink: { color: colors.pitch400, fontSize: 12, fontWeight: '600', marginTop: 6 },
 
   predictCard: {
     backgroundColor: colors.surface,

@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Tournament = require('../models/Tournament');
 const AIService = require('../utils/aiService');
 const { getMatchCharts } = require('../services/matchCharts');
-const { computeMatchMVP } = require('../services/mvpCalculator');
+const { computeMatchMVP, computeMatchMVPPoints } = require('../services/mvpCalculator');
 const { generateCommentary } = require('../services/commentaryGenerator');
 const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
@@ -627,6 +627,40 @@ exports.getMatchCharts = async (req, res) => {
     res.status(200).json({
       success: true,
       innings
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Full ranked MVP points breakdown for this match - every player who touched the ball,
+//          sorted descending by the same computeMatchMVPPoints score manOfTheMatch is picked
+//          from (the #1 entry here). Player names aren't resolved server-side: the match page
+//          already builds its own playerId -> name map from GET /api/players (see
+//          fetchPlayerDirectory in app/match/[id]/page.tsx), so this just returns raw ids.
+// @route   GET /api/matches/:id/mvp
+// @access  Public
+exports.getMatchMVP = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id).select('innings').lean();
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    const mvp = [...computeMatchMVPPoints(match).entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([playerId, points]) => ({ playerId, points: Math.round(points * 100) / 100 }));
+
+    res.status(200).json({
+      success: true,
+      mvp
     });
   } catch (error) {
     res.status(500).json({
