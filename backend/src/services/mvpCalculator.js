@@ -64,8 +64,11 @@ const BATTING_WEIGHT = { start: 1.3, floor: 0.7, slope: 0.05 };
 const BOWLING_WEIGHT = { start: 1.5, floor: 0.9, slope: 0.075 };
 
 /**
- * Computes the automatic Man of the Match for a completed (or in-progress)
- * Match document, from its raw ball-by-ball data alone.
+ * Computes every player's MVP points for a completed (or in-progress) Match
+ * document, from its raw ball-by-ball data alone. Extracted out of
+ * computeMatchMVP so the tournament-wide "Top Performer of Series" aggregator
+ * (getTournamentTopPerformers) can sum the same per-match points across many
+ * matches, instead of only ever seeing the single per-match winner.
  *
  * For every ball, in order:
  *   - the batsman on strike earns batting points for runs personally scored
@@ -82,16 +85,12 @@ const BOWLING_WEIGHT = { start: 1.5, floor: 0.9, slope: 0.075 };
  *     position-weighted wicket credit instead.
  *   - retired hurt / retired out: nobody is credited (no dismissal to assign).
  *
- * Match MVP = whichever player (either team) has the highest total of
- * (batting points + bowling points + fielding bonus points).
- *
  * @param {object} match - a Match document (or plain object with the same
  *   shape: `innings: [{ balls: [...] }]`). Team/player refs need not be
  *   populated - only the raw ObjectIds on each ball are used.
- * @returns {string|null} the winning player's id as a string, or null if the
- *   match has no ball data at all (e.g. an abandoned match with zero balls).
+ * @returns {Map<string, number>} playerId (string) -> total MVP points.
  */
-function computeMatchMVP(match) {
+function computeMatchMVPPoints(match) {
   const points = new Map(); // playerId (string) -> total MVP points
 
   const add = (id, amount) => {
@@ -148,6 +147,23 @@ function computeMatchMVP(match) {
     }
   }
 
+  return points;
+}
+
+/**
+ * Match MVP = whichever player (either team) has the highest total of
+ * (batting points + bowling points + fielding bonus points), per
+ * computeMatchMVPPoints. Thin wrapper kept for the existing manOfTheMatch
+ * caller (matchController.js) - behavior is unchanged from before the points
+ * loop was extracted.
+ *
+ * @param {object} match - see computeMatchMVPPoints.
+ * @returns {string|null} the winning player's id as a string, or null if the
+ *   match has no ball data at all (e.g. an abandoned match with zero balls).
+ */
+function computeMatchMVP(match) {
+  const points = computeMatchMVPPoints(match);
+
   if (points.size === 0) return null;
 
   let bestId = null;
@@ -161,4 +177,4 @@ function computeMatchMVP(match) {
   return bestId;
 }
 
-module.exports = { computeMatchMVP, NON_BOWLER_WICKET_TYPES, BATTING_WEIGHT, BOWLING_WEIGHT };
+module.exports = { computeMatchMVP, computeMatchMVPPoints, NON_BOWLER_WICKET_TYPES, BATTING_WEIGHT, BOWLING_WEIGHT };

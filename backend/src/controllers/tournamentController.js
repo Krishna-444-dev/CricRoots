@@ -1343,11 +1343,14 @@ exports.computeAwards = async (req, res) => {
   }
 };
 
-// @desc    Top run-scorers and wicket-takers for this tournament, ranked by average (the same
-//          convention computeAwards's bestBatsman/bestBowler already use - this just surfaces
-//          the top N instead of only the single #1 pick). Powers a "Top Performers" section
-//          alongside the tournament's awards. Pass `division` to scope it to one division's
-//          own matches, for a tournament that has divisions.
+// @desc    Top run-scorers, wicket-takers, and fielders for this tournament (batsmen/bowlers
+//          ranked by average, the same convention computeAwards's bestBatsman/bestBowler
+//          already use; fielders ranked by total dismissals) - this just surfaces the top N
+//          instead of only the single #1 pick. Also includes a combined, points-based
+//          "Top Performer of Series" ranking (topPerformers) - see getTournamentTopPerformers.
+//          Powers the "Top Performers" section alongside the tournament's awards. Pass
+//          `division` to scope it to one division's own matches, for a tournament that has
+//          divisions.
 // @route   GET /api/tournaments/:id/leaderboard
 // @access  Public
 exports.getTournamentLeaderboard = async (req, res) => {
@@ -1363,9 +1366,11 @@ exports.getTournamentLeaderboard = async (req, res) => {
     }
 
     const divisionName = division || null;
-    const [battingRows, bowlingRows] = await Promise.all([
+    const [battingRows, bowlingRows, fieldingRows, topPerformerRows] = await Promise.all([
       tendencyAnalytics.getTournamentBattingLeaderboard(tournament._id, parseInt(limit), divisionName),
-      tendencyAnalytics.getTournamentBowlingLeaderboard(tournament._id, parseInt(limit), divisionName)
+      tendencyAnalytics.getTournamentBowlingLeaderboard(tournament._id, parseInt(limit), divisionName),
+      tendencyAnalytics.getTournamentFieldingLeaderboard(tournament._id, parseInt(limit), divisionName),
+      tendencyAnalytics.getTournamentTopPerformers(tournament._id, parseInt(limit), divisionName)
     ]);
 
     const batsmen = (
@@ -1401,10 +1406,39 @@ exports.getTournamentLeaderboard = async (req, res) => {
       )
     ).filter(Boolean);
 
+    const fielding = (
+      await Promise.all(
+        fieldingRows.map(async (r) => {
+          const player = await toPlayerSummary(r._id);
+          if (!player) return null;
+          return {
+            player,
+            matches: r.matches,
+            catches: r.catches,
+            runOuts: r.runOuts,
+            stumpings: r.stumpings,
+            dismissals: r.dismissals
+          };
+        })
+      )
+    ).filter(Boolean);
+
+    const topPerformers = (
+      await Promise.all(
+        topPerformerRows.map(async (r) => {
+          const player = await toPlayerSummary(r._id);
+          if (!player) return null;
+          return { player, points: r.points };
+        })
+      )
+    ).filter(Boolean);
+
     res.status(200).json({
       success: true,
       batsmen,
-      bowlers
+      bowlers,
+      fielding,
+      topPerformers
     });
   } catch (error) {
     res.status(500).json({
