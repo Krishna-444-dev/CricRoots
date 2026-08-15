@@ -20,7 +20,8 @@ class RecommendationModel:
         os.makedirs(self.model_dir, exist_ok=True)
         
     def train_all_models(self, data_dir='data'):
-        """Trains all models using generated synthetic data."""
+        """Trains batsman/bowler/fielding on synthetic data (no real label exists for those);
+        trains win_prob_model on real match outcomes when data/real_matches.csv is present."""
         print("Training models...")
         
         # 1. Train Batsman & Bowler Models
@@ -38,9 +39,15 @@ class RecommendationModel:
         self.bowler_model = RandomForestClassifier(n_estimators=50, random_state=42)
         self.bowler_model.fit(X_bowl, y_bowl)
         
-        # Win Probability (Regression)
-        X_win = matches_df[['overs_remaining', 'wickets_down', 'current_run_rate', 'target_score']]
-        y_win = matches_df['win_probability']
+        # Win Probability (Regression) - trained on real match outcomes (win_probability = 1.0/0.0
+        # for whether the chasing team actually won) when available, instead of the synthetic
+        # matches.csv's hand-written heuristic formula label. real_matches.csv is produced by
+        # backend/src/scripts/extractWinProbabilityData.js from this app's own completed matches;
+        # falls back to the synthetic column if it hasn't been generated yet in this environment.
+        real_data_path = os.path.join(data_dir, 'real_matches.csv')
+        win_source_df = pd.read_csv(real_data_path) if os.path.exists(real_data_path) else matches_df
+        X_win = win_source_df[['overs_remaining', 'wickets_down', 'current_run_rate', 'target_score']]
+        y_win = win_source_df['win_probability']
         self.win_prob_model = RandomForestRegressor(n_estimators=50, random_state=42)
         self.win_prob_model.fit(X_win, y_win)
         
