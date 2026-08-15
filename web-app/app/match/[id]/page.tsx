@@ -137,6 +137,7 @@ interface Match {
   manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
   toss?: { winningTeam: { _id: string; name: string } | null; decision: string | null } | null;
   summary?: string;
+  story?: string[];
   createdBy?: { _id: string; name: string };
   umpires?: ({ _id: string; name: string } | string)[];
   documents?: { _id: string; url: string; fileName: string; category: string; uploadedAt: string }[];
@@ -204,7 +205,7 @@ function overBallLabel(balls: Ball[], index: number): string {
   return '';
 }
 
-type TabKey = 'info' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'mvp' | 'gallery' | 'ai-insights';
+type TabKey = 'info' | 'story' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'mvp' | 'gallery' | 'ai-insights';
 
 interface MVPEntry {
   playerId: string;
@@ -713,6 +714,9 @@ export default function MatchPage() {
         <button className={`${styles.tab} ${activeTab === 'info' ? styles.activeTab : ''}`} onClick={() => setActiveTab('info')}>
           ℹ️ Info
         </button>
+        <button className={`${styles.tab} ${activeTab === 'story' ? styles.activeTab : ''}`} onClick={() => setActiveTab('story')}>
+          📖 Match Story
+        </button>
         <button className={`${styles.tab} ${activeTab === 'ball-by-ball' ? styles.activeTab : ''}`} onClick={() => setActiveTab('ball-by-ball')}>
           🏏 Ball By Ball
         </button>
@@ -1011,6 +1015,24 @@ export default function MatchPage() {
               <p className="text-sm text-ink-muted">More match context (toss, live snapshot) will appear here once scoring begins.</p>
             )}
           </>
+        )}
+
+        {activeTab === 'story' && (
+          <div className="bg-surface border border-border rounded-xl p-5">
+            {match.story && match.story.length > 0 ? (
+              <div className="space-y-4 max-w-2xl">
+                {match.story.map((paragraph, i) => (
+                  <p key={i} className="text-sm text-ink-secondary leading-relaxed">{paragraph}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-ink-muted">
+                {match.status === 'Completed'
+                  ? 'The story for this match is being written up.'
+                  : 'The full match story will be told here once the match is completed.'}
+              </p>
+            )}
+          </div>
         )}
 
         {activeTab === 'ball-by-ball' && (

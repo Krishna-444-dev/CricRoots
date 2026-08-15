@@ -172,6 +172,12 @@ const matchSchema = new mongoose.Schema({
   // services/matchSummaryGenerator.js) - not user-editable, filled in once the first time the
   // match completes (matchController.updateMatch only generates it while empty).
   summary: { type: String, default: '' },
+  // Longer, multi-paragraph narrative for the dedicated "Match Story" tab - see
+  // services/matchStoryGenerator.js. Distinct from `summary` above (a 2-3 sentence blurb for the
+  // Info tab card): this tells the actual story of how the match unfolded, phase by phase.
+  // Array of paragraph strings so the frontend can render each as its own <p>/<Text> block
+  // without re-splitting a single blob. Same fill-once-while-empty convention as `summary`.
+  story: { type: [String], default: [] },
   // Match-specific reference documents (team sheets, ground rules addenda, dispute reports, ...)
   // - same shape/pattern as Tournament.documents, distinct from it since a document here is
   // scoped to one match, not the whole tournament.

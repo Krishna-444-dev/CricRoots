@@ -686,7 +686,7 @@ interface KeyMoment {
 // CricClubs-style tabbed match center, matching the web restructure (see MatchDetailScreen's
 // git history / web-app/app/match/[id]/page.tsx) - Info / Ball By Ball / Full Scorecard /
 // Over by Over / Charts, plus our own AI Insights tab.
-type TabKey = 'info' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'mvp' | 'gallery' | 'aiInsights';
+type TabKey = 'info' | 'story' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'mvp' | 'gallery' | 'aiInsights';
 
 interface MVPEntry {
   playerId: string;
@@ -1181,6 +1181,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabRow}>
         {([
           ['info', 'Info'],
+          ['story', 'Match Story'],
           ['ballByBall', 'Ball By Ball'],
           ['scorecard', 'Full Scorecard'],
           ['overByOver', 'Over by Over'],
@@ -1619,6 +1620,22 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             })
           )}
         </>
+      )}
+
+      {activeTab === 'story' && (
+        <View style={styles.section}>
+          {match.story && match.story.length > 0 ? (
+            match.story.map((paragraph, i) => (
+              <Text key={i} style={[styles.matchSummaryText, { marginTop: i === 0 ? 0 : 12 }]}>{paragraph}</Text>
+            ))
+          ) : (
+            <Text style={styles.matchSummaryText}>
+              {match.status === 'Completed'
+                ? 'The story for this match is being written up.'
+                : 'The full match story will be told here once the match is completed.'}
+            </Text>
+          )}
+        </View>
       )}
 
       {activeTab === 'ballByBall' && (

@@ -150,6 +150,7 @@ export interface Match {
   innings: Innings[];
   toss?: { winningTeam: Team | string; decision: string } | null;
   summary?: string;
+  story?: string[];
   result?: { winningTeam: string | null; margin: string; marginValue: number };
   manOfTheMatch?: Player | string | null;
   createdBy: User | string;

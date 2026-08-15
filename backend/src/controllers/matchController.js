@@ -14,6 +14,7 @@ const { getKeyMoments } = require('../services/keyMoments');
 const { settlePredictions } = require('../services/predictionSettler');
 const { generateMatchArticle } = require('../services/matchArticleGenerator');
 const { generateMatchSummary } = require('../services/matchSummaryGenerator');
+const { generateMatchStory } = require('../services/matchStoryGenerator');
 const { generatePostMatchTacticalReport } = require('../services/postMatchTacticalReport');
 const { notifyMatchStatusChange } = require('../services/notificationService');
 const { getMatchPerformanceReport, getBowlerLineLengthEffectiveness, getLiveMatchupPlan } = require('../services/tendencyAnalytics');
@@ -305,6 +306,20 @@ exports.updateMatch = async (req, res) => {
         if (match.summary) await match.save();
       } catch (summaryError) {
         console.error('Match summary generation failed:', summaryError.message);
+      }
+    }
+
+    // Auto-generate the longer, multi-paragraph "Match Story" tab content - same guarded,
+    // fill-once-while-empty pattern as the short summary above. Kept as a separate hook (not
+    // folded into the block above) since it's a materially heavier computation (partnerships +
+    // phase breakdown + name resolution for both innings) and the two are independently useful -
+    // a failure generating one shouldn't be conflated with the other in the logs.
+    if (match.status === 'Completed' && match.story.length === 0) {
+      try {
+        match.story = await generateMatchStory(match);
+        if (match.story.length > 0) await match.save();
+      } catch (storyError) {
+        console.error('Match story generation failed:', storyError.message);
       }
     }
 

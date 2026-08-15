@@ -95,4 +95,4 @@ function generatePostMatchTacticalReport(match) {
   };
 }
 
-module.exports = { generatePostMatchTacticalReport, phaseBoundaries };
+module.exports = { generatePostMatchTacticalReport, phaseBoundaries, phasesFor };
