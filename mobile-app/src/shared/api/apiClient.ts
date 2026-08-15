@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry, RosterTeam, MatchPhoto } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry, RosterTeam, MatchPhoto, AppNotification } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -42,7 +42,7 @@ export interface ApiResponse<T = any> {
 
 async function apiFetch<T = any>(
   path: string,
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
   body?: any,
   // allowFailureResponse: for endpoints where a non-2xx / success:false response is an expected,
   // meaningful outcome the caller needs the full body of (not just a thrown Error's `.message`) -
@@ -372,6 +372,19 @@ export const messagesAPI = {
     apiFetch<{ success: true; message: DirectMessage }>(`/messages/${userId}`, 'POST', { text }),
 };
 
+// --- In-app notifications (backend/src/routes/notificationRoutes.js, mounted at
+//     /api/notifications) - the bell-icon feed: a match a rostered team is in going Live/
+//     Completed, or a tournament announcement for a team rostered in that tournament. No push/
+//     email delivery yet, this is polled (see MainTabNavigator's unread badge) same as DMs. ---
+export const notificationsAPI = {
+  // Capped server-side at 50 (notificationController.js's LIST_LIMIT) - newest first.
+  getNotifications: () => apiFetch<{ success: true; count: number; notifications: AppNotification[] }>('/notifications'),
+  getUnreadCount: () => apiFetch<{ success: true; count: number }>('/notifications/unread-count'),
+  markRead: (notificationId: string) =>
+    apiFetch<{ success: true; notification: AppNotification }>(`/notifications/${notificationId}/read`, 'PATCH'),
+  markAllRead: () => apiFetch<{ success: true }>('/notifications/read-all', 'PATCH'),
+};
+
 // --- Team group chat (backend/src/routes/groupRoutes.js, mounted at /api/groups) - WhatsApp-
 //     style groups with text/poll/image/video messages. Separate from both direct messages
 //     (messagesAPI) and the simple Team/Tournament announcement chat (teamsAPI.getMessages /
@@ -461,6 +474,7 @@ export const api = {
   messages: messagesAPI,
   groups: groupsAPI,
   assistant: assistantAPI,
+  notifications: notificationsAPI,
 };
 
 export default api;

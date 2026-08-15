@@ -8,6 +8,7 @@ import { useCart } from '@/CartContext';
 import { apiFetch } from '@/lib/apiFetch';
 import { useDirectMessageSocket } from '@/hooks/useDirectMessageSocket';
 import { buttonVariants } from '@/components/ui/buttonStyles';
+import NotificationBell from './NotificationBell';
 
 type NavLink = { href: string; label: string };
 type NavEntry = NavLink | { label: string; items: NavLink[] };
@@ -181,6 +182,11 @@ export default function Navbar() {
               )
             )}
           </div>
+
+          {/* Visible at every breakpoint (unlike the icon group above, which is desktop-only) -
+              the bell needs to be reachable from the collapsed mobile header too, not just
+              inside the hamburger menu's link list. */}
+          <NotificationBell />
 
           <button
             onClick={() => setMobileOpen(prev => !prev)}

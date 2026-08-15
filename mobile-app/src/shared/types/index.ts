@@ -557,6 +557,20 @@ export interface PerformanceReport {
   tacticalTieBack?: PerformanceTacticalTieBack;
 }
 
+// In-app notification feed (backend/src/models/Notification.js via
+// backend/src/controllers/notificationController.js, mounted at /api/notifications). `link` is
+// a relative frontend path (e.g. `/match/<id>` or `/tournaments?tournamentId=<id>`) - see
+// NotificationsScreen.tsx's resolveNotificationLink for how it maps to a mobile screen/params.
+export interface AppNotification {
+  _id: string;
+  type: 'match_live' | 'match_completed' | 'tournament_announcement';
+  title: string;
+  message: string;
+  link: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface GroupMessage {
   _id: string;
   group: string;

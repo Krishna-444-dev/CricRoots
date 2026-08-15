@@ -363,14 +363,42 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   gets 400, then deleted it and confirmed it was gone from both the array and disk (and the
   static URL then 404s) - all test data (one match, two users, one leftover file from a
   deliberately-rejected unauthorized-upload attempt) cleaned up afterward.
+- **In-app match/tournament notifications** (`58fbe84`): scoped down to in-app only per
+  this doc's own backlog note - a bell icon + polled feed, no email/SMS/push infra (out of
+  scope, this app has none). New `Notification` model (`backend/src/models/Notification.js`,
+  compound-indexed on `{recipient, read, createdAt}`) fanned out to one document per recipient at
+  creation time via `notificationService.js`, using the same `Team -> Player -> User` join
+  `leagueController.getMyLeagues` established this session, just run forward (a team's roster ->
+  its users) instead of backward. Two trigger points, both wrapped in the same log-only
+  try/catch pattern as `matchController.updateMatch`'s other post-save side effects (match
+  summary, standings refresh, ...) so a notification bug can never fail the real action: (1)
+  `updateMatch` fires `match_live`/`match_completed` to every rostered player on either playing
+  team on an actual status *transition* (captured via a `previousStatus` snapshot, so re-saving
+  an already-Live match doesn't re-notify); (2) `messageController.postTournamentMessage` (the
+  existing announcement-chat endpoint) fires `tournament_announcement` to every rostered player
+  on any team in `tournament.teams` (already the full registered-team list regardless of
+  divisions - `assignDivisions` partitions it, doesn't replace it, so no division-aware branch
+  needed). `GET/PATCH /api/notifications*` (list capped at 50, unread-count, mark-one-read,
+  mark-all-read) - mark-one-read verifies `notification.recipient === req.user.id` server-side
+  (403 otherwise), same discipline as this session's other ownership-check fixes. Web: bell icon
+  in `Navbar.tsx` (visible at every breakpoint, not just desktop) with a dropdown panel, polling
+  `/unread-count` every 10s to match the match page's existing poll interval. Mobile: new
+  Notifications tab in `MainTabNavigator` (bell icon + badge, same pattern as the Profile tab's
+  existing unread-DM badge) opening `NotificationsScreen.tsx`, tapping a notification maps its
+  `link` (a real relative path, e.g. `/match/<id>` or `/tournaments?tournamentId=<id>` - matched
+  against the actual web routes, not assumed ones) to the right tab/screen/params. Live-verified
+  against the real backend + real MongoDB with a throwaway user/player/team/match/tournament
+  (created via the real API, deleted by exact ID afterward): flipping a real match Scheduled ->
+  Live -> Completed produced exactly the expected notifications with no duplicate on a re-save
+  no-op, posting a tournament announcement notified every rostered team's players, and the
+  403-on-wrong-user / mark-all-read / unread-count paths all checked out.
 
 ### Backlog (not started, roughly in priority order)
 
-- **Match notifications** — push/email when a followed team's match goes live or a tournament
-  posts an announcement (announcement chat already exists; notification delivery doesn't).
-  Deliberately left out of both parallel batches so far — needs a new data model and touches
-  trigger points across several controllers (match status changes, announcement posts), which made
-  it the track most likely to conflict with whatever else was running in parallel.
+- **Push/email notification delivery** — the in-app notification feed above covers the "seen
+  when you check the app" case; actual push (Expo push tokens) or email delivery for a followed
+  team's match going live, or a tournament announcement, would need real delivery infra this app
+  doesn't have yet. Deliberately out of scope for the in-app pass.
 - **Live streaming + AI highlights** (CricHeroes) — real video infrastructure, a much bigger lift
   than anything else on this list. Noted for completeness, not scoped or planned.
 - **Community feed** (CricHeroes: rules/education/trivia/quizzes/polls/stories) — CricRoots's
