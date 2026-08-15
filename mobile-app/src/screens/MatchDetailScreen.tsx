@@ -686,6 +686,12 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             </View>
           )}
         </View>
+        {match.toss?.winningTeam && (
+          <Text style={styles.tossText}>
+            🪙 {teamName(match.toss.winningTeam as Match['team1'])} won the toss and elected to{' '}
+            {match.toss.decision === 'bowl' ? 'bowl' : 'bat'}.
+          </Text>
+        )}
       </View>
 
       <View style={styles.scoreCard}>
@@ -1158,6 +1164,7 @@ const styles = StyleSheet.create({
   statusBadgeLive: { backgroundColor: colors.pitch900 },
   statusBadgeText: { color: colors.inkSecondary, fontSize: 11, fontWeight: '700' },
   statusBadgeTextLive: { color: colors.pitch400 },
+  tossText: { color: colors.inkSecondary, fontSize: 12, fontWeight: '600', marginTop: 8 },
   powerplayBadge: {
     marginLeft: 8,
     backgroundColor: 'rgba(245,166,35,0.15)',

@@ -165,8 +165,8 @@ const matchSchema = new mongoose.Schema({
     }]
   }],
   toss: {
-    winningTeam: mongoose.Schema.Types.ObjectId,
-    decision: String // bat or bowl
+    winningTeam: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
+    decision: String // 'bat' or 'bowl'
   },
   result: {
     winningTeam: mongoose.Schema.Types.ObjectId,

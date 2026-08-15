@@ -118,6 +118,7 @@ interface Match {
     liveState?: LiveState | null;
   }>;
   manOfTheMatch?: { _id: string; user?: { name?: string } } | null;
+  toss?: { winningTeam: { _id: string; name: string } | null; decision: string | null } | null;
   createdBy?: { _id: string; name: string };
   umpires?: ({ _id: string; name: string } | string)[];
 }
@@ -363,6 +364,11 @@ export default function MatchPage() {
             <span className="ml-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gold-500/15 text-gold-400 border border-gold-500/30">
               ⚡ Powerplay (overs 1-{powerplayOvers})
             </span>
+          )}
+          {match.toss?.winningTeam && (
+            <p className="mt-2 text-sm text-ink-secondary">
+              🪙 {match.toss.winningTeam.name} won the toss and elected to {match.toss.decision === 'bowl' ? 'bowl' : 'bat'}.
+            </p>
           )}
           <Link href={`/match/${matchId}/scouting`} className="block mt-3 text-sm font-medium text-gold-500 hover:text-gold-400 transition-colors">
             📋 Scouting Report &rarr;

@@ -148,7 +148,7 @@ export interface Match {
   totalOvers?: number;
   interruption?: Interruption | null;
   innings: Innings[];
-  toss?: { winningTeam: string; decision: string };
+  toss?: { winningTeam: Team | string; decision: string } | null;
   result?: { winningTeam: string | null; margin: string; marginValue: number };
   manOfTheMatch?: Player | string | null;
   createdBy: User | string;
