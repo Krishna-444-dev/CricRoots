@@ -286,6 +286,20 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   screen already fetches (no new network call) via a bottom-sheet picker matching
   `TournamentDetailScreen`'s existing register-team-picker pattern; gated on `computeCanScore`'s
   `isOwner` (already null-safe, see above) rather than a new ad-hoc check.
+- **Top Performers lists collapsed to #1 + "Show all" toggle** (`ece2107`): the Awards tab's
+  Leading Run Scorers/Wicket Takers/Fielders and Top Performer of Series lists showed up to 20
+  rows each, all visible at once - explicit user feedback that it read as cluttered. CricClubs
+  shows just the top entry per category by default. Each list gets its own independent expand
+  flag (opening one doesn't affect the others). Web and mobile both updated.
+- **My Leagues + search-only browsing** (`6dd33de`): the Leagues page showed every league in the
+  system to everyone by default - explicit user ask for a "My Leagues" section (leagues organized
+  or played in) with everything else reachable only via search, not shown by default. New
+  `GET /api/leagues/mine` does the `League -> Tournament -> Team -> Player -> User` join
+  server-side; `GET /api/leagues?search=<term>` is unchanged/backward-compatible when no search
+  param is given (any other existing caller still gets the full list), but the frontend never
+  calls it until the viewer actually types something. Verified with a throwaway second league
+  (different organizer, no roster relationship) confirmed excluded from "mine" but found via
+  search, then deleted. Web and mobile both updated.
 
 ### Backlog (not started, roughly in priority order)
 
