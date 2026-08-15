@@ -24,6 +24,7 @@ const QUICK_LINKS: QuickLink[] = [
   { label: 'Network', icon: 'person-add', screen: 'Network', tab: 'Home' },
   { label: 'Learn', icon: 'book', screen: 'Learn', tab: 'Home' },
   { label: 'News', icon: 'newspaper', screen: 'News', tab: 'Home' },
+  { label: 'Community', icon: 'chatbubbles', screen: 'Community', tab: 'Home' },
   { label: 'Market', icon: 'cart', screen: 'Marketplace', tab: 'Home' },
 ];
 

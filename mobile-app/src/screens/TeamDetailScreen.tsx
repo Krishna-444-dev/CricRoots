@@ -14,6 +14,7 @@ import { colors } from '../theme';
 import { api } from '../shared/api/apiClient';
 import { Team } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
+import PollsSection from '../components/PollsSection';
 
 // Populated relations (captain, players, message.sender) depend entirely on which endpoint
 // returned them - GET /teams/:id only shallow-populates captain/players (a Player doc whose
@@ -376,9 +377,13 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
         }}
         ListEmptyComponent={<Text style={styles.muted}>No players on this team yet.</Text>}
         ListFooterComponent={
-          messages !== null ? (
-            <View style={styles.chatSection}>
-              <Text style={styles.sectionTitle}>Team Chat</Text>
+          <View>
+            <View style={styles.pollsSection}>
+              <PollsSection scope="team" scopeId={teamId} canManage={isAdmin} />
+            </View>
+            {messages !== null && (
+              <View style={styles.chatSection}>
+                <Text style={styles.sectionTitle}>Team Chat</Text>
               {messages.length === 0 ? (
                 <Text style={styles.muted}>No messages yet.</Text>
               ) : (
@@ -405,8 +410,9 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.sendBtnText}>{postingMessage ? '...' : 'Send'}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          ) : null
+              </View>
+            )}
+          </View>
         }
       />
 
@@ -565,6 +571,7 @@ const styles = StyleSheet.create({
   playerName: { color: colors.ink, fontSize: 15, fontWeight: '600' },
   playerMeta: { color: colors.inkMuted, fontSize: 12, marginTop: 2 },
   removeText: { color: colors.wicket400, fontSize: 12, fontWeight: '600' },
+  pollsSection: { marginTop: 16, paddingHorizontal: 16 },
   chatSection: { marginTop: 16, paddingHorizontal: 16 },
   messageRow: { marginBottom: 10, backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10 },
   messageSender: { color: colors.gold500, fontSize: 11, fontWeight: '700', marginBottom: 2 },

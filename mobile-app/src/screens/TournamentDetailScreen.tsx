@@ -6,6 +6,7 @@ import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { Tournament, Match, TournamentStanding, RosterTeam, Player } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
 import { getInitials } from '../shared/utils/formatters';
+import PollsSection from '../components/PollsSection';
 
 // Populated relations depend on which endpoint returned them - GET /tournaments/:id populates
 // organizer/teams/standings.team/awards.* (players' awards get a nested `user` populate too),
@@ -85,7 +86,7 @@ function formatDate(d?: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type Section = 'standings' | 'teams' | 'matches' | 'bracket' | 'statistics' | 'awards' | 'announcements' | 'rules' | 'documents';
+type Section = 'standings' | 'teams' | 'matches' | 'bracket' | 'statistics' | 'awards' | 'announcements' | 'polls' | 'rules' | 'documents';
 
 const KNOCKOUT_ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'] as const;
 
@@ -570,14 +571,14 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         {!!error && <Text style={styles.errorBanner}>{error}</Text>}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.segmentScroll} contentContainerStyle={styles.segmentRow}>
-          {(['standings', 'teams', 'matches', 'bracket', 'statistics', 'awards', 'announcements', 'rules', 'documents'] as Section[]).map(s => (
+          {(['standings', 'teams', 'matches', 'bracket', 'statistics', 'awards', 'announcements', 'polls', 'rules', 'documents'] as Section[]).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.segmentBtn, section === s && styles.segmentBtnActive]}
               onPress={() => setSection(s)}
             >
               <Text style={[styles.segmentText, section === s && styles.segmentTextActive]}>
-                {s === 'standings' ? 'Standings' : s === 'teams' ? 'Teams' : s === 'matches' ? 'Matches' : s === 'bracket' ? 'Bracket' : s === 'statistics' ? 'Statistics' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : s === 'rules' ? 'House Rules' : 'Documents'}
+                {s === 'standings' ? 'Standings' : s === 'teams' ? 'Teams' : s === 'matches' ? 'Matches' : s === 'bracket' ? 'Bracket' : s === 'statistics' ? 'Statistics' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : s === 'polls' ? 'Polls' : s === 'rules' ? 'House Rules' : 'Documents'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1020,6 +1021,12 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                 </TouchableOpacity>
               </View>
             )}
+          </View>
+        )}
+
+        {section === 'polls' && (
+          <View style={styles.sectionBody}>
+            <PollsSection scope="tournament" scopeId={tournamentId} canManage={isOrganizer} />
           </View>
         )}
 

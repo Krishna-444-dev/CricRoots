@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createTournament,
   getAllTournaments,
+  getMyTournaments,
   getTournament,
   updateTournament,
   registerTeam,
@@ -26,7 +27,10 @@ const { protect } = require('../middleware/auth');
 const { uploadTournamentDocument } = require('../middleware/upload');
 
 // Public routes
+// /mine must be registered before /:id, or Express would match it as {id: 'mine'} instead
+// (same ordering note as leagueRoutes.js's /mine).
 router.get('/', getAllTournaments);
+router.get('/mine', protect, getMyTournaments);
 router.get('/:id', getTournament);
 router.get('/:id/standings', getTournamentStandings);
 router.get('/:id/matches', getTournamentMatches);

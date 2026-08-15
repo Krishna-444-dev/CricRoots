@@ -6,6 +6,7 @@ import LearnScreen from '../../screens/LearnScreen';
 import CreateLessonScreen from '../../screens/CreateLessonScreen';
 import NewsScreen from '../../screens/NewsScreen';
 import CreateNewsScreen from '../../screens/CreateNewsScreen';
+import CommunityScreen from '../../screens/CommunityScreen';
 import MarketplaceScreen from '../../screens/MarketplaceScreen';
 import CartScreen from '../../screens/CartScreen';
 import OrdersScreen from '../../screens/OrdersScreen';
@@ -23,6 +24,7 @@ export default function HomeStack() {
       <Stack.Screen name="CreateLesson" component={CreateLessonScreen} options={{ title: 'New Lesson' }} />
       <Stack.Screen name="News" component={NewsScreen} />
       <Stack.Screen name="CreateNews" component={CreateNewsScreen} options={{ title: 'New Post' }} />
+      <Stack.Screen name="Community" component={CommunityScreen} options={{ title: 'Community' }} />
       <Stack.Screen name="Marketplace" component={MarketplaceScreen} />
       <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="Orders" component={OrdersScreen} />

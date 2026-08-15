@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createTeam,
   getAllTeams,
+  getMyTeams,
   getTeam,
   updateTeam,
   addPlayerToTeam,
@@ -16,7 +17,10 @@ const { getTeamMessages, postTeamMessage } = require('../controllers/messageCont
 const { protect } = require('../middleware/auth');
 
 // Public routes
+// /mine must be registered before /:id, or Express would match it as {id: 'mine'} instead
+// (same ordering note as leagueRoutes.js's /mine).
 router.get('/', getAllTeams);
+router.get('/mine', protect, getMyTeams);
 router.get('/:id', getTeam);
 
 // Protected routes

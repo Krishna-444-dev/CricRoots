@@ -9,6 +9,7 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { inputClass, errorBoxClass } from '@/components/ui/formStyles';
 import { resolveRefId, resolveRefName } from '@/lib/resolveRef';
+import PollsSection from '@/components/community/PollsSection';
 
 interface PlayerDoc {
   _id: string;
@@ -252,6 +253,10 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
             </li>
           ))}
         </ul>
+      </Card>
+
+      <Card className="mb-6">
+        <PollsSection scope="team" scopeId={team._id} canManage={isAdmin} />
       </Card>
 
       {isAdmin && (

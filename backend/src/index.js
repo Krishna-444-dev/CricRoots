@@ -79,6 +79,8 @@ app.use('/api/messages', require('./routes/directMessageRoutes'));
 app.use('/api/groups', require('./routes/groupRoutes'));
 app.use('/api/assistant', require('./routes/assistantRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/polls', require('./routes/pollRoutes'));
+app.use('/api/trivia', require('./routes/triviaRoutes'));
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

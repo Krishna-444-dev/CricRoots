@@ -494,3 +494,36 @@ exports.removeCoach = async (req, res) => {
     });
   }
 };
+
+// @desc    Teams the current user is actually rostered on (captain/vice-captain/coach are
+//          always also in `players`, by construction - see createTeam/addPlayerToTeam above -
+//          so a single `players` membership check covers every role). Same Player -> Team join
+//          leagueController.js's getMyLeagues established this session for "what is this user
+//          actually part of" - built for the Community page to scope poll-creation entry
+//          points to teams the viewer can actually manage/vote in, rather than every team in
+//          the system.
+// @route   GET /api/teams/mine
+// @access  Private
+exports.getMyTeams = async (req, res) => {
+  try {
+    const playerProfile = await Player.findOne({ user: req.user.id }).select('_id');
+    if (!playerProfile) {
+      return res.status(200).json({ success: true, count: 0, teams: [] });
+    }
+
+    const teams = await Team.find({ players: playerProfile._id })
+      .populate(TEAM_POPULATE_FIELDS)
+      .sort({ name: 1 });
+
+    res.status(200).json({
+      success: true,
+      count: teams.length,
+      teams
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

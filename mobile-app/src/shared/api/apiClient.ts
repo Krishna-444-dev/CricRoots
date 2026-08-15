@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry, RosterTeam, MatchPhoto, AppNotification } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry, RosterTeam, MatchPhoto, AppNotification, Poll, CurrentTrivia } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -124,6 +124,10 @@ export const playerStatsAPI = {
 // --- Teams (backend/src/routes/teamRoutes.js) ---
 export const teamsAPI = {
   getTeams: () => apiFetch<{ success: true; teams: any[] }>('/teams'),
+  // Teams the current user is actually rostered on - what the Community screen scopes poll
+  // creation/browsing to (same Player -> Team join leaguesAPI.getMyLeagues's backend
+  // counterpart uses). See teamController.js's getMyTeams.
+  getMyTeams: () => apiFetch<{ success: true; teams: any[] }>('/teams/mine'),
   getTeamById: (teamId: string) => apiFetch<{ success: true; team: any }>(`/teams/${teamId}`),
   createTeam: (data: { name: string; description?: string; city: string }) =>
     apiFetch<{ success: true; team: any }>('/teams', 'POST', data),
@@ -225,6 +229,9 @@ export const scoringLockAPI = {
 // --- Tournaments (backend/src/routes/tournamentRoutes.js) ---
 export const tournamentsAPI = {
   getTournaments: () => apiFetch<{ success: true; tournaments: any[] }>('/tournaments'),
+  // Tournaments the current user organizes or plays in - same use as teamsAPI.getMyTeams
+  // above. See tournamentController.js's getMyTournaments.
+  getMyTournaments: () => apiFetch<{ success: true; tournaments: any[] }>('/tournaments/mine'),
   getTournamentById: (tournamentId: string) => apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}`),
   createTournament: (data: any) => apiFetch<{ success: true; tournament: any }>('/tournaments', 'POST', data),
   updateTournament: (tournamentId: string, data: any) => apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}`, 'PUT', data),
@@ -447,6 +454,31 @@ export const groupsAPI = {
     apiUpload<{ success: true; message: GroupMessage }>(`/groups/${groupId}/attachments`, file),
 };
 
+// --- Community-feed polls (backend/src/routes/pollRoutes.js, mounted at /api/polls) - scoped
+//     to exactly one team or tournament. Separate from groupsAPI's embedded chat polls above
+//     (a different, pre-existing single-message feature). ---
+export const pollsAPI = {
+  getForTeam: (teamId: string) => apiFetch<{ success: true; count: number; polls: Poll[] }>(`/polls?teamId=${teamId}`),
+  getForTournament: (tournamentId: string) => apiFetch<{ success: true; count: number; polls: Poll[] }>(`/polls?tournamentId=${tournamentId}`),
+  // Exactly one of teamId/tournamentId - enforced server-side (Poll.js's pre-validate hook).
+  create: (data: { question: string; options: string[]; teamId?: string; tournamentId?: string }) =>
+    apiFetch<{ success: true; poll: Poll }>('/polls', 'POST', data),
+  // Re-voting moves the ballot rather than adding a second one - see Poll.js/pollController.js.
+  vote: (pollId: string, optionIndex: number) =>
+    apiFetch<{ success: true; poll: Poll }>(`/polls/${pollId}/vote`, 'POST', { optionIndex }),
+  close: (pollId: string) => apiFetch<{ success: true; poll: Poll }>(`/polls/${pollId}/close`, 'PATCH'),
+};
+
+// --- Global "trivia of the day" (backend/src/routes/triviaRoutes.js, mounted at /api/trivia) -
+//     not scoped to a team/tournament, unlike pollsAPI above. ---
+export const triviaAPI = {
+  getCurrent: () => apiFetch<{ success: true; trivia: CurrentTrivia | null }>('/trivia/current'),
+  answer: (triviaId: string, optionIndex: number) =>
+    apiFetch<{ success: true; correct: boolean; correctIndex: number; explanation: string }>(
+      `/trivia/${triviaId}/answer`, 'POST', { optionIndex }
+    ),
+};
+
 // --- In-app assistant (backend/src/routes/assistantRoutes.js) - app-help & cricket-rules Q&A,
 //     grounded in real reference content. The client owns conversation history - no server-side
 //     chat session storage - so `ask` sends the last ~10 turns back alongside the new message. ---
@@ -475,6 +507,8 @@ export const api = {
   groups: groupsAPI,
   assistant: assistantAPI,
   notifications: notificationsAPI,
+  polls: pollsAPI,
+  trivia: triviaAPI,
 };
 
 export default api;

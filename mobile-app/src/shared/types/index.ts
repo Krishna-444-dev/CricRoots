@@ -595,3 +595,44 @@ export interface GroupMessage {
     sizeBytes: number;
   };
 }
+
+// Community-feed poll (backend/src/models/Poll.js via pollController.js, mounted at
+// /api/polls) - scoped to exactly one of `team`/`tournament`. Distinct from GroupMessage's
+// embedded chat poll above (a different, pre-existing feature scoped to a single group
+// message). Options never carry raw voter-id arrays over the wire - the backend precomputes
+// counts/percentages server-side (see pollController.js's serializePoll).
+export interface PollOption {
+  text: string;
+  voteCount: number;
+  percentage: number;
+}
+
+export interface Poll {
+  _id: string;
+  question: string;
+  options: PollOption[];
+  totalVotes: number;
+  // This viewer's current pick, or null if they haven't voted (or the request was
+  // unauthenticated). Re-voting moves this rather than adding a second ballot.
+  myOptionIndex: number | null;
+  team: string | null;
+  tournament: string | null;
+  createdBy: string;
+  isOpen: boolean;
+  createdAt: string;
+}
+
+// Global "trivia of the day" card (backend/src/models/Trivia.js via triviaController.js,
+// mounted at /api/trivia) - not scoped to a team/tournament. `correctIndex`/`explanation` are
+// withheld by the backend until this viewer has actually answered - see
+// triviaController.js's getCurrentTrivia for why (shipping the answer key pre-reveal would let
+// anyone read it straight off the network response).
+export interface CurrentTrivia {
+  _id: string;
+  question: string;
+  options: string[];
+  createdAt: string;
+  correctIndex: number | null;
+  explanation: string | null;
+  myAnswer: { optionIndex: number; correct: boolean } | null;
+}
