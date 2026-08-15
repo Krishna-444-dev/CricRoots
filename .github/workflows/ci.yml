@@ -1,0 +1,59 @@
+name: CI
+
+# Test/lint gate on every push and PR - distinct from DEPLOYMENT.md's documented (and not yet
+# implemented) deploy.yml example, which builds/ships to a production server that doesn't exist
+# yet. This workflow only needs to exist to run what's actually here: the backend's real Jest
+# suite (mongodb-memory-server, no external services required), and a type-check gate on
+# web-app/mobile-app, which have no test suite yet but do have a real TypeScript compiler that
+# catches a large class of the regressions this project has otherwise only caught by hand.
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  web-app-typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web-app/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  mobile-app-typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile-app/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit

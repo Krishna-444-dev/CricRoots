@@ -90,6 +90,16 @@ ssl/
 mongodb_backup/
 *.dump
 
+# Trained ML model artifacts - regenerable, shouldn't grow git history with binary blobs.
+# batsman_model.pkl/bowler_model.pkl/fielding_model.pkl regenerate from ai-engine/data/*.csv via
+# `python train_models.py` (fixed random_state=42, deterministic); win_prob_model.pkl also needs
+# ai-engine/data/real_matches.csv, regenerated from live match data via
+# backend/src/scripts/extractWinProbabilityData.js first. Four files already exist in git
+# history from before this ignore rule (~200MB total, see documentation/
+# research-readiness-audit.md section 7) - removing them from history is a separate, deliberate
+# decision this rule does not make on its own; it only stops the problem from growing further.
+ai-engine/src/models/trained_models/*.pkl
+
 # IDE settings
 .vscode/settings.json
 .idea/workspace.xml

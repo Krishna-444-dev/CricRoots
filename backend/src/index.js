@@ -1,18 +1,21 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const dotenv = require('dotenv');
 const http = require('http');
 const socketIo = require('socket.io');
-const path = require('path');
+const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const SocketManager = require('./utils/socketManager');
+const { createApp } = require('./app');
+const { assertProductionSecretsConfigured } = require('./config/assertSecrets');
 
 // Load environment variables
 dotenv.config();
 
-const app = express();
+assertProductionSecretsConfigured();
+
+// See app.js's comment on ioHolder for why this is a mutable holder rather than passing `io`
+// directly - the app (and its req.io-attaching middleware) has to be built before the HTTP
+// server that socket.io wraps can exist, so `io` isn't available yet at createApp() time.
+const ioHolder = {};
+const app = createApp({ ioHolder });
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
@@ -27,77 +30,8 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Initialize Socket Manager
-const socketManager = new SocketManager(io);
-
-// Make socketManager available to routes
-app.use((req, res, next) => {
-  req.io = io;
-  req.socketManager = socketManager;
-  next();
-});
-
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Uploaded group-chat attachments (see middleware/upload.js). helmet's default
-// Cross-Origin-Resource-Policy header blocks a frontend on a different origin from loading
-// these as <img>/<video> sources, so it's relaxed specifically for this static route.
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
-  setHeaders: (res) => res.set('Cross-Origin-Resource-Policy', 'cross-origin')
-}));
-
-// Basic Route
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Welcome to CricRoots API',
-    version: '1.0.0',
-    status: 'Running',
-    websocket: 'Enabled'
-  });
-});
-
-// API Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/users', require('./routes/userRoutes'));
-app.use('/api/players', require('./routes/playerRoutes'));
-app.use('/api/player-stats', require('./routes/playerStatsRoutes'));
-app.use('/api/teams', require('./routes/teamRoutes'));
-app.use('/api/matches', require('./routes/matchRoutes'));
-app.use('/api/tournaments', require('./routes/tournamentRoutes'));
-app.use('/api/leagues', require('./routes/leagueRoutes'));
-app.use('/api/lessons', require('./routes/lessonRoutes'));
-app.use('/api/news', require('./routes/newsRoutes'));
-app.use('/api/products', require('./routes/productRoutes'));
-app.use('/api/orders', require('./routes/orderRoutes'));
-app.use('/api/insights', require('./routes/insightsRoutes'));
-app.use('/api/predictions', require('./routes/predictionRoutes'));
-app.use('/api/messages', require('./routes/directMessageRoutes'));
-app.use('/api/groups', require('./routes/groupRoutes'));
-app.use('/api/assistant', require('./routes/assistantRoutes'));
-app.use('/api/notifications', require('./routes/notificationRoutes'));
-app.use('/api/polls', require('./routes/pollRoutes'));
-app.use('/api/trivia', require('./routes/triviaRoutes'));
-
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Something went wrong!'
-  });
-});
-
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
-});
+ioHolder.io = io;
+ioHolder.socketManager = new SocketManager(io);
 
 // Start Server
 server.listen(PORT, () => {
