@@ -27,10 +27,22 @@ and why, see `documentation/cricclubs-feature-roadmap.md` and `documentation/mob
 
 ## AI / data
 
-- [ ] Retrain the win-probability/tactical-advisor model (`ai-engine/`) on real match data as it
-      accumulates through this app's own scoring, instead of the current small synthetic dataset —
-      needed before its live-updating behavior is meaningfully sensitive to match state rather than
-      saturating near its extremes for long stretches.
+- [x] Retrain the win-probability model's regressor (`ai-engine/src/models/recommendation_model.py`'s
+      `win_prob_model`) on real match outcomes — done 2026-08-14. `backend/src/scripts/
+      extractWinProbabilityData.js` walks every Completed match's chasing innings ball-by-ball
+      (one row per completed over) and labels each row with whether the chasing team actually won,
+      replacing `data_generator.py`'s hand-written heuristic formula label. 577 completed matches ->
+      11,233 real rows in `ai-engine/data/real_matches.csv`; `train_all_models()` now trains
+      `win_prob_model` on that file when present (falls back to the old synthetic column
+      otherwise). Match-level holdout evaluation (`ai-engine/evaluate_win_probability.py`): Brier
+      score 0.156 vs. 0.400 for what the old synthetic-trained model predicts on the same real
+      situations, and decile calibration is now monotonic (the synthetic model was miscalibrated -
+      predicting ~0.86 average across situations that actually won only ~45% of the time).
+      Still open: `batsman_model`/`bowler_model`/`fielding_model` remain trained on synthetic data
+      only — there's no real recorded label anywhere in this app for "which player should bat/bowl
+      next" or "optimal fielding position" (no historian ever recorded a "correct" decision), so
+      retraining those needs a different data source (e.g. outcome-based reward signal) than
+      "real data already exists," not just more scoring volume.
 - [ ] Source and verify the official D/L Standard resource table before treating rain-revision as
       more than an approximate, explicitly-labeled estimate.
 
