@@ -14,6 +14,33 @@ import Button from '@/components/ui/Button';
 const TOURNAMENT_FORMATS = ['League', 'Knockout', 'Group', 'Round-Robin'] as const;
 const TOURNAMENT_MATCH_TYPES = ['T20', 'T10', 'ODI', 'Test'] as const;
 
+type TabKey = 'list' | 'standings' | 'matches' | 'bracket' | 'statistics' | 'announcements' | 'awards' | 'rules' | 'teams' | 'documents';
+type TabDef = { key: TabKey; emoji: string; label: string };
+
+// Grouped into a two-tier bar so the tournament page's tab row doesn't grow unbounded as
+// features get added - 10 flat tabs in one row was the original layout. "list" stays
+// top-level (it's the tournament picker, not a per-tournament view). Each other group's own
+// sub-row renders under whichever group activeTab currently belongs to (derived from
+// activeTab, not separate state, so the two can't desync).
+const TAB_GROUPS: { key: string; emoji: string; label: string; tabs: TabDef[] }[] = [
+  { key: 'compete', emoji: '🏏', label: 'Compete', tabs: [
+    { key: 'standings', emoji: '🏆', label: 'Standings' },
+    { key: 'teams', emoji: '👥', label: 'Teams' },
+    { key: 'matches', emoji: '🏏', label: 'Matches' },
+    { key: 'bracket', emoji: '🥇', label: 'Bracket' },
+  ] },
+  { key: 'stats', emoji: '📊', label: 'Stats', tabs: [
+    { key: 'statistics', emoji: '📊', label: 'Statistics' },
+    { key: 'awards', emoji: '🎖️', label: 'Awards' },
+  ] },
+  { key: 'info', emoji: '📄', label: 'Info', tabs: [
+    { key: 'announcements', emoji: '📢', label: 'Announcements' },
+    { key: 'rules', emoji: '📜', label: 'House Rules' },
+    { key: 'documents', emoji: '📁', label: 'Documents' },
+  ] },
+];
+const GROUP_FOR_TAB = new Map(TAB_GROUPS.flatMap((g) => g.tabs.map((t) => [t.key, g])));
+
 interface AwardTeam {
   _id: string;
   name: string;
@@ -199,6 +226,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [awardsError, setAwardsError] = useState('');
   const [leaderboard, setLeaderboard] = useState<{ batsmen: LeaderboardBatsman[]; bowlers: LeaderboardBowler[]; fielding: LeaderboardFielder[]; topPerformers: LeaderboardTopPerformer[] } | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [liveStats, setLiveStats] = useState<Tournament['statistics'] | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [groupStandings, setGroupStandings] = useState<GroupStandingsResponse[] | null>(null);
   const [groupStandingsLoading, setGroupStandingsLoading] = useState(false);
   const [groupCountInput, setGroupCountInput] = useState('2');
@@ -255,6 +284,19 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   useEffect(() => {
     setSelectedDivision(selectedTournament?.divisions?.[0]?.name ?? null);
   }, [selectedTournament?._id, selectedTournament?.divisions?.length]);
+
+  // selectedTournament.statistics is the stale embedded field (schema defaults, never
+  // recomputed after creation) - the live numbers only come from GET .../statistics
+  // (see getTournamentMatchStatistics), which this tab never actually called until now.
+  useEffect(() => {
+    if (activeTab === 'statistics' && selectedTournament) {
+      setStatsLoading(true);
+      fetch(`/api/tournaments/${selectedTournament._id}/statistics`)
+        .then((r) => r.json())
+        .then((data) => { if (data.success) setLiveStats(data.statistics); })
+        .finally(() => setStatsLoading(false));
+    }
+  }, [activeTab, selectedTournament]);
 
   useEffect(() => {
     if (activeTab === 'announcements' && selectedTournament) {
@@ -744,73 +786,44 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
         </button>
       </div>
 
-      {/* Tab Navigation */}
-      <div className={styles.tabContainer}>
-        <button
-          className={`${styles.tab} ${activeTab === 'list' ? styles.activeTab : ''}`}
-          onClick={() => setActiveTab('list')}
-        >
-          📋 Tournaments
-        </button>
-        {selectedTournament && (
+      {/* Tab Navigation - two-tier: top-level groups, then the active group's own sub-tabs. */}
+      {(() => {
+        const activeGroup = GROUP_FOR_TAB.get(activeTab);
+        return (
           <>
-            <button
-              className={`${styles.tab} ${activeTab === 'standings' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('standings')}
-            >
-              🏆 Standings
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'teams' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('teams')}
-            >
-              👥 Teams
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'matches' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('matches')}
-            >
-              🏏 Matches
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'bracket' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('bracket')}
-            >
-              🥇 Bracket
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'statistics' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('statistics')}
-            >
-              📊 Statistics
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'announcements' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('announcements')}
-            >
-              📢 Announcements
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'awards' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('awards')}
-            >
-              🎖️ Awards
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'rules' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('rules')}
-            >
-              📜 House Rules
-            </button>
-            <button
-              className={`${styles.tab} ${activeTab === 'documents' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('documents')}
-            >
-              📁 Documents
-            </button>
+            <div className={styles.tabContainer}>
+              <button
+                className={`${styles.tab} ${activeTab === 'list' ? styles.activeTab : ''}`}
+                onClick={() => setActiveTab('list')}
+              >
+                📋 Tournaments
+              </button>
+              {selectedTournament && TAB_GROUPS.map((group) => (
+                <button
+                  key={group.key}
+                  className={`${styles.tab} ${activeGroup?.key === group.key ? styles.activeTab : ''}`}
+                  onClick={() => setActiveTab(group.tabs[0].key)}
+                >
+                  {group.emoji} {group.label}
+                </button>
+              ))}
+            </div>
+            {selectedTournament && activeGroup && (
+              <div className={`${styles.tabContainer} ${styles.subTabContainer}`}>
+                {activeGroup.tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    className={`${styles.tab} ${styles.subTab} ${activeTab === tab.key ? styles.activeTab : ''}`}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    {tab.emoji} {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Content */}
       <div className={styles.content}>
@@ -1385,24 +1398,38 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
         {activeTab === 'statistics' && selectedTournament && (
           <div className={styles.card}>
             <h2>{selectedTournament.name} - Statistics</h2>
-            <div className={styles.statsGrid}>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>Total Runs</span>
-                <span className={styles.statValue}>{selectedTournament.statistics.totalRuns}</span>
+            {statsLoading || !liveStats ? (
+              <p className={styles.infoText}>Loading statistics...</p>
+            ) : liveStats.completedMatches === 0 ? (
+              <p className={styles.infoText}>No completed matches yet - statistics fill in as matches are played.</p>
+            ) : (
+              <div className={styles.statsGrid}>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Total Runs</span>
+                  <span className={styles.statValue}>{liveStats.totalRuns}</span>
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Total Wickets</span>
+                  <span className={styles.statValue}>{liveStats.totalWickets}</span>
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Highest Score</span>
+                  <span className={styles.statValue}>{liveStats.highestScore}</span>
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Lowest Score</span>
+                  <span className={styles.statValue}>{liveStats.lowestScore}</span>
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Highest Individual Score</span>
+                  <span className={styles.statValue}>{liveStats.highestIndividualScore}</span>
+                </div>
+                <div className={styles.statBox}>
+                  <span className={styles.statLabel}>Best Bowling Figures</span>
+                  <span className={styles.statValue}>{liveStats.bestBowlingFigures}</span>
+                </div>
               </div>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>Total Wickets</span>
-                <span className={styles.statValue}>{selectedTournament.statistics.totalWickets}</span>
-              </div>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>Highest Score</span>
-                <span className={styles.statValue}>{selectedTournament.statistics.highestScore}</span>
-              </div>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>Lowest Score</span>
-                <span className={styles.statValue}>{selectedTournament.statistics.lowestScore}</span>
-              </div>
-            </div>
+            )}
           </div>
         )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/AuthContext';
@@ -9,30 +9,62 @@ import { apiFetch } from '@/lib/apiFetch';
 import { useDirectMessageSocket } from '@/hooks/useDirectMessageSocket';
 import { buttonVariants } from '@/components/ui/buttonStyles';
 
-const NAV_LINKS = [
-  { href: '/matches', label: 'Matches' },
+type NavLink = { href: string; label: string };
+type NavEntry = NavLink | { label: string; items: NavLink[] };
+
+// Grouped so the top-level bar stays short - a flat 12-link row was overflowing the viewport
+// at normal desktop widths. "Compete" is the structured-play surfaces, "Community" is
+// people/content discovery (Groups here means group chats, not tournament groups - it belongs
+// here, not in Compete). Calendar/Market/Predict stay top-level since they're single
+// destinations, not categories, and each is a distinct enough surface to not bury.
+const NAV_ENTRIES: NavEntry[] = [
+  { label: 'Compete', items: [
+    { href: '/matches', label: 'Matches' },
+    { href: '/tournaments', label: 'Tournaments' },
+    { href: '/leagues', label: 'Leagues' },
+    { href: '/teams', label: 'Teams' },
+  ] },
   { href: '/calendar', label: 'Calendar' },
-  { href: '/teams', label: 'Teams' },
-  { href: '/groups', label: 'Groups' },
-  { href: '/tournaments', label: 'Tournaments' },
-  { href: '/leagues', label: 'Leagues' },
-  { href: '/players', label: 'Players' },
-  { href: '/network', label: 'Network' },
-  { href: '/edtech', label: 'Learn' },
-  { href: '/news', label: 'News' },
+  { label: 'Community', items: [
+    { href: '/players', label: 'Players' },
+    { href: '/network', label: 'Network' },
+    { href: '/groups', label: 'Groups' },
+    { href: '/news', label: 'News' },
+    { href: '/edtech', label: 'Learn' },
+  ] },
   { href: '/marketplace', label: 'Market' },
   { href: '/predictions/leaderboard', label: 'Predict' },
 ];
+const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap((e) => ('items' in e ? e.items : [e]));
 
 export default function Navbar() {
   const pathname = usePathname();
   const { user, token, isLoading, logout } = useAuth();
   const { items } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const navRef = useRef<HTMLElement>(null);
 
   const cartCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+  const isGroupActive = (items: NavLink[]) => items.some((i) => isActive(i.href));
+
+  // Closes an open dropdown on outside click or route change, so it never lingers after the
+  // user has clearly moved on.
+  useEffect(() => {
+    if (!openGroup) return;
+    const onClick = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenGroup(null);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [openGroup]);
+
+  useEffect(() => {
+    setOpenGroup(null);
+    setMobileOpen(false);
+  }, [pathname]);
 
   const refreshUnreadCount = useCallback(async () => {
     const res = await apiFetch('/api/messages/unread-count');
@@ -64,18 +96,53 @@ export default function Navbar() {
             <span>Cric<span className="text-pitch-500">Roots</span></span>
           </Link>
 
-          <nav className="hidden lg:flex items-center gap-1 mx-4">
-            {NAV_LINKS.map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive(link.href) ? 'text-pitch-400 bg-pitch-500/10' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+          <nav ref={navRef} className="hidden lg:flex items-center gap-1 mx-4">
+            {NAV_ENTRIES.map(entry =>
+              'items' in entry ? (
+                <div key={entry.label} className="relative">
+                  <button
+                    onClick={() => setOpenGroup(prev => (prev === entry.label ? null : entry.label))}
+                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isGroupActive(entry.items) || openGroup === entry.label
+                        ? 'text-pitch-400 bg-pitch-500/10'
+                        : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                    }`}
+                    aria-expanded={openGroup === entry.label}
+                  >
+                    {entry.label}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                      className={`transition-transform ${openGroup === entry.label ? 'rotate-180' : ''}`}>
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  {openGroup === entry.label && (
+                    <div className="absolute left-0 top-full mt-1 min-w-[10rem] py-1 rounded-lg border border-border bg-surface shadow-lg">
+                      {entry.items.map(item => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`block px-3 py-2 text-sm font-medium transition-colors ${
+                            isActive(item.href) ? 'text-pitch-400 bg-pitch-500/10' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                          }`}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive(entry.href) ? 'text-pitch-400 bg-pitch-500/10' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                  }`}
+                >
+                  {entry.label}
+                </Link>
+              )
+            )}
           </nav>
 
           <div className="hidden lg:flex items-center gap-3 shrink-0">
@@ -129,18 +196,36 @@ export default function Navbar() {
 
       {mobileOpen && (
         <div className="lg:hidden border-t border-border bg-surface px-4 py-3 space-y-1">
-          {NAV_LINKS.map(link => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMobileOpen(false)}
-              className={`block px-3 py-2 rounded-lg text-sm font-medium ${
-                isActive(link.href) ? 'text-pitch-400 bg-pitch-500/10' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {NAV_ENTRIES.map(entry =>
+            'items' in entry ? (
+              <div key={entry.label} className="pt-2 first:pt-0">
+                <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{entry.label}</div>
+                {entry.items.map(item => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`block px-3 py-2 rounded-lg text-sm font-medium ${
+                      isActive(item.href) ? 'text-pitch-400 bg-pitch-500/10' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <Link
+                key={entry.href}
+                href={entry.href}
+                onClick={() => setMobileOpen(false)}
+                className={`block px-3 py-2 rounded-lg text-sm font-medium ${
+                  isActive(entry.href) ? 'text-pitch-400 bg-pitch-500/10' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                }`}
+              >
+                {entry.label}
+              </Link>
+            )
+          )}
           {user && (
             <Link href="/messages" onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-ink-secondary hover:text-ink hover:bg-surface-hover">
               Messages {unreadCount > 0 ? `(${unreadCount})` : ''}

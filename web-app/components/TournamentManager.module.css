@@ -65,6 +65,18 @@
   border-bottom-color: #22C55E;
 }
 
+.subTabContainer {
+  margin-top: -20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #1A2436;
+}
+
+.subTab {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #6B7A99;
+}
+
 .content {
   animation: fadeIn 0.3s ease;
 }
