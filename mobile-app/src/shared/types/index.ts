@@ -136,6 +136,9 @@ export interface Match {
   // stage of the tournament it's part of - see backend/src/models/Match.js. Every match
   // defaults to round: 'Group', including every match in a tournament with no groups at all.
   group?: string | null;
+  // Which of the tournament's divisions this belongs to - null for a tournament with no
+  // divisions. See Tournament.divisions below.
+  division?: string | null;
   round?: 'Group' | 'Quarterfinal' | 'Semifinal' | 'Final';
   // The match's original overs-per-side allocation - see backend/src/models/Match.js.
   totalOvers?: number;
@@ -195,16 +198,27 @@ export interface Tournament {
   standings: TournamentStanding[];
   // Group-stage assignment (see assign-groups) - empty for tournaments with no group stage.
   groups?: { name: string; teams: (Team | string)[] }[];
+  // Divisions (see assign-divisions) - each runs as a fully independent competition (own
+  // groups/standings/bracket/awards). Empty for a tournament with no divisions; mutually
+  // exclusive with the flat `groups` above.
+  divisions?: {
+    name: string;
+    teams: (Team | string)[];
+    groups: { name: string; teams: (Team | string)[] }[];
+    awards: TournamentAwards;
+  }[];
   houseRules?: string;
   houseRulesDocument?: { url: string | null; fileName: string | null; uploadedAt: string | null };
-  awards?: {
-    winner?: Team | string | null;
-    runnerUp?: Team | string | null;
-    thirdPlace?: Team | string | null;
-    manOfTheTournament?: Player | string | null;
-    bestBatsman?: Player | string | null;
-    bestBowler?: Player | string | null;
-  };
+  awards?: TournamentAwards;
+}
+
+export interface TournamentAwards {
+  winner?: Team | string | null;
+  runnerUp?: Team | string | null;
+  thirdPlace?: Team | string | null;
+  manOfTheTournament?: Player | string | null;
+  bestBatsman?: Player | string | null;
+  bestBowler?: Player | string | null;
 }
 
 export interface PlayerCareerStats {

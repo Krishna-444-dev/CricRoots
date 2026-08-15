@@ -9,6 +9,7 @@ const {
   getTournamentStandings,
   getTournamentMatches,
   getTournamentStats,
+  assignDivisions,
   assignGroups,
   generateFixtures,
   generateKnockoutStage,
@@ -36,6 +37,7 @@ router.get('/:id/messages', getTournamentMessages);
 router.post('/', protect, createTournament);
 router.put('/:id', protect, updateTournament);
 router.post('/:id/register-team', protect, registerTeam);
+router.post('/:id/assign-divisions', protect, assignDivisions);
 router.post('/:id/assign-groups', protect, assignGroups);
 router.post('/:id/generate-fixtures', protect, generateFixtures);
 router.post('/:id/generate-knockout-stage', protect, generateKnockoutStage);

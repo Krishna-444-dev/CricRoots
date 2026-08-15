@@ -95,6 +95,39 @@ const tournamentSchema = new mongoose.Schema(
         teams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }]
       }
     ],
+    // Divisions - a second, optional level above `groups` (populated by POST
+    // /:id/assign-divisions, which splits `teams` into named divisions before assign-groups
+    // splits each division's own teams into groups). A tournament with divisions runs each
+    // division as a fully independent competition sharing only the tournament's own
+    // name/venue/dates/organizer - its own groups, standings, knockout bracket, and awards
+    // (see the division-scoped branches in tournamentController.js). Matches this app's
+    // "League -> Tournament -> Division" model on how real club leagues (e.g. CricClubs) run
+    // simultaneous divisions under one championship banner. A tournament that never calls
+    // assign-divisions keeps using the flat `groups` field above untouched - divisions are
+    // additive, not a replacement.
+    divisions: [
+      {
+        name: { type: String, required: true }, // e.g. "Division 1", "Elite"
+        // This division's own teams (a subset of the tournament's `teams` above), set by
+        // assign-divisions. Split further into `groups` below by a division-scoped call to
+        // assign-groups - empty until then.
+        teams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
+        groups: [
+          {
+            name: { type: String, required: true },
+            teams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }]
+          }
+        ],
+        awards: {
+          winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
+          runnerUp: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
+          thirdPlace: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
+          manOfTheTournament: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+          bestBatsman: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+          bestBowler: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null }
+        }
+      }
+    ],
     // Matches
     matches: [
       {
@@ -299,7 +332,12 @@ tournamentSchema.methods.updateStandings = async function () {
     // into the same flat table as group matches (extra "played"/points for whoever went
     // furthest), which is both not how a real points table works and corrupts
     // computeAwards's winner/runnerUp derivation for non-knockout-aware callers.
-    round: 'Group'
+    round: 'Group',
+    // Same reasoning, for divisions: this flat `standings` field is only meaningful for a
+    // tournament with no divisions (every match defaults to division: null) - a divisioned
+    // tournament's real standings live per-division in getTournamentStandings, computed fresh
+    // from each division's own matches, not synced onto this field at all.
+    division: null
   });
 
   this.standings = this.constructor.buildStandingsTable(matches, this.teams, this.rules);

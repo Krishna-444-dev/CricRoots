@@ -39,6 +39,13 @@ interface TournamentGroup {
   teams: { _id: string; name: string }[];
 }
 
+interface TournamentDivision {
+  name: string;
+  teams: { _id: string; name: string }[];
+  groups: TournamentGroup[];
+  awards: TournamentAwards;
+}
+
 interface Tournament {
   _id: string;
   name: string;
@@ -53,6 +60,7 @@ interface Tournament {
   maxTeams: number;
   standings: any[];
   groups?: TournamentGroup[];
+  divisions?: TournamentDivision[];
   organizer: { _id: string; name: string };
   houseRules?: string;
   houseRulesDocument?: { url: string | null; fileName: string | null; uploadedAt: string | null };
@@ -88,6 +96,7 @@ interface TournamentMatch {
   scheduledDate: string;
   round?: (typeof KNOCKOUT_ROUNDS)[number] | 'Group';
   group?: string | null;
+  division?: string | null;
   result?: { winningTeam: string; margin: string; marginValue: number } | null;
 }
 
@@ -142,6 +151,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [groupCountInput, setGroupCountInput] = useState('2');
   const [assigningGroups, setAssigningGroups] = useState(false);
   const [groupsError, setGroupsError] = useState('');
+  // Divisions - a tournament with divisions runs each as a fully independent competition
+  // (own groups/standings/bracket/awards). selectedDivision scopes every division-aware tab.
+  const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
+  const [divisionCountInput, setDivisionCountInput] = useState('2');
+  const [assigningDivisions, setAssigningDivisions] = useState(false);
+  const [divisionsError, setDivisionsError] = useState('');
   const [qualifiersInput, setQualifiersInput] = useState('4');
   const [generatingKnockout, setGeneratingKnockout] = useState(false);
   const [advancingRound, setAdvancingRound] = useState(false);
@@ -177,6 +192,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     setHouseRulesSaved(false);
   }, [selectedTournament?._id]);
 
+  // Default to the first division whenever a divisioned tournament is opened, or clear it for
+  // a tournament with no divisions - every division-scoped tab reads selectedDivision.
+  useEffect(() => {
+    setSelectedDivision(selectedTournament?.divisions?.[0]?.name ?? null);
+  }, [selectedTournament?._id, selectedTournament?.divisions?.length]);
+
   useEffect(() => {
     if (activeTab === 'announcements' && selectedTournament) {
       fetch(`/api/tournaments/${selectedTournament._id}/messages`)
@@ -187,13 +208,16 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
 
   useEffect(() => {
     if (activeTab === 'awards' && selectedTournament) {
+      const hasDivisions = (selectedTournament.divisions?.length ?? 0) > 0;
+      if (hasDivisions && !selectedDivision) return; // waiting on the division-default effect
       setLeaderboardLoading(true);
-      fetch(`/api/tournaments/${selectedTournament._id}/leaderboard?limit=20`)
+      const query = hasDivisions ? `?limit=20&division=${encodeURIComponent(selectedDivision!)}` : '?limit=20';
+      fetch(`/api/tournaments/${selectedTournament._id}/leaderboard${query}`)
         .then(r => r.json())
         .then(data => { if (data.success) setLeaderboard({ batsmen: data.batsmen, bowlers: data.bowlers }); })
         .finally(() => setLeaderboardLoading(false));
     }
-  }, [activeTab, selectedTournament]);
+  }, [activeTab, selectedTournament, selectedDivision]);
 
   const fetchTournamentMatches = (id: string) => {
     setMatchesLoading(true);
@@ -209,20 +233,59 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     }
   }, [activeTab, selectedTournament]);
 
-  // Grouped per-group standings live on a separate response shape from GET .../standings
-  // (see getTournamentStandings) - only fetched when the tournament actually has groups;
-  // otherwise the existing flat selectedTournament.standings array (already in hand) is used.
+  // Grouped per-group standings live on a separate response shape from GET .../standings (see
+  // getTournamentStandings) - {groups: [...]} for a tournament with flat groups, or
+  // {divisions: [{name, groups}]} for one with divisions, in which case only the currently
+  // selected division's groups get displayed.
   useEffect(() => {
-    if (activeTab === 'standings' && selectedTournament && (selectedTournament.groups?.length ?? 0) > 0) {
+    const hasGroups = (selectedTournament?.groups?.length ?? 0) > 0;
+    const hasDivisions = (selectedTournament?.divisions?.length ?? 0) > 0;
+    if (activeTab === 'standings' && selectedTournament && (hasGroups || hasDivisions)) {
       setGroupStandingsLoading(true);
       fetch(`/api/tournaments/${selectedTournament._id}/standings`)
         .then((r) => r.json())
-        .then((data) => { if (data.success && data.groups) setGroupStandings(data.groups); })
+        .then((data) => {
+          if (!data.success) return;
+          if (data.groups) setGroupStandings(data.groups);
+          else if (data.divisions) {
+            const division = data.divisions.find((d: { name: string; groups: GroupStandingsResponse[] }) => d.name === selectedDivision);
+            setGroupStandings(division?.groups ?? null);
+          }
+        })
         .finally(() => setGroupStandingsLoading(false));
     } else {
       setGroupStandings(null);
     }
-  }, [activeTab, selectedTournament]);
+  }, [activeTab, selectedTournament, selectedDivision]);
+
+  const handleAssignDivisions = async () => {
+    if (!selectedTournament || assigningDivisions) return;
+    const count = parseInt(divisionCountInput, 10);
+    if (!count || count < 1) {
+      setDivisionsError('Enter a valid number of divisions');
+      return;
+    }
+    setAssigningDivisions(true);
+    setDivisionsError('');
+    try {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/assign-divisions`, {
+        method: 'POST',
+        body: JSON.stringify({ divisionCount: count }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedTournament(data.tournament);
+        setTournaments((prev) => prev.map((t) => (t._id === data.tournament._id ? data.tournament : t)));
+      } else {
+        setDivisionsError(data.message || 'Failed to assign divisions');
+      }
+    } catch (error) {
+      console.error('Error assigning divisions:', error);
+      setDivisionsError('Failed to assign divisions');
+    } finally {
+      setAssigningDivisions(false);
+    }
+  };
 
   const handleAssignGroups = async () => {
     if (!selectedTournament || assigningGroups) return;
@@ -236,7 +299,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     try {
       const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/assign-groups`, {
         method: 'POST',
-        body: JSON.stringify({ groupCount: count }),
+        body: JSON.stringify({ groupCount: count, division: selectedTournament.divisions?.length ? selectedDivision : undefined }),
       });
       const data = await res.json();
       if (data.success) {
@@ -261,7 +324,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     try {
       const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/generate-knockout-stage`, {
         method: 'POST',
-        body: JSON.stringify({ qualifiersPerGroup }),
+        body: JSON.stringify({ qualifiersPerGroup, division: selectedTournament.divisions?.length ? selectedDivision : undefined }),
       });
       const data = await res.json();
       if (data.success) {
@@ -284,7 +347,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     try {
       const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/advance-knockout-round`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify({ division: selectedTournament.divisions?.length ? selectedDivision : undefined }),
       });
       const data = await res.json();
       if (data.success) {
@@ -659,6 +722,22 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
 
       {/* Content */}
       <div className={styles.content}>
+        {!showCreateForm && selectedTournament && (selectedTournament.divisions?.length ?? 0) > 0 &&
+          ['standings', 'matches', 'bracket', 'awards'].includes(activeTab) && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+              {selectedTournament.divisions!.map((d) => (
+                <button
+                  key={d.name}
+                  onClick={() => setSelectedDivision(d.name)}
+                  className={buttonVariants(d.name === selectedDivision ? 'primary' : 'secondary')}
+                  style={{ padding: '6px 14px', fontSize: 13 }}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          )}
+
         {showCreateForm && (
           <div className={styles.card} style={{ marginBottom: 24 }}>
             <h2>Create Tournament</h2>
@@ -912,85 +991,160 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
           </div>
         )}
 
-        {activeTab === 'matches' && selectedTournament && (
-          <div className={styles.card}>
-            <h2>{selectedTournament.name} - Matches</h2>
-            {matchesLoading ? (
-              <p className={styles.infoText}>Loading matches...</p>
-            ) : tournamentMatches.length === 0 ? (
-              <>
-                <p className={styles.infoText}>
-                  No matches linked to this tournament yet. Create one from the New Match page and select this tournament.
-                </p>
-                {isOrganizer && !selectedTournament.groups?.length && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
-                    <label htmlFor="group-count" className={labelClass} style={{ margin: 0 }}>
-                      Split into groups (optional)
-                    </label>
-                    <input
-                      id="group-count"
-                      type="number"
-                      min={2}
-                      value={groupCountInput}
-                      onChange={(e) => setGroupCountInput(e.target.value)}
-                      className={inputClass}
-                      style={{ width: 70 }}
-                    />
-                    <button
-                      className={buttonVariants('secondary')}
-                      onClick={handleAssignGroups}
-                      disabled={assigningGroups || selectedTournament.teams.length < 2}
-                    >
-                      {assigningGroups ? 'Assigning...' : 'Assign Groups'}
-                    </button>
-                  </div>
-                )}
-                {selectedTournament.groups?.length ? (
+        {activeTab === 'matches' && selectedTournament && (() => {
+          const hasDivisions = (selectedTournament.divisions?.length ?? 0) > 0;
+          const currentDivision = selectedTournament.divisions?.find((d) => d.name === selectedDivision);
+          const scopedMatches = hasDivisions
+            ? tournamentMatches.filter((m) => m.division === selectedDivision)
+            : tournamentMatches;
+
+          return (
+            <div className={styles.card}>
+              <h2>{selectedTournament.name} - Matches{hasDivisions ? ` - ${selectedDivision}` : ''}</h2>
+              {matchesLoading ? (
+                <p className={styles.infoText}>Loading matches...</p>
+              ) : tournamentMatches.length === 0 ? (
+                <>
                   <p className={styles.infoText}>
-                    {selectedTournament.groups.length} groups assigned ({selectedTournament.groups.map((g) => `${g.name}: ${g.teams.length}`).join(', ')}).
-                    Generating fixtures below will create a round-robin within each group.
+                    No matches linked to this tournament yet. Create one from the New Match page and select this tournament.
                   </p>
-                ) : null}
-                {groupsError && <p className={styles.infoText} style={{ color: '#F87171' }}>{groupsError}</p>}
-                {isOrganizer && (
-                  <button
-                    className={styles.createBtn}
-                    onClick={handleGenerateFixtures}
-                    disabled={generatingFixtures}
-                  >
-                    {generatingFixtures ? 'Generating Fixtures...' : '⚡ Generate Fixtures'}
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-col gap-3 mt-4">
-                {tournamentMatches.map(m => (
-                  <Link
-                    key={m._id}
-                    href={m.status === 'Completed' ? `/match/${m._id}` : `/match/${m._id}/score`}
-                    className="flex items-center justify-between gap-3 bg-surface-alt border border-border rounded-lg p-3 hover:bg-surface-hover transition-colors"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-ink">{m.team1.name} vs {m.team2.name}</p>
-                      <p className="text-xs text-ink-muted">{new Date(m.scheduledDate).toLocaleDateString()}</p>
+                  {isOrganizer && !hasDivisions && !selectedTournament.groups?.length && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
+                      <label htmlFor="division-count" className={labelClass} style={{ margin: 0 }}>
+                        Split into divisions (optional)
+                      </label>
+                      <input
+                        id="division-count"
+                        type="number"
+                        min={2}
+                        value={divisionCountInput}
+                        onChange={(e) => setDivisionCountInput(e.target.value)}
+                        className={inputClass}
+                        style={{ width: 70 }}
+                      />
+                      <button
+                        className={buttonVariants('secondary')}
+                        onClick={handleAssignDivisions}
+                        disabled={assigningDivisions || selectedTournament.teams.length < 2}
+                      >
+                        {assigningDivisions ? 'Assigning...' : 'Assign Divisions'}
+                      </button>
                     </div>
-                    <Badge variant={m.status === 'Live' ? 'live' : m.status === 'Completed' ? 'success' : m.status === 'Cancelled' ? 'danger' : 'neutral'} pulse={m.status === 'Live'}>
-                      {m.status}
-                    </Badge>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  )}
+                  {divisionsError && <p className={styles.infoText} style={{ color: '#F87171' }}>{divisionsError}</p>}
+
+                  {hasDivisions ? (
+                    <div style={{ margin: '12px 0' }}>
+                      <p className={styles.infoText}>
+                        {currentDivision?.groups.length
+                          ? `${currentDivision.groups.length} groups assigned in ${selectedDivision} (${currentDivision.groups.map((g) => `${g.name}: ${g.teams.length}`).join(', ')}).`
+                          : `No groups assigned in ${selectedDivision} yet - every division needs its own groups before fixtures can be generated.`}
+                      </p>
+                      {isOrganizer && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                          <label htmlFor="group-count" className={labelClass} style={{ margin: 0 }}>
+                            Groups in {selectedDivision}
+                          </label>
+                          <input
+                            id="group-count"
+                            type="number"
+                            min={2}
+                            value={groupCountInput}
+                            onChange={(e) => setGroupCountInput(e.target.value)}
+                            className={inputClass}
+                            style={{ width: 70 }}
+                          />
+                          <button
+                            className={buttonVariants('secondary')}
+                            onClick={handleAssignGroups}
+                            disabled={assigningGroups || (currentDivision?.teams.length ?? 0) < 2}
+                          >
+                            {assigningGroups ? 'Assigning...' : `Assign Groups in ${selectedDivision}`}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {isOrganizer && !selectedTournament.groups?.length && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
+                          <label htmlFor="group-count" className={labelClass} style={{ margin: 0 }}>
+                            Split into groups (optional)
+                          </label>
+                          <input
+                            id="group-count"
+                            type="number"
+                            min={2}
+                            value={groupCountInput}
+                            onChange={(e) => setGroupCountInput(e.target.value)}
+                            className={inputClass}
+                            style={{ width: 70 }}
+                          />
+                          <button
+                            className={buttonVariants('secondary')}
+                            onClick={handleAssignGroups}
+                            disabled={assigningGroups || selectedTournament.teams.length < 2}
+                          >
+                            {assigningGroups ? 'Assigning...' : 'Assign Groups'}
+                          </button>
+                        </div>
+                      )}
+                      {selectedTournament.groups?.length ? (
+                        <p className={styles.infoText}>
+                          {selectedTournament.groups.length} groups assigned ({selectedTournament.groups.map((g) => `${g.name}: ${g.teams.length}`).join(', ')}).
+                          Generating fixtures below will create a round-robin within each group.
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                  {groupsError && <p className={styles.infoText} style={{ color: '#F87171' }}>{groupsError}</p>}
+                  {isOrganizer && (
+                    <button
+                      className={styles.createBtn}
+                      onClick={handleGenerateFixtures}
+                      disabled={generatingFixtures}
+                    >
+                      {generatingFixtures ? 'Generating Fixtures...' : '⚡ Generate Fixtures (all divisions)'}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col gap-3 mt-4">
+                  {scopedMatches.map(m => (
+                    <Link
+                      key={m._id}
+                      href={m.status === 'Completed' ? `/match/${m._id}` : `/match/${m._id}/score`}
+                      className="flex items-center justify-between gap-3 bg-surface-alt border border-border rounded-lg p-3 hover:bg-surface-hover transition-colors"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-ink">{m.team1.name} vs {m.team2.name}</p>
+                        <p className="text-xs text-ink-muted">{new Date(m.scheduledDate).toLocaleDateString()}</p>
+                      </div>
+                      <Badge variant={m.status === 'Live' ? 'live' : m.status === 'Completed' ? 'success' : m.status === 'Cancelled' ? 'danger' : 'neutral'} pulse={m.status === 'Live'}>
+                        {m.status}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {activeTab === 'bracket' && selectedTournament && (() => {
-          const knockoutMatches = tournamentMatches.filter((m) => m.round && m.round !== 'Group');
+          const hasDivisions = (selectedTournament.divisions?.length ?? 0) > 0;
+          const currentDivision = selectedTournament.divisions?.find((d) => d.name === selectedDivision);
+          const scopedMatches = hasDivisions
+            ? tournamentMatches.filter((m) => m.division === selectedDivision)
+            : tournamentMatches;
+          const knockoutMatches = scopedMatches.filter((m) => m.round && m.round !== 'Group');
           const byRound = KNOCKOUT_ROUNDS.map((round) => ({
             round,
             matches: knockoutMatches.filter((m) => m.round === round),
           })).filter((r) => r.matches.length > 0);
-          const hasGroups = (selectedTournament.groups?.length ?? 0) > 0;
+          const hasGroups = hasDivisions
+            ? (currentDivision?.groups.length ?? 0) > 0
+            : (selectedTournament.groups?.length ?? 0) > 0;
           const finalDone = knockoutMatches.some((m) => m.round === 'Final' && m.status === 'Completed');
 
           const winnerName = (m: TournamentMatch) => {
@@ -1000,9 +1154,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
 
           return (
             <div className={styles.card}>
-              <h2>{selectedTournament.name} - Knockout Bracket</h2>
+              <h2>{selectedTournament.name} - Knockout Bracket{hasDivisions ? ` - ${selectedDivision}` : ''}</h2>
               {!hasGroups ? (
-                <p className={styles.infoText}>This tournament has no group stage, so there&apos;s no bracket to generate here.</p>
+                <p className={styles.infoText}>
+                  {hasDivisions
+                    ? `${selectedDivision} has no group stage yet, so there's no bracket to generate here.`
+                    : "This tournament has no group stage, so there's no bracket to generate here."}
+                </p>
               ) : (
                 <>
                   {isOrganizer && (
@@ -1145,118 +1303,126 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
           </div>
         )}
 
-        {activeTab === 'awards' && selectedTournament && (
-          <div className={styles.card}>
-            <h2>{selectedTournament.name} - Awards</h2>
-            {!selectedTournament.awards?.winner ? (
-              <>
-                <p className={styles.infoText}>
-                  {selectedTournament.status === 'Completed'
-                    ? 'Awards have not been computed for this tournament yet.'
-                    : 'Awards can be computed once this tournament is marked Completed.'}
-                </p>
-                {awardsError && <p className={styles.infoText} style={{ color: '#F87171' }}>{awardsError}</p>}
-                {isOrganizer && selectedTournament.status === 'Completed' && (
-                  <button
-                    className={buttonVariants('accent')}
-                    onClick={handleComputeAwards}
-                    disabled={computingAwards}
-                  >
-                    {computingAwards ? 'Computing...' : '🎖️ Compute Awards'}
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className={styles.statsGrid}>
-                <div className={styles.statBox}>
-                  <span className={styles.statLabel}>Winner</span>
-                  <span className={styles.statValue}>{selectedTournament.awards.winner?.name || '-'}</span>
-                </div>
-                <div className={styles.statBox}>
-                  <span className={styles.statLabel}>Runner-up</span>
-                  <span className={styles.statValue}>{selectedTournament.awards.runnerUp?.name || '-'}</span>
-                </div>
-                {selectedTournament.awards.thirdPlace && (
-                  <div className={styles.statBox}>
-                    <span className={styles.statLabel}>Third Place</span>
-                    <span className={styles.statValue}>{selectedTournament.awards.thirdPlace?.name || '-'}</span>
+        {activeTab === 'awards' && selectedTournament && (() => {
+          const hasDivisions = (selectedTournament.divisions?.length ?? 0) > 0;
+          const currentDivision = selectedTournament.divisions?.find((d) => d.name === selectedDivision);
+          const awards = hasDivisions ? currentDivision?.awards : selectedTournament.awards;
+
+          return (
+            <>
+              <div className={styles.card}>
+                <h2>{selectedTournament.name} - Awards{hasDivisions ? ` - ${selectedDivision}` : ''}</h2>
+                {!awards?.winner ? (
+                  <>
+                    <p className={styles.infoText}>
+                      {hasDivisions
+                        ? `${selectedDivision}'s winner is set automatically once its Final completes (see the Bracket tab) - other awards for it can be computed below once the whole tournament is Completed.`
+                        : selectedTournament.status === 'Completed'
+                          ? 'Awards have not been computed for this tournament yet.'
+                          : 'Awards can be computed once this tournament is marked Completed.'}
+                    </p>
+                    {awardsError && <p className={styles.infoText} style={{ color: '#F87171' }}>{awardsError}</p>}
+                    {isOrganizer && selectedTournament.status === 'Completed' && (
+                      <button
+                        className={buttonVariants('accent')}
+                        onClick={handleComputeAwards}
+                        disabled={computingAwards}
+                      >
+                        {computingAwards ? 'Computing...' : '🎖️ Compute Awards'}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className={styles.statsGrid}>
+                    <div className={styles.statBox}>
+                      <span className={styles.statLabel}>Winner</span>
+                      <span className={styles.statValue}>{awards.winner?.name || '-'}</span>
+                    </div>
+                    <div className={styles.statBox}>
+                      <span className={styles.statLabel}>Runner-up</span>
+                      <span className={styles.statValue}>{awards.runnerUp?.name || '-'}</span>
+                    </div>
+                    {awards.thirdPlace && (
+                      <div className={styles.statBox}>
+                        <span className={styles.statLabel}>Third Place</span>
+                        <span className={styles.statValue}>{awards.thirdPlace?.name || '-'}</span>
+                      </div>
+                    )}
+                    <div className={styles.statBox}>
+                      <span className={styles.statLabel}>Man of the Tournament</span>
+                      <span className={styles.statValue}>{awards.manOfTheTournament?.user?.name || '-'}</span>
+                      {awards.manOfTheTournament?.specialization && (
+                        <span className={styles.statSubtext}>{awards.manOfTheTournament.specialization}</span>
+                      )}
+                    </div>
+                    <div className={styles.statBox}>
+                      <span className={styles.statLabel}>Best Batsman</span>
+                      <span className={styles.statValue}>{awards.bestBatsman?.user?.name || '-'}</span>
+                      {awards.bestBatsman?.specialization && (
+                        <span className={styles.statSubtext}>{awards.bestBatsman.specialization}</span>
+                      )}
+                    </div>
+                    <div className={styles.statBox}>
+                      <span className={styles.statLabel}>Best Bowler</span>
+                      <span className={styles.statValue}>{awards.bestBowler?.user?.name || '-'}</span>
+                      {awards.bestBowler?.specialization && (
+                        <span className={styles.statSubtext}>{awards.bestBowler.specialization}</span>
+                      )}
+                    </div>
                   </div>
                 )}
-                <div className={styles.statBox}>
-                  <span className={styles.statLabel}>Man of the Tournament</span>
-                  <span className={styles.statValue}>{selectedTournament.awards.manOfTheTournament?.user?.name || '-'}</span>
-                  {selectedTournament.awards.manOfTheTournament?.specialization && (
-                    <span className={styles.statSubtext}>{selectedTournament.awards.manOfTheTournament.specialization}</span>
-                  )}
-                </div>
-                <div className={styles.statBox}>
-                  <span className={styles.statLabel}>Best Batsman</span>
-                  <span className={styles.statValue}>{selectedTournament.awards.bestBatsman?.user?.name || '-'}</span>
-                  {selectedTournament.awards.bestBatsman?.specialization && (
-                    <span className={styles.statSubtext}>{selectedTournament.awards.bestBatsman.specialization}</span>
-                  )}
-                </div>
-                <div className={styles.statBox}>
-                  <span className={styles.statLabel}>Best Bowler</span>
-                  <span className={styles.statValue}>{selectedTournament.awards.bestBowler?.user?.name || '-'}</span>
-                  {selectedTournament.awards.bestBowler?.specialization && (
-                    <span className={styles.statSubtext}>{selectedTournament.awards.bestBowler.specialization}</span>
-                  )}
-                </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {activeTab === 'awards' && selectedTournament && (
-          <div className={styles.card} style={{ marginTop: 20 }}>
-            <h2>Top Performers</h2>
-            {leaderboardLoading || !leaderboard ? (
-              <p className={styles.infoText}>Loading...</p>
-            ) : leaderboard.batsmen.length === 0 && leaderboard.bowlers.length === 0 ? (
-              <p className={styles.infoText}>No completed matches yet - top performers appear once some matches finish.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 style={{ marginBottom: 8 }}>Leading Run Scorers</h3>
-                  {leaderboard.batsmen.length === 0 ? (
-                    <p className={styles.infoText}>No qualifying innings yet.</p>
-                  ) : (
-                    leaderboard.batsmen.map((b, i) => (
-                      <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
-                        <span className="text-ink">
-                          {b.player._id === selectedTournament.awards?.bestBatsman?._id && '🏆 '}
-                          {i + 1}. {b.player.name}
-                        </span>
-                        <span className="text-ink-secondary font-mono">
-                          {b.runs} runs · avg {b.average} · SR {b.strikeRate}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div>
-                  <h3 style={{ marginBottom: 8 }}>Leading Wicket Takers</h3>
-                  {leaderboard.bowlers.length === 0 ? (
-                    <p className={styles.infoText}>No qualifying spells yet.</p>
-                  ) : (
-                    leaderboard.bowlers.map((b, i) => (
-                      <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
-                        <span className="text-ink">
-                          {b.player._id === selectedTournament.awards?.bestBowler?._id && '🏆 '}
-                          {i + 1}. {b.player.name}
-                        </span>
-                        <span className="text-ink-secondary font-mono">
-                          {b.wickets} wkts · avg {b.average} · econ {b.economyRate}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
+              <div className={styles.card} style={{ marginTop: 20 }}>
+                <h2>Top Performers{hasDivisions ? ` - ${selectedDivision}` : ''}</h2>
+                {leaderboardLoading || !leaderboard ? (
+                  <p className={styles.infoText}>Loading...</p>
+                ) : leaderboard.batsmen.length === 0 && leaderboard.bowlers.length === 0 ? (
+                  <p className={styles.infoText}>No completed matches yet - top performers appear once some matches finish.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h3 style={{ marginBottom: 8 }}>Leading Run Scorers</h3>
+                      {leaderboard.batsmen.length === 0 ? (
+                        <p className={styles.infoText}>No qualifying innings yet.</p>
+                      ) : (
+                        leaderboard.batsmen.map((b, i) => (
+                          <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                            <span className="text-ink">
+                              {b.player._id === awards?.bestBatsman?._id && '🏆 '}
+                              {i + 1}. {b.player.name}
+                            </span>
+                            <span className="text-ink-secondary font-mono">
+                              {b.runs} runs · avg {b.average} · SR {b.strikeRate}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div>
+                      <h3 style={{ marginBottom: 8 }}>Leading Wicket Takers</h3>
+                      {leaderboard.bowlers.length === 0 ? (
+                        <p className={styles.infoText}>No qualifying spells yet.</p>
+                      ) : (
+                        leaderboard.bowlers.map((b, i) => (
+                          <div key={b.player._id} className="flex items-center justify-between py-2 border-b border-border text-sm">
+                            <span className="text-ink">
+                              {b.player._id === awards?.bestBowler?._id && '🏆 '}
+                              {i + 1}. {b.player.name}
+                            </span>
+                            <span className="text-ink-secondary font-mono">
+                              {b.wickets} wkts · avg {b.average} · econ {b.economyRate}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </>
+          );
+        })()}
 
         {activeTab === 'rules' && selectedTournament && (
           <div className={styles.card}>

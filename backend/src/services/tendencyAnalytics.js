@@ -1002,9 +1002,9 @@ async function getTournamentMatchStatistics(tournamentId) {
  * completed innings with the bat, and > 0 runs - same convention as
  * getBattingLeaderboard above, just filtered down to one tournament's matches).
  */
-async function getTournamentBattingLeaderboard(tournamentId, limit = 10) {
+async function getTournamentBattingLeaderboard(tournamentId, limit = 10, divisionName = null) {
   return Match.aggregate([
-    { $match: { status: 'Completed', tournament: oid(tournamentId) } },
+    { $match: { status: 'Completed', tournament: oid(tournamentId), division: divisionName } },
     { $unwind: '$innings' },
     { $unwind: '$innings.balls' },
     { $match: { 'innings.balls.batsmanId': { $ne: null } } },
@@ -1046,9 +1046,9 @@ async function getTournamentBattingLeaderboard(tournamentId, limit = 10) {
  * lower is better). Requires at least one wicket to rank, same convention as
  * getBowlingLeaderboard above, just filtered down to one tournament's matches.
  */
-async function getTournamentBowlingLeaderboard(tournamentId, limit = 10) {
+async function getTournamentBowlingLeaderboard(tournamentId, limit = 10, divisionName = null) {
   return Match.aggregate([
-    { $match: { status: 'Completed', tournament: oid(tournamentId) } },
+    { $match: { status: 'Completed', tournament: oid(tournamentId), division: divisionName } },
     { $unwind: '$innings' },
     { $unwind: '$innings.balls' },
     { $match: { 'innings.balls.bowlerId': { $ne: null } } },

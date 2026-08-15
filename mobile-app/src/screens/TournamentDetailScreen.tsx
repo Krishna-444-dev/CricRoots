@@ -105,6 +105,13 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const [generating, setGenerating] = useState(false);
   const [fixturesError, setFixturesError] = useState('');
 
+  // Divisions - a tournament with divisions runs each as a fully independent competition (own
+  // groups/standings/bracket/awards). selectedDivision scopes every division-aware section.
+  const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
+  const [divisionCountInput, setDivisionCountInput] = useState('2');
+  const [assigningDivisions, setAssigningDivisions] = useState(false);
+  const [divisionsError, setDivisionsError] = useState('');
+
   // Groups + knockout bracket
   const [groupStandings, setGroupStandings] = useState<{ name: string; standings: TournamentStanding[] }[] | null>(null);
   const [groupStandingsLoading, setGroupStandingsLoading] = useState(false);
@@ -173,6 +180,12 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     setHouseRulesSaved(false);
   }, [tournament?._id]);
 
+  // Default to the first division whenever a divisioned tournament loads, or clear it for a
+  // tournament with no divisions.
+  useEffect(() => {
+    setSelectedDivision(tournament?.divisions?.[0]?.name ?? null);
+  }, [tournament?._id, tournament?.divisions?.length]);
+
   useEffect(() => {
     api.tournaments
       .getMessages(tournamentId)
@@ -196,28 +209,39 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (section !== 'awards') return;
+    const hasDivisions = (tournament?.divisions?.length ?? 0) > 0;
+    if (hasDivisions && !selectedDivision) return; // waiting on the division-default effect
     setLeaderboardLoading(true);
     api.tournaments
-      .getLeaderboard(tournamentId, 20)
+      .getLeaderboard(tournamentId, 20, hasDivisions ? selectedDivision : null)
       .then((res: any) => setLeaderboard({ batsmen: res.batsmen, bowlers: res.bowlers }))
       .catch(() => {})
       .finally(() => setLeaderboardLoading(false));
-  }, [section, tournamentId]);
+  }, [section, tournamentId, tournament?.divisions?.length, selectedDivision]);
 
   // Grouped per-group standings live on a separate response shape from getStandings (see
-  // getTournamentStandings on the backend) - only fetched once the tournament actually has
-  // groups; otherwise tournament.standings (already in hand) is used directly.
+  // getTournamentStandings on the backend) - {groups} for a tournament with flat groups, or
+  // {divisions: [{name, groups}]} for one with divisions, in which case only the selected
+  // division's groups get displayed.
   useEffect(() => {
-    if (section !== 'standings' || !tournament || !(tournament.groups?.length ?? 0)) {
+    const hasGroups = (tournament?.groups?.length ?? 0) > 0;
+    const hasDivisions = (tournament?.divisions?.length ?? 0) > 0;
+    if (section !== 'standings' || !tournament || !(hasGroups || hasDivisions)) {
       setGroupStandings(null);
       return;
     }
     setGroupStandingsLoading(true);
     api.tournaments
       .getStandings(tournamentId)
-      .then((res: any) => { if (res.groups) setGroupStandings(res.groups); })
+      .then((res: any) => {
+        if (res.groups) setGroupStandings(res.groups);
+        else if (res.divisions) {
+          const division = res.divisions.find((d: any) => d.name === selectedDivision);
+          setGroupStandings(division?.groups ?? null);
+        }
+      })
       .finally(() => setGroupStandingsLoading(false));
-  }, [section, tournament, tournamentId]);
+  }, [section, tournament, tournamentId, selectedDivision]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -351,6 +375,27 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const hasDivisions = (tournament?.divisions?.length ?? 0) > 0;
+  const currentDivision = tournament?.divisions?.find((d) => d.name === selectedDivision);
+
+  const handleAssignDivisions = async () => {
+    const count = parseInt(divisionCountInput, 10);
+    if (!count || count < 1) {
+      setDivisionsError('Enter a valid number of divisions');
+      return;
+    }
+    setAssigningDivisions(true);
+    setDivisionsError('');
+    try {
+      const { tournament: updated } = await api.tournaments.assignDivisions(tournamentId, count);
+      setTournament(updated);
+    } catch (err) {
+      setDivisionsError(err instanceof Error ? err.message : 'Failed to assign divisions');
+    } finally {
+      setAssigningDivisions(false);
+    }
+  };
+
   const handleAssignGroups = async () => {
     const count = parseInt(groupCountInput, 10);
     if (!count || count < 1) {
@@ -360,7 +405,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     setAssigningGroups(true);
     setGroupsError('');
     try {
-      const { tournament: updated } = await api.tournaments.assignGroups(tournamentId, count);
+      const { tournament: updated } = await api.tournaments.assignGroups(tournamentId, count, hasDivisions ? selectedDivision : null);
       setTournament(updated);
     } catch (err) {
       setGroupsError(err instanceof Error ? err.message : 'Failed to assign groups');
@@ -369,7 +414,11 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const knockoutMatches = useMemo(() => matches.filter((m) => m.round && m.round !== 'Group'), [matches]);
+  const scopedMatches = useMemo(
+    () => (hasDivisions ? matches.filter((m) => m.division === selectedDivision) : matches),
+    [matches, hasDivisions, selectedDivision]
+  );
+  const knockoutMatches = useMemo(() => scopedMatches.filter((m) => m.round && m.round !== 'Group'), [scopedMatches]);
   const finalDone = knockoutMatches.some((m) => m.round === 'Final' && m.status === 'Completed');
 
   const handleGenerateKnockoutStage = async () => {
@@ -377,7 +426,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     setGeneratingKnockout(true);
     setKnockoutError('');
     try {
-      await api.tournaments.generateKnockoutStage(tournamentId, qualifiersPerGroup);
+      await api.tournaments.generateKnockoutStage(tournamentId, qualifiersPerGroup, hasDivisions ? selectedDivision : null);
       await load();
       setSection('bracket');
     } catch (err) {
@@ -391,7 +440,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     setAdvancingRound(true);
     setKnockoutError('');
     try {
-      await api.tournaments.advanceKnockoutRound(tournamentId);
+      await api.tournaments.advanceKnockoutRound(tournamentId, hasDivisions ? selectedDivision : null);
       await load();
     } catch (err) {
       setKnockoutError(err instanceof Error ? err.message : 'Failed to advance the knockout stage');
@@ -434,7 +483,9 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   }
 
   const standings = tournament.standings || [];
-  const awards = tournament.awards;
+  const awards = (tournament.divisions?.length ?? 0) > 0
+    ? tournament.divisions!.find((d) => d.name === selectedDivision)?.awards
+    : tournament.awards;
   const hasAwards = !!awards?.winner;
 
   return (
@@ -479,9 +530,23 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
           ))}
         </ScrollView>
 
+        {hasDivisions && (['standings', 'matches', 'bracket', 'awards'] as Section[]).includes(section) && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, marginTop: 12 }}>
+            {tournament.divisions!.map((d) => (
+              <TouchableOpacity
+                key={d.name}
+                onPress={() => setSelectedDivision(d.name)}
+                style={[styles.divisionChip, d.name === selectedDivision && styles.divisionChipActive]}
+              >
+                <Text style={[styles.divisionChipText, d.name === selectedDivision && styles.divisionChipTextActive]}>{d.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
         {section === 'standings' && (
           <View style={styles.sectionBody}>
-            {(tournament.groups?.length ?? 0) > 0 ? (
+            {(tournament.groups?.length ?? 0) > 0 || hasDivisions ? (
               groupStandingsLoading || !groupStandings ? (
                 <ActivityIndicator color={colors.pitch400} />
               ) : (
@@ -509,38 +574,86 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
             {matches.length === 0 ? (
               <>
                 <Text style={styles.muted}>No matches linked to this tournament yet.</Text>
-                {isOrganizer && !tournament.groups?.length && (
+                {isOrganizer && !hasDivisions && !tournament.groups?.length && (
                   <View style={styles.groupAssignRow}>
                     <TextInput
                       style={[styles.input, styles.groupCountInput]}
-                      value={groupCountInput}
-                      onChangeText={setGroupCountInput}
+                      value={divisionCountInput}
+                      onChangeText={setDivisionCountInput}
                       keyboardType="number-pad"
                     />
                     <TouchableOpacity
-                      style={[styles.actionBtn, styles.groupAssignBtn, (assigningGroups || (tournament.teams?.length ?? 0) < 2) && styles.sendBtnDisabled]}
-                      onPress={handleAssignGroups}
-                      disabled={assigningGroups || (tournament.teams?.length ?? 0) < 2}
+                      style={[styles.actionBtn, styles.groupAssignBtn, (assigningDivisions || (tournament.teams?.length ?? 0) < 2) && styles.sendBtnDisabled]}
+                      onPress={handleAssignDivisions}
+                      disabled={assigningDivisions || (tournament.teams?.length ?? 0) < 2}
                     >
-                      <Text style={styles.actionBtnText}>{assigningGroups ? 'Assigning...' : 'Assign Groups'}</Text>
+                      <Text style={styles.actionBtnText}>{assigningDivisions ? 'Assigning...' : 'Assign Divisions (optional)'}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
-                {!!tournament.groups?.length && (
-                  <Text style={styles.muted}>
-                    {tournament.groups.length} groups assigned. Generating fixtures below will create a round-robin within each group.
-                  </Text>
+                {!!divisionsError && <Text style={styles.errorBanner}>{divisionsError}</Text>}
+
+                {hasDivisions ? (
+                  <>
+                    <Text style={styles.muted}>
+                      {currentDivision?.groups.length
+                        ? `${currentDivision.groups.length} groups assigned in ${selectedDivision}.`
+                        : `No groups assigned in ${selectedDivision} yet - every division needs its own groups before fixtures can be generated.`}
+                    </Text>
+                    {isOrganizer && (
+                      <View style={styles.groupAssignRow}>
+                        <TextInput
+                          style={[styles.input, styles.groupCountInput]}
+                          value={groupCountInput}
+                          onChangeText={setGroupCountInput}
+                          keyboardType="number-pad"
+                        />
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.groupAssignBtn, (assigningGroups || (currentDivision?.teams.length ?? 0) < 2) && styles.sendBtnDisabled]}
+                          onPress={handleAssignGroups}
+                          disabled={assigningGroups || (currentDivision?.teams.length ?? 0) < 2}
+                        >
+                          <Text style={styles.actionBtnText}>{assigningGroups ? 'Assigning...' : `Groups in ${selectedDivision}`}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {isOrganizer && !tournament.groups?.length && (
+                      <View style={styles.groupAssignRow}>
+                        <TextInput
+                          style={[styles.input, styles.groupCountInput]}
+                          value={groupCountInput}
+                          onChangeText={setGroupCountInput}
+                          keyboardType="number-pad"
+                        />
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.groupAssignBtn, (assigningGroups || (tournament.teams?.length ?? 0) < 2) && styles.sendBtnDisabled]}
+                          onPress={handleAssignGroups}
+                          disabled={assigningGroups || (tournament.teams?.length ?? 0) < 2}
+                        >
+                          <Text style={styles.actionBtnText}>{assigningGroups ? 'Assigning...' : 'Assign Groups'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {!!tournament.groups?.length && (
+                      <Text style={styles.muted}>
+                        {tournament.groups.length} groups assigned. Generating fixtures below will create a round-robin within each group.
+                      </Text>
+                    )}
+                  </>
                 )}
                 {!!groupsError && <Text style={styles.errorBanner}>{groupsError}</Text>}
                 {canGenerateFixtures && (
                   <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateFixtures} disabled={generating}>
-                    <Text style={styles.actionBtnText}>{generating ? 'Generating...' : 'Generate Fixtures'}</Text>
+                    <Text style={styles.actionBtnText}>{generating ? 'Generating...' : 'Generate Fixtures (all divisions)'}</Text>
                   </TouchableOpacity>
                 )}
                 {!!fixturesError && <Text style={styles.errorBanner}>{fixturesError}</Text>}
               </>
             ) : (
-              matches.map(m => (
+              scopedMatches.map(m => (
                 <TouchableOpacity
                   key={m._id}
                   style={styles.matchCard}
@@ -561,8 +674,12 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
         {section === 'bracket' && (
           <View style={styles.sectionBody}>
-            {!tournament.groups?.length ? (
-              <Text style={styles.muted}>This tournament has no group stage, so there&apos;s no bracket to generate here.</Text>
+            {(hasDivisions ? !currentDivision?.groups.length : !tournament.groups?.length) ? (
+              <Text style={styles.muted}>
+                {hasDivisions
+                  ? `${selectedDivision} has no group stage yet, so there's no bracket to generate here.`
+                  : "This tournament has no group stage, so there's no bracket to generate here."}
+              </Text>
             ) : (
               <>
                 {isOrganizer && (
@@ -1005,6 +1122,10 @@ const styles = StyleSheet.create({
   colStat: { width: 32, textAlign: 'center' },
   colNrr: { width: 56, textAlign: 'right' },
   groupTitle: { color: colors.ink, fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  divisionChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  divisionChipActive: { backgroundColor: colors.pitch900, borderColor: colors.pitch500 },
+  divisionChipText: { color: colors.inkMuted, fontSize: 13, fontWeight: '600' },
+  divisionChipTextActive: { color: colors.pitch400 },
   groupAssignRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
   groupCountInput: { width: 60, paddingVertical: 8, textAlign: 'center' },
   groupAssignBtn: { marginTop: 0, flexShrink: 1, paddingHorizontal: 20 },

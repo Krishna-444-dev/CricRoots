@@ -210,21 +210,26 @@ export const tournamentsAPI = {
   updateTournament: (tournamentId: string, data: any) => apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}`, 'PUT', data),
   registerTeam: (tournamentId: string, teamId: string) => apiFetch(`/tournaments/${tournamentId}/register-team`, 'POST', { teamId }),
   // Flat {success, standings} for a tournament with no groups; {success, groups: [{name,
-  // standings}]} once groups are assigned - see getTournamentStandings in
-  // tournamentController.js. Untyped rather than a misleading single shape.
+  // standings}]} once groups are assigned; {success, divisions: [{name, groups}]} once
+  // divisions are assigned - see getTournamentStandings in tournamentController.js. Untyped
+  // rather than a misleading single shape.
   getStandings: (tournamentId: string) => apiFetch<any>(`/tournaments/${tournamentId}/standings`),
   getTournamentMatches: (tournamentId: string) => apiFetch<{ success: true; matches: any[] }>(`/tournaments/${tournamentId}/matches`),
   getStatistics: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/statistics`),
-  getLeaderboard: (tournamentId: string, limit = 20) =>
-    apiFetch<{ success: true; batsmen: any[]; bowlers: any[] }>(`/tournaments/${tournamentId}/leaderboard?limit=${limit}`),
-  assignGroups: (tournamentId: string, groupCount: number) =>
-    apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/assign-groups`, 'POST', { groupCount }),
+  getLeaderboard: (tournamentId: string, limit = 20, division?: string | null) =>
+    apiFetch<{ success: true; batsmen: any[]; bowlers: any[] }>(
+      `/tournaments/${tournamentId}/leaderboard?limit=${limit}${division ? `&division=${encodeURIComponent(division)}` : ''}`
+    ),
+  assignDivisions: (tournamentId: string, divisionCount: number) =>
+    apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/assign-divisions`, 'POST', { divisionCount }),
+  assignGroups: (tournamentId: string, groupCount: number, division?: string | null) =>
+    apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/assign-groups`, 'POST', { groupCount, division }),
   generateFixtures: (tournamentId: string, format?: 'round-robin' | 'knockout') =>
     apiFetch(`/tournaments/${tournamentId}/generate-fixtures`, 'POST', format ? { format } : {}),
-  generateKnockoutStage: (tournamentId: string, qualifiersPerGroup: number) =>
-    apiFetch<{ success: true; round: string; matches: any[] }>(`/tournaments/${tournamentId}/generate-knockout-stage`, 'POST', { qualifiersPerGroup }),
-  advanceKnockoutRound: (tournamentId: string) =>
-    apiFetch<{ success: true; round: string; matches?: any[]; tournament?: any }>(`/tournaments/${tournamentId}/advance-knockout-round`, 'POST'),
+  generateKnockoutStage: (tournamentId: string, qualifiersPerGroup: number, division?: string | null) =>
+    apiFetch<{ success: true; round: string; matches: any[] }>(`/tournaments/${tournamentId}/generate-knockout-stage`, 'POST', { qualifiersPerGroup, division }),
+  advanceKnockoutRound: (tournamentId: string, division?: string | null) =>
+    apiFetch<{ success: true; round: string; matches?: any[]; tournament?: any }>(`/tournaments/${tournamentId}/advance-knockout-round`, 'POST', { division }),
   computeAwards: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/compute-awards`, 'POST'),
   getMessages: (tournamentId: string) => apiFetch<{ success: true; messages: any[] }>(`/tournaments/${tournamentId}/messages`),
   postMessage: (tournamentId: string, text: string) => apiFetch(`/tournaments/${tournamentId}/messages`, 'POST', { text }),

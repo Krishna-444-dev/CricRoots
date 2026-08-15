@@ -49,6 +49,12 @@ const matchSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // Which of the tournament's divisions this match belongs to (the division's `name`) - null
+  // for matches in a tournament with no divisions. See Tournament.js's `divisions` field.
+  division: {
+    type: String,
+    default: null
+  },
   // Which stage of the tournament this match is part of. Group-stage matches (including every
   // match in a tournament with no groups at all) default to 'Group'; knockout matches are
   // created with round explicitly set by generate-knockout-stage/advance-knockout-round in
