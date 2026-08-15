@@ -22,14 +22,21 @@ const tournamentSchema = new mongoose.Schema(
       maxlength: 5000,
       default: ''
     },
-    // Optional reference document (PDF/Word) backing the free-text houseRules above - purely
-    // a human-readable download, not parsed for text, so it doesn't feed the in-app assistant
-    // the way houseRules itself does (see backend/src/data and assistantController.js).
-    houseRulesDocument: {
-      url: { type: String, default: null },
-      fileName: { type: String, default: null },
-      uploadedAt: { type: Date, default: null }
-    },
+    // Document library (PDF/Word) - league rules, registration guide, captain guide, nomination
+    // sheet, etc. Purely human-readable downloads, not parsed for text, so they don't feed the
+    // in-app assistant the way houseRules itself does (see backend/src/data and
+    // assistantController.js). `category` is a free-text label the uploader supplies (e.g.
+    // "House Rules", "Registration Guide") rather than a fixed enum, so organizers aren't boxed
+    // into a predefined list. Generalized from an earlier single houseRulesDocument slot - no
+    // tournament in the live DB had one set at migration time, so no data migration was needed.
+    documents: [
+      {
+        url: { type: String, required: true },
+        fileName: { type: String, required: true },
+        category: { type: String, trim: true, default: 'General' },
+        uploadedAt: { type: Date, default: Date.now }
+      }
+    ],
     organizer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

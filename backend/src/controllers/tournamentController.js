@@ -336,12 +336,14 @@ exports.updateTournament = async (req, res) => {
   }
 };
 
-// @desc    Upload a reference document (PDF/Word) backing the free-text house rules -
-//          req.file is populated by uploadTournamentDocument (see routes/tournamentRoutes.js,
-//          which wraps it the same callback-checked way groupRoutes.js does for attachments).
-// @route   POST /api/tournaments/:id/house-rules-document
+// @desc    Add a document to this tournament's document library (league rules, registration
+//          guide, captain guide, nomination sheet, etc.) - req.file is populated by
+//          uploadTournamentDocument (see routes/tournamentRoutes.js, which wraps it the same
+//          callback-checked way groupRoutes.js does for attachments); `category` is a free-text
+//          label from the request body.
+// @route   POST /api/tournaments/:id/documents
 // @access  Private (organizer only)
-exports.uploadHouseRulesDocument = async (req, res) => {
+exports.addTournamentDocument = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
 
@@ -366,11 +368,12 @@ exports.uploadHouseRulesDocument = async (req, res) => {
       });
     }
 
-    tournament.houseRulesDocument = {
+    tournament.documents.push({
       url: `/uploads/tournament-documents/${req.file.filename}`,
       fileName: req.file.originalname,
+      category: (req.body.category || 'General').toString().trim().slice(0, 100) || 'General',
       uploadedAt: new Date()
-    };
+    });
     await tournament.save();
 
     res.status(200).json({
@@ -385,10 +388,10 @@ exports.uploadHouseRulesDocument = async (req, res) => {
   }
 };
 
-// @desc    Remove the house-rules reference document
-// @route   DELETE /api/tournaments/:id/house-rules-document
+// @desc    Remove one document from this tournament's document library
+// @route   DELETE /api/tournaments/:id/documents/:documentId
 // @access  Private (organizer only)
-exports.deleteHouseRulesDocument = async (req, res) => {
+exports.removeTournamentDocument = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
 
@@ -406,12 +409,79 @@ exports.deleteHouseRulesDocument = async (req, res) => {
       });
     }
 
-    tournament.houseRulesDocument = { url: null, fileName: null, uploadedAt: null };
+    const { documentId } = req.params;
+    const exists = tournament.documents.some((doc) => doc._id.toString() === documentId);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+    tournament.documents = tournament.documents.filter((doc) => doc._id.toString() !== documentId);
     await tournament.save();
 
     res.status(200).json({
       success: true,
       tournament
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get one division's (or, for a tournament with no divisions, the whole tournament's)
+//          registered teams with full rosters populated - captain/viceCaptain/players, each
+//          with their linked user's name (mirrors teamController.js's PLAYER_POPULATE pattern)
+//          and profilePicture. Powers the Teams tab, scoped by the same division-pill selector
+//          the Standings/Bracket/Awards tabs already use.
+// @route   GET /api/tournaments/:id/teams
+// @access  Public
+exports.getTournamentTeams = async (req, res) => {
+  try {
+    const { division: divisionName } = req.query;
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    let teamIds;
+    if (tournament.divisions && tournament.divisions.length > 0) {
+      if (!divisionName) {
+        return res.status(400).json({
+          success: false,
+          message: 'This tournament uses divisions - pass `division` to select which one'
+        });
+      }
+      const division = tournament.divisions.find((d) => d.name === divisionName);
+      if (!division) {
+        return res.status(404).json({
+          success: false,
+          message: `Division "${divisionName}" not found`
+        });
+      }
+      teamIds = division.teams;
+    } else {
+      teamIds = tournament.teams;
+    }
+
+    const userPopulate = { path: 'user', select: 'name' };
+    const teams = await Team.find({ _id: { $in: teamIds } })
+      .populate({ path: 'captain', populate: userPopulate })
+      .populate({ path: 'viceCaptain', populate: userPopulate })
+      .populate({ path: 'players', populate: userPopulate });
+
+    res.status(200).json({
+      success: true,
+      division: divisionName || null,
+      count: teams.length,
+      teams
     });
   } catch (error) {
     res.status(500).json({

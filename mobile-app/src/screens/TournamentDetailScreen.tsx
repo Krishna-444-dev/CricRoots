@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput, Linking, Image } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { colors } from '../theme';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
-import { Tournament, Match, TournamentStanding } from '../shared/types';
+import { Tournament, Match, TournamentStanding, RosterTeam, Player } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
+import { getInitials } from '../shared/utils/formatters';
 
 // Populated relations depend on which endpoint returned them - GET /tournaments/:id populates
 // organizer/teams/standings.team/awards.* (players' awards get a nested `user` populate too),
@@ -34,6 +35,34 @@ function awardPlayerName(ref: any): string | null {
   return ref.specialization || 'Player';
 }
 
+function playerName(player?: Player | string | null): string {
+  if (!player || typeof player === 'string') return 'TBD';
+  const u = player.user;
+  return u && typeof u === 'object' ? u.name || 'TBD' : 'TBD';
+}
+
+// Player.profilePicture defaults to the literal string 'no-photo.jpg' (see
+// backend/src/models/Player.js), not a real URL - most players in this app's real/simulated
+// data don't have one, so this falls back to an initials avatar rather than loading it as an image.
+function PlayerAvatar({ player }: { player?: Player | string | null }) {
+  if (!player || typeof player === 'string') {
+    return (
+      <View style={styles.rosterAvatarFallback}>
+        <Text style={styles.rosterAvatarFallbackText}>?</Text>
+      </View>
+    );
+  }
+  const hasRealPhoto = !!player.profilePicture && player.profilePicture !== 'no-photo.jpg';
+  if (hasRealPhoto) {
+    return <Image source={{ uri: resolveAttachmentUrl(player.profilePicture!) }} style={styles.rosterAvatarImg} />;
+  }
+  return (
+    <View style={styles.rosterAvatarFallback}>
+      <Text style={styles.rosterAvatarFallbackText}>{getInitials(playerName(player))}</Text>
+    </View>
+  );
+}
+
 function statusColor(status: string) {
   switch (status) {
     case 'Registration':
@@ -56,7 +85,7 @@ function formatDate(d?: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type Section = 'standings' | 'matches' | 'bracket' | 'statistics' | 'awards' | 'announcements' | 'rules';
+type Section = 'standings' | 'teams' | 'matches' | 'bracket' | 'statistics' | 'awards' | 'announcements' | 'rules' | 'documents';
 
 const KNOCKOUT_ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'] as const;
 
@@ -151,6 +180,13 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const [houseRulesSaved, setHouseRulesSaved] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [docUploadError, setDocUploadError] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('');
+
+  // Teams roster - lazy-loaded the first time the Teams tab is opened, division-scoped exactly
+  // like standings/bracket/awards above.
+  const [rosterTeams, setRosterTeams] = useState<RosterTeam[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState('');
 
   const load = useCallback(() => {
     setError('');
@@ -243,6 +279,19 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
       .finally(() => setGroupStandingsLoading(false));
   }, [section, tournament, tournamentId, selectedDivision]);
 
+  useEffect(() => {
+    if (section !== 'teams') return;
+    const hasDivisions = (tournament?.divisions?.length ?? 0) > 0;
+    if (hasDivisions && !selectedDivision) return; // waiting on the division-default effect
+    setRosterLoading(true);
+    setRosterError('');
+    api.tournaments
+      .getTournamentTeams(tournamentId, hasDivisions ? selectedDivision : null)
+      .then((res) => setRosterTeams(res.teams))
+      .catch((err) => setRosterError(err instanceof Error ? err.message : 'Failed to load teams'))
+      .finally(() => setRosterLoading(false));
+  }, [section, tournamentId, tournament?.divisions?.length, selectedDivision]);
+
   const onRefresh = () => {
     setRefreshing(true);
     load();
@@ -282,7 +331,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleUploadHouseRulesDocument = async () => {
+  const handleUploadDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: [
         'application/pdf',
@@ -295,12 +344,13 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     setUploadingDoc(true);
     setDocUploadError('');
     try {
-      const { tournament: updated } = await api.tournaments.uploadHouseRulesDocument(tournamentId, {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType || 'application/pdf'
-      });
+      const { tournament: updated } = await api.tournaments.uploadDocument(
+        tournamentId,
+        { uri: asset.uri, name: asset.name, type: asset.mimeType || 'application/pdf' },
+        uploadCategory.trim() || 'General'
+      );
       setTournament(updated);
+      setUploadCategory('');
     } catch (err) {
       setDocUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -308,10 +358,10 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleRemoveHouseRulesDocument = async () => {
+  const handleRemoveDocument = async (documentId: string) => {
     setDocUploadError('');
     try {
-      const { tournament: updated } = await api.tournaments.deleteHouseRulesDocument(tournamentId);
+      const { tournament: updated } = await api.tournaments.deleteDocument(tournamentId, documentId);
       setTournament(updated);
     } catch (err) {
       setDocUploadError(err instanceof Error ? err.message : 'Failed to remove document');
@@ -517,20 +567,20 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         {!!error && <Text style={styles.errorBanner}>{error}</Text>}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.segmentScroll} contentContainerStyle={styles.segmentRow}>
-          {(['standings', 'matches', 'bracket', 'statistics', 'awards', 'announcements', 'rules'] as Section[]).map(s => (
+          {(['standings', 'teams', 'matches', 'bracket', 'statistics', 'awards', 'announcements', 'rules', 'documents'] as Section[]).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.segmentBtn, section === s && styles.segmentBtnActive]}
               onPress={() => setSection(s)}
             >
               <Text style={[styles.segmentText, section === s && styles.segmentTextActive]}>
-                {s === 'standings' ? 'Standings' : s === 'matches' ? 'Matches' : s === 'bracket' ? 'Bracket' : s === 'statistics' ? 'Statistics' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : 'House Rules'}
+                {s === 'standings' ? 'Standings' : s === 'teams' ? 'Teams' : s === 'matches' ? 'Matches' : s === 'bracket' ? 'Bracket' : s === 'statistics' ? 'Statistics' : s === 'awards' ? 'Awards' : s === 'announcements' ? 'Announcements' : s === 'rules' ? 'House Rules' : 'Documents'}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        {hasDivisions && (['standings', 'matches', 'bracket', 'awards'] as Section[]).includes(section) && (
+        {hasDivisions && (['standings', 'teams', 'matches', 'bracket', 'awards'] as Section[]).includes(section) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, marginTop: 12 }}>
             {tournament.divisions!.map((d) => (
               <TouchableOpacity
@@ -565,6 +615,43 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
               <Text style={styles.muted}>No standings yet - register teams and complete matches to populate the points table.</Text>
             ) : (
               <StandingsTable standings={standings} />
+            )}
+          </View>
+        )}
+
+        {section === 'teams' && (
+          <View style={styles.sectionBody}>
+            {!!rosterError && <Text style={styles.errorBanner}>{rosterError}</Text>}
+            {rosterLoading ? (
+              <ActivityIndicator color={colors.pitch400} />
+            ) : rosterTeams.length === 0 ? (
+              <Text style={styles.muted}>
+                No teams registered{hasDivisions ? ` in ${selectedDivision}` : ''} yet.
+              </Text>
+            ) : (
+              rosterTeams.map((team) => (
+                <View key={team._id} style={styles.teamCard}>
+                  <Text style={styles.teamCardName}>{team.name}</Text>
+                  {!!team.city && <Text style={styles.matchMeta}>{team.city}</Text>}
+                  <View style={styles.rosterRow}>
+                    <PlayerAvatar player={team.captain} />
+                    <View>
+                      <Text style={styles.rosterBadge}>CAPTAIN</Text>
+                      <Text style={styles.rosterName}>{playerName(team.captain)}</Text>
+                    </View>
+                  </View>
+                  {!!team.viceCaptain && (
+                    <View style={styles.rosterRow}>
+                      <PlayerAvatar player={team.viceCaptain} />
+                      <View>
+                        <Text style={styles.rosterBadge}>VICE-CAPTAIN</Text>
+                        <Text style={styles.rosterName}>{playerName(team.viceCaptain)}</Text>
+                      </View>
+                    </View>
+                  )}
+                  <Text style={[styles.matchMeta, { marginTop: 10 }]}>{team.players?.length ?? 0} players on roster</Text>
+                </View>
+              ))
             )}
           </View>
         )}
@@ -937,32 +1024,9 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                   {houseRulesSaved && <Text style={styles.savedText}>Saved</Text>}
                 </View>
                 {!!houseRulesError && <Text style={styles.errorBanner}>{houseRulesError}</Text>}
-
-                <View style={styles.docSection}>
-                  <Text style={styles.muted}>
-                    Attach a PDF or Word doc as a downloadable reference (e.g. the full printed rulebook) - separate from
-                    the free-text above, which is what the assistant actually reads.
-                  </Text>
-                  {tournament.houseRulesDocument?.url ? (
-                    <View style={styles.docRow}>
-                      <TouchableOpacity onPress={() => Linking.openURL(resolveAttachmentUrl(tournament.houseRulesDocument!.url!))}>
-                        <Text style={styles.docLink}>📎 {tournament.houseRulesDocument.fileName}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={handleRemoveHouseRulesDocument}>
-                        <Text style={styles.docRemove}>Remove</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.houseRulesSaveBtn, uploadingDoc && styles.sendBtnDisabled]}
-                      onPress={handleUploadHouseRulesDocument}
-                      disabled={uploadingDoc}
-                    >
-                      <Text style={styles.actionBtnText}>{uploadingDoc ? 'Uploading...' : '📎 Attach Document'}</Text>
-                    </TouchableOpacity>
-                  )}
-                  {!!docUploadError && <Text style={styles.errorBanner}>{docUploadError}</Text>}
-                </View>
+                <Text style={[styles.muted, { marginTop: 16 }]}>
+                  Looking for the printed rulebook, registration guide, or other downloadable files? See the Documents tab.
+                </Text>
               </>
             ) : (
               <>
@@ -971,12 +1035,54 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                 ) : (
                   <Text style={styles.muted}>The organizer hasn&apos;t set any house rules for this tournament.</Text>
                 )}
-                {!!tournament.houseRulesDocument?.url && (
-                  <TouchableOpacity onPress={() => Linking.openURL(resolveAttachmentUrl(tournament.houseRulesDocument!.url!))}>
-                    <Text style={[styles.docLink, { marginTop: 12 }]}>📎 {tournament.houseRulesDocument.fileName}</Text>
-                  </TouchableOpacity>
-                )}
               </>
+            )}
+          </View>
+        )}
+
+        {section === 'documents' && (
+          <View style={styles.sectionBody}>
+            <Text style={styles.muted}>
+              Downloadable reference documents for this tournament - league rules, registration guide, captain guide,
+              nomination sheet, etc.
+            </Text>
+            {(tournament.documents?.length ?? 0) === 0 ? (
+              <Text style={[styles.muted, { marginTop: 10 }]}>No documents have been uploaded yet.</Text>
+            ) : (
+              tournament.documents!.map((doc) => (
+                <View key={doc._id} style={styles.docSectionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.documentCategory}>{doc.category}</Text>
+                    <TouchableOpacity onPress={() => Linking.openURL(resolveAttachmentUrl(doc.url))}>
+                      <Text style={styles.docLink}>📎 {doc.fileName}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {isOrganizer && (
+                    <TouchableOpacity onPress={() => handleRemoveDocument(doc._id)}>
+                      <Text style={styles.docRemove}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))
+            )}
+            {isOrganizer && (
+              <View style={styles.docSection}>
+                <TextInput
+                  style={[styles.input, { marginBottom: 10 }]}
+                  value={uploadCategory}
+                  onChangeText={setUploadCategory}
+                  placeholder="Category (e.g. House Rules, Registration Guide)"
+                  placeholderTextColor={colors.inkMuted}
+                />
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.houseRulesSaveBtn, uploadingDoc && styles.sendBtnDisabled]}
+                  onPress={handleUploadDocument}
+                  disabled={uploadingDoc}
+                >
+                  <Text style={styles.actionBtnText}>{uploadingDoc ? 'Uploading...' : '📎 Upload Document'}</Text>
+                </TouchableOpacity>
+                {!!docUploadError && <Text style={styles.errorBanner}>{docUploadError}</Text>}
+              </View>
             )}
           </View>
         )}
@@ -1182,4 +1288,14 @@ const styles = StyleSheet.create({
   pickerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   pickerName: { color: colors.ink, fontSize: 14, fontWeight: '600' },
   pickerMeta: { color: colors.inkMuted, fontSize: 12 },
+  teamCard: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
+  teamCardName: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+  rosterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
+  rosterAvatarFallback: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  rosterAvatarFallbackText: { color: colors.inkMuted, fontSize: 11, fontWeight: '700' },
+  rosterAvatarImg: { width: 32, height: 32, borderRadius: 16 },
+  rosterBadge: { color: colors.gold500, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
+  rosterName: { color: colors.ink, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  docSectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginTop: 10, gap: 10 },
+  documentCategory: { color: colors.inkMuted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
 });

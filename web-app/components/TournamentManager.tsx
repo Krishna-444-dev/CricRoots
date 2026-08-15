@@ -46,6 +46,32 @@ interface TournamentDivision {
   awards: TournamentAwards;
 }
 
+interface TournamentDocument {
+  _id: string;
+  url: string;
+  fileName: string;
+  category: string;
+  uploadedAt: string;
+}
+
+// Shape returned by GET /tournaments/:id/teams (see getTournamentTeams) - a division's (or,
+// for a tournament with no divisions, the whole tournament's) teams with rosters populated.
+interface RosterPlayer {
+  _id: string;
+  user?: { name: string };
+  specialization: string;
+  profilePicture?: string;
+}
+
+interface RosterTeam {
+  _id: string;
+  name: string;
+  city?: string;
+  captain?: RosterPlayer | null;
+  viceCaptain?: RosterPlayer | null;
+  players: RosterPlayer[];
+}
+
 interface Tournament {
   _id: string;
   name: string;
@@ -63,7 +89,7 @@ interface Tournament {
   divisions?: TournamentDivision[];
   organizer: { _id: string; name: string };
   houseRules?: string;
-  houseRulesDocument?: { url: string | null; fileName: string | null; uploadedAt: string | null };
+  documents?: TournamentDocument[];
   statistics: {
     totalMatches: number;
     completedMatches: number;
@@ -143,12 +169,25 @@ interface TournamentManagerProps {
   initialLeagueId?: string;
 }
 
+// Player.profilePicture defaults to the literal string 'no-photo.jpg' rather than a real URL
+// (see backend/src/models/Player.js) - most players in this app's real/simulated data don't
+// have one, so this falls back to an initials avatar instead of trying to load that as an image.
+function PlayerAvatar({ player }: { player?: { user?: { name?: string }; profilePicture?: string } | null }) {
+  const name = player?.user?.name || '';
+  const hasRealPhoto = !!player?.profilePicture && player.profilePicture !== 'no-photo.jpg';
+  const initials = name.split(' ').map((p) => p.charAt(0)).join('').toUpperCase().slice(0, 2) || '?';
+  if (hasRealPhoto) {
+    return <img src={player!.profilePicture} alt={name} className={styles.rosterAvatarImg} />;
+  }
+  return <div className={styles.rosterAvatarFallback}>{initials}</div>;
+}
+
 export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournamentId, initialLeagueId }) => {
   const { user, token } = useAuth();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'bracket' | 'statistics' | 'announcements' | 'awards' | 'rules'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'bracket' | 'statistics' | 'announcements' | 'awards' | 'rules' | 'teams' | 'documents'>('list');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [announcements, setAnnouncements] = useState<ChatMessage[]>([]);
   const [announcementText, setAnnouncementText] = useState('');
@@ -181,7 +220,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [houseRulesSaved, setHouseRulesSaved] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [docUploadError, setDocUploadError] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('');
   const docFileInputRef = React.useRef<HTMLInputElement>(null);
+  // Teams roster tab - division-scoped exactly like standings/bracket/awards above.
+  const [rosterTeams, setRosterTeams] = useState<RosterTeam[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState('');
 
   // Create tournament form
   const [createName, setCreateName] = useState('');
@@ -231,6 +275,25 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
         .then(data => { if (data.success) setLeaderboard({ batsmen: data.batsmen, bowlers: data.bowlers, fielding: data.fielding, topPerformers: data.topPerformers }); })
         .finally(() => setLeaderboardLoading(false));
     }
+  }, [activeTab, selectedTournament, selectedDivision]);
+
+  // Teams tab - GET /tournaments/:id/teams, scoped to selectedDivision for a divisioned
+  // tournament (same division-pill pattern the other tabs already use).
+  useEffect(() => {
+    if (activeTab !== 'teams' || !selectedTournament) return;
+    const hasDivisions = (selectedTournament.divisions?.length ?? 0) > 0;
+    if (hasDivisions && !selectedDivision) return; // waiting on the division-default effect
+    setRosterLoading(true);
+    setRosterError('');
+    const query = hasDivisions ? `?division=${encodeURIComponent(selectedDivision!)}` : '';
+    fetch(`/api/tournaments/${selectedTournament._id}/teams${query}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setRosterTeams(data.teams);
+        else setRosterError(data.message || 'Failed to load teams');
+      })
+      .catch(() => setRosterError('Could not reach the CricRoots server'))
+      .finally(() => setRosterLoading(false));
   }, [activeTab, selectedTournament, selectedDivision]);
 
   const fetchTournamentMatches = (id: string) => {
@@ -451,7 +514,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     }
   };
 
-  const handleUploadHouseRulesDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedTournament) return;
     setUploadingDoc(true);
@@ -459,7 +522,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`/api/tournaments/${selectedTournament._id}/house-rules-document`, {
+      formData.append('category', uploadCategory.trim() || 'General');
+      const res = await fetch(`/api/tournaments/${selectedTournament._id}/documents`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
@@ -468,6 +532,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       if (data.success) {
         setSelectedTournament(data.tournament);
         setTournaments(prev => prev.map(t => (t._id === data.tournament._id ? data.tournament : t)));
+        setUploadCategory('');
       } else {
         setDocUploadError(data.message || 'Upload failed');
       }
@@ -479,11 +544,11 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
     }
   };
 
-  const handleRemoveHouseRulesDocument = async () => {
+  const handleRemoveDocument = async (documentId: string) => {
     if (!selectedTournament) return;
     setDocUploadError('');
     try {
-      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/house-rules-document`, {
+      const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/documents/${documentId}`, {
         method: 'DELETE',
       });
       const data = await res.json();
@@ -695,6 +760,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
               🏆 Standings
             </button>
             <button
+              className={`${styles.tab} ${activeTab === 'teams' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('teams')}
+            >
+              👥 Teams
+            </button>
+            <button
               className={`${styles.tab} ${activeTab === 'matches' ? styles.activeTab : ''}`}
               onClick={() => setActiveTab('matches')}
             >
@@ -730,6 +801,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
             >
               📜 House Rules
             </button>
+            <button
+              className={`${styles.tab} ${activeTab === 'documents' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('documents')}
+            >
+              📁 Documents
+            </button>
           </>
         )}
       </div>
@@ -737,7 +814,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
       {/* Content */}
       <div className={styles.content}>
         {!showCreateForm && selectedTournament && (selectedTournament.divisions?.length ?? 0) > 0 &&
-          ['standings', 'matches', 'bracket', 'awards'].includes(activeTab) && (
+          ['standings', 'matches', 'bracket', 'awards', 'teams'].includes(activeTab) && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
               {selectedTournament.divisions!.map((d) => (
                 <button
@@ -1004,6 +1081,51 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
             )}
           </div>
         )}
+
+        {activeTab === 'teams' && selectedTournament && (() => {
+          const hasDivisions = (selectedTournament.divisions?.length ?? 0) > 0;
+          return (
+            <div className={styles.card}>
+              <h2>{selectedTournament.name} - Teams{hasDivisions ? ` - ${selectedDivision}` : ''}</h2>
+              {rosterError && <p className={styles.infoText} style={{ color: '#F87171' }}>{rosterError}</p>}
+              {rosterLoading ? (
+                <p className={styles.infoText}>Loading...</p>
+              ) : rosterTeams.length === 0 ? (
+                <p className={styles.infoText}>No teams registered{hasDivisions ? ` in ${selectedDivision}` : ''} yet.</p>
+              ) : (
+                <div className={styles.tournamentsList}>
+                  {rosterTeams.map((team) => (
+                    <div key={team._id} className={styles.tournamentCard} style={{ cursor: 'default' }}>
+                      <div className={styles.cardHeader}>
+                        <h3>{team.name}</h3>
+                      </div>
+                      {team.city && <p className={styles.description}>{team.city}</p>}
+                      <div className={styles.rosterRow}>
+                        <PlayerAvatar player={team.captain} />
+                        <div>
+                          <Badge variant="gold">Captain</Badge>
+                          <p className={styles.rosterName}>{team.captain?.user?.name || 'TBD'}</p>
+                        </div>
+                      </div>
+                      {team.viceCaptain && (
+                        <div className={styles.rosterRow}>
+                          <PlayerAvatar player={team.viceCaptain} />
+                          <div>
+                            <Badge variant="info">Vice-Captain</Badge>
+                            <p className={styles.rosterName}>{team.viceCaptain.user?.name || 'TBD'}</p>
+                          </div>
+                        </div>
+                      )}
+                      <p className={styles.infoText} style={{ margin: '10px 0 0' }}>
+                        {team.players?.length ?? 0} players on roster
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {activeTab === 'matches' && selectedTournament && (() => {
           const hasDivisions = (selectedTournament.divisions?.length ?? 0) > 0;
@@ -1520,51 +1642,9 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 {houseRulesError && (
                   <p className={styles.infoText} style={{ color: '#F87171' }}>{houseRulesError}</p>
                 )}
-
-                <div className="mt-5 pt-4 border-t border-border">
-                  <p className={styles.infoText} style={{ marginBottom: 8 }}>
-                    Attach a PDF or Word doc as a downloadable reference (e.g. the full printed rulebook) - this is separate
-                    from the free-text above, which is what the assistant actually reads.
-                  </p>
-                  {selectedTournament.houseRulesDocument?.url ? (
-                    <div className="flex items-center gap-3">
-                      <a
-                        href={selectedTournament.houseRulesDocument.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-pitch-400 hover:underline"
-                      >
-                        📎 {selectedTournament.houseRulesDocument.fileName}
-                      </a>
-                      <button
-                        type="button"
-                        className="text-xs text-wicket-400 hover:underline"
-                        onClick={handleRemoveHouseRulesDocument}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className={buttonVariants('secondary')}
-                      onClick={() => docFileInputRef.current?.click()}
-                      disabled={uploadingDoc}
-                    >
-                      {uploadingDoc ? 'Uploading...' : '📎 Attach Document'}
-                    </button>
-                  )}
-                  <input
-                    ref={docFileInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    style={{ display: 'none' }}
-                    onChange={handleUploadHouseRulesDocument}
-                  />
-                  {docUploadError && (
-                    <p className={styles.infoText} style={{ color: '#F87171', marginTop: 6 }}>{docUploadError}</p>
-                  )}
-                </div>
+                <p className={styles.infoText} style={{ marginTop: 16 }}>
+                  Looking for the printed rulebook, registration guide, or other downloadable files? See the Documents tab.
+                </p>
               </>
             ) : (
               <>
@@ -1573,17 +1653,78 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 ) : (
                   <p className={styles.infoText}>The organizer hasn&apos;t set any house rules for this tournament.</p>
                 )}
-                {selectedTournament.houseRulesDocument?.url && (
-                  <a
-                    href={selectedTournament.houseRulesDocument.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-pitch-400 hover:underline mt-3 inline-block"
-                  >
-                    📎 {selectedTournament.houseRulesDocument.fileName}
-                  </a>
-                )}
               </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'documents' && selectedTournament && (
+          <div className={styles.card}>
+            <h2>{selectedTournament.name} - Documents</h2>
+            <p className={styles.infoText}>
+              Downloadable reference documents for this tournament - league rules, registration guide, captain guide,
+              nomination sheet, etc.
+            </p>
+            {(selectedTournament.documents?.length ?? 0) === 0 ? (
+              <p className={styles.infoText}>No documents have been uploaded yet.</p>
+            ) : (
+              <div className={styles.documentsList}>
+                {selectedTournament.documents!.map((doc) => (
+                  <div key={doc._id} className={styles.documentRow}>
+                    <div>
+                      <span className={styles.documentCategory}>{doc.category}</span>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-pitch-400 hover:underline"
+                        style={{ marginLeft: 10 }}
+                      >
+                        📎 {doc.fileName}
+                      </a>
+                    </div>
+                    {isOrganizer && (
+                      <button
+                        type="button"
+                        className="text-xs text-wicket-400 hover:underline"
+                        onClick={() => handleRemoveDocument(doc._id)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {isOrganizer && (
+              <div className="mt-5 pt-4 border-t border-border">
+                <label className={labelClass}>Category</label>
+                <input
+                  className={`${inputClass} w-full`}
+                  style={{ marginBottom: 10 }}
+                  value={uploadCategory}
+                  onChange={(e) => setUploadCategory(e.target.value)}
+                  placeholder="e.g. House Rules, Registration Guide, Captain Guide, Nomination Sheet"
+                />
+                <button
+                  type="button"
+                  className={buttonVariants('secondary')}
+                  onClick={() => docFileInputRef.current?.click()}
+                  disabled={uploadingDoc}
+                >
+                  {uploadingDoc ? 'Uploading...' : '📎 Upload Document'}
+                </button>
+                <input
+                  ref={docFileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  style={{ display: 'none' }}
+                  onChange={handleUploadDocument}
+                />
+                {docUploadError && (
+                  <p className={styles.infoText} style={{ color: '#F87171', marginTop: 6 }}>{docUploadError}</p>
+                )}
+              </div>
             )}
           </div>
         )}
