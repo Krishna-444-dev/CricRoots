@@ -205,6 +205,7 @@ exports.getMatch = async (req, res) => {
     const match = await Match.findById(req.params.id)
       .populate('team1')
       .populate('team2')
+      .populate('toss.winningTeam')
       .populate(MAN_OF_THE_MATCH_POPULATE)
       .populate('createdBy')
       .populate({ path: 'umpires', select: 'name' })
@@ -282,6 +283,7 @@ exports.updateMatch = async (req, res) => {
     match = await match.save();
     await match.populate('team1');
     await match.populate('team2');
+    await match.populate('toss.winningTeam');
     await match.populate(MAN_OF_THE_MATCH_POPULATE);
 
     // Refresh the tournament's points table if this match belongs to one

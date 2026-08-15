@@ -227,6 +227,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
         const m: Match = matchRes.match;
         setMatch(m);
         setPowerplayOvers(matchRes.powerplayOvers ?? null);
+        if (m.toss?.winningTeam) setTossCaptured(true);
         const map = new Map<string, Player>();
         (playersRes.players as Player[]).forEach((p) => map.set(p._id, p));
         setPlayersById(map);
@@ -292,6 +293,14 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   const [bowlerId, setBowlerId] = useState<string | null>(null);
   const [outPlayerIds, setOutPlayerIds] = useState<Set<string>>(new Set());
   const [bowlerPickerOpen, setBowlerPickerOpen] = useState(false);
+
+  // --- Toss - captured once, alongside the very first "Start Innings" for a still-Scheduled
+  // match with no balls recorded yet; never re-prompted after that. Mirrors web-app's
+  // score/page.tsx hook point. tossCaptured starts true if the loaded match already has one
+  // (set in a previous session, or this is innings 2+ within this one). ---
+  const [tossCaptured, setTossCaptured] = useState(false);
+  const [tossWinnerId, setTossWinnerId] = useState<string | null>(null);
+  const [tossDecision, setTossDecision] = useState<'bat' | 'bowl' | null>(null);
 
   // --- "Who bowls next over" prompt - nothing previously let the scorer change bowler after
   // an over completed; currentBowler just stayed whoever was picked at Start Innings for the
@@ -491,8 +500,14 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     }
   }
 
+  // Only the very first innings start for a still-Scheduled match with no balls recorded yet
+  // needs a toss - once captured (this session or a previous one), it never resurfaces, and a
+  // match resumed mid-innings never needed one in the first place.
+  const needsToss = !tossCaptured && match?.status === 'Scheduled' && (match?.innings[inningsIndex]?.balls?.length ?? 0) === 0;
+
   const canStart =
-    !!battingTeamId && !!strikerId && !!nonStrikerId && !!bowlerId && strikerId !== nonStrikerId;
+    !!battingTeamId && !!strikerId && !!nonStrikerId && !!bowlerId && strikerId !== nonStrikerId &&
+    (!needsToss || (!!tossWinnerId && !!tossDecision));
 
   function handleStartInnings() {
     if (!match || !canStart) return;
@@ -501,6 +516,13 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     // balls, outPlayerIds was already derived from the ball log at load time and must survive
     // this call so an already-out batsman can't be re-selected.
     if (currentBalls.length === 0) setOutPlayerIds(new Set());
+    // Note: unlike web-app's score/page.tsx, nothing here flips match.status to 'Live' - this
+    // screen never did that transition even before toss capture existed, so this call only
+    // carries the toss and leaves that pre-existing gap alone.
+    if (needsToss && tossWinnerId && tossDecision) {
+      api.matches.updateMatch(match._id, { toss: { winningTeam: tossWinnerId, decision: tossDecision } }).catch(() => {});
+      setTossCaptured(true);
+    }
     setInningsStarted(true);
   }
 
@@ -801,6 +823,32 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
             already on the board are not affected.
           </Text>
         )}
+
+        {needsToss && (
+          <>
+            <ChipGroup
+              label="Toss won by"
+              required
+              options={[
+                { id: team1Id || 'team1', label: teamNameOf(match.team1) },
+                { id: teamIdOf(match.team2) || 'team2', label: teamNameOf(match.team2) },
+              ]}
+              value={tossWinnerId}
+              onChange={setTossWinnerId}
+            />
+            <ChipGroup
+              label="Elected to"
+              required
+              options={[
+                { id: 'bat', label: 'Bat first' },
+                { id: 'bowl', label: 'Bowl first' },
+              ]}
+              value={tossDecision}
+              onChange={(id) => setTossDecision(id as 'bat' | 'bowl')}
+            />
+          </>
+        )}
+
         <ChipGroup
           label="Batting side"
           required

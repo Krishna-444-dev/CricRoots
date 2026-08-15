@@ -39,6 +39,7 @@ interface MatchDoc {
   status: string;
   tournament: { _id: string; rules?: { powerplayOvers?: number } } | string | null;
   innings: MatchInningsDoc[];
+  toss?: { winningTeam: { _id: string; name?: string } | string | null; decision?: string | null } | null;
 }
 
 interface UiPlayer {
@@ -103,6 +104,13 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
   const [isFinishing, setIsFinishing] = useState(false);
   const [finished, setFinished] = useState(false);
   const [powerplayOvers, setPowerplayOvers] = useState<number | null>(null);
+  // Toss - captured once, alongside the very first "Start Innings" submission for a still-
+  // Scheduled match (the same moment status flips to Live). tossCaptured starts true if the
+  // fetched match already has one (a previous session set it, or this is innings 2+ within
+  // this session) so the fields never resurface once set.
+  const [tossCaptured, setTossCaptured] = useState(false);
+  const [tossWinnerId, setTossWinnerId] = useState('');
+  const [tossDecision, setTossDecision] = useState<'bat' | 'bowl' | ''>('');
 
   useEffect(() => {
     Promise.all([
@@ -113,6 +121,7 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
         const m: MatchDoc = matchData.match;
         setMatch(m);
         setPowerplayOvers(matchData.powerplayOvers ?? null);
+        if (m.toss?.winningTeam) setTossCaptured(true);
         // Resume scoring in progress instead of restarting from "Start Innings" - a previous
         // scorer's session may have ended abruptly (phone died, tab closed) without finishing
         // the innings, and re-selecting striker/non-striker/bowler from scratch would both
@@ -245,19 +254,31 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
   const battingRoster = battingTeamId === match.team1._id ? team1Roster : team2Roster;
   const bowlingRoster = battingTeamId === match.team1._id ? team2Roster : team1Roster;
 
+  // Toss is only ever relevant the very first time a still-Scheduled match starts scoring -
+  // once status has moved past that (this call already ran, or a previous session/pre-existing
+  // match already recorded one), it should never resurface.
+  const needsToss = !tossCaptured && match.status === 'Scheduled';
+
   const handleStartInnings = (e: React.FormEvent) => {
     e.preventDefault();
     if (!battingTeamId || !strikerId || !nonStrikerId || !bowlerId || strikerId === nonStrikerId) return;
+    if (needsToss && (!tossWinnerId || !tossDecision)) return;
     setInningsIndex(battingTeamId === match.team1._id ? 0 : 1);
     setInningsData(buildInnings(battingRoster, bowlingRoster, strikerId, nonStrikerId, bowlerId));
     // Nothing else in the app ever flips the match to Live - it's created as Scheduled and
     // stayed that way even while balls were being recorded, which is what left the AI Insights
-    // tab and the "Live" badge elsewhere unable to tell a match had actually started.
+    // tab and the "Live" badge elsewhere unable to tell a match had actually started. The toss
+    // rides along on this same call so it's set exactly once, before any ball is recorded.
     if (match.status === 'Scheduled') {
+      const body: { status: string; toss?: { winningTeam: string; decision: string } } = { status: 'Live' };
+      if (needsToss && tossWinnerId && tossDecision) {
+        body.toss = { winningTeam: tossWinnerId, decision: tossDecision };
+      }
       apiFetch(`/api/matches/${match._id}`, {
         method: 'PUT',
-        body: JSON.stringify({ status: 'Live' }),
+        body: JSON.stringify(body),
       }).catch(() => { /* scoring can proceed even if this call fails; next load will retry */ });
+      setTossCaptured(true);
     }
   };
 
@@ -336,6 +357,29 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
       ) : !inningsData ? (
         <form onSubmit={handleStartInnings} className="bg-surface border border-border rounded-xl shadow-card p-4 sm:p-5 space-y-4">
           <h2 className="text-lg font-semibold text-ink">Start Innings</h2>
+
+          {needsToss && (
+            <div className="pb-4 border-b border-border space-y-3">
+              <p className="text-sm font-semibold text-ink">🪙 Toss</p>
+              <div>
+                <label className={labelClass}>Won by</label>
+                <select value={tossWinnerId} onChange={(e) => setTossWinnerId(e.target.value)} className={inputClass}>
+                  <option value="">Select team</option>
+                  <option value={match.team1._id}>{match.team1.name}</option>
+                  <option value={match.team2._id}>{match.team2.name}</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Elected to</label>
+                <select value={tossDecision} onChange={(e) => setTossDecision(e.target.value as 'bat' | 'bowl' | '')} className={inputClass}>
+                  <option value="">Select decision</option>
+                  <option value="bat">Bat first</option>
+                  <option value="bowl">Bowl first</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className={labelClass}>Batting first</label>
             <select
@@ -377,7 +421,10 @@ export default function LiveScoringPage({ params }: { params: { id: string } }) 
 
           <Button
             type="submit"
-            disabled={!battingTeamId || !strikerId || !nonStrikerId || !bowlerId || strikerId === nonStrikerId}
+            disabled={
+              !battingTeamId || !strikerId || !nonStrikerId || !bowlerId || strikerId === nonStrikerId ||
+              (needsToss && (!tossWinnerId || !tossDecision))
+            }
             className="w-full"
           >
             Start Scoring
