@@ -274,13 +274,21 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   weren't), edtech lessons, marketplace listings, news posts. Left several other `user.id === ...`
   checks alone after confirming they're either already guarded elsewhere or sit behind a
   login-required page, where a null `user` would crash loudly instead of silently misfiring - a
-  different, lower-priority class of bug not addressed here.
+  different, lower-priority class of bug not addressed here. While checking whether mobile had the
+  same authorization bug (it doesn't - `computeCanScore` and every other mobile ownership check
+  already guards both sides, another instance of "mobile had it right, web didn't" this session),
+  confirmed the fix is backend-safe by construction too: every backend `.toString() !== req.user.id`
+  check would throw (500) rather than silently bypass if the owner field were ever null, since
+  `req.user` is always a real authenticated value behind `protect` middleware - no equivalent
+  vulnerability exists server-side.
+- **Mobile: Man of the Match display + Umpires management** (`6de5dd8`) - closes the two gaps
+  flagged during the tab-restructure port. Umpire appointment reuses the player directory this
+  screen already fetches (no new network call) via a bottom-sheet picker matching
+  `TournamentDetailScreen`'s existing register-team-picker pattern; gated on `computeCanScore`'s
+  `isOwner` (already null-safe, see above) rather than a new ad-hoc check.
 
 ### Backlog (not started, roughly in priority order)
 
-- **Mobile match detail is missing two things web has**: a Man of the Match display, and any
-  Umpires-management UI at all (appoint/remove). Surfaced while porting the tab restructure to
-  mobile - pre-existing gaps, not something the restructure introduced or was in scope to fix.
 - **Match notifications** — push/email when a followed team's match goes live or a tournament
   posts an announcement (announcement chat already exists; notification delivery doesn't).
   Deliberately left out of both parallel batches so far — needs a new data model and touches
