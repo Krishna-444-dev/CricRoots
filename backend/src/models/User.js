@@ -35,6 +35,28 @@ const userSchema = new mongoose.Schema({
     enum: ['player', 'captain', 'organizer', 'admin', 'sponsor', 'collaborator'],
     default: 'player'
   },
+  // The device's Expo push token, overwritten on each registration (see PUT /api/users/push-token
+  // in userController.js). Known simplification: this only ever holds the single most-recent
+  // device - supporting multiple simultaneous devices per user (e.g. phone + tablet both getting
+  // push) is out of scope for this pass and would need an array of {token, registeredAt} instead.
+  pushToken: {
+    type: String,
+    default: null
+  },
+  // Per-channel opt-out for the delivery this session added on top of the existing in-app
+  // notification feed (see notificationService.js's deliverNotifications) - unwanted push/email
+  // is a real bad-UX risk, not speculative scope, so both default true but are independently
+  // toggleable via PUT /api/users/notification-preferences.
+  notificationPreferences: {
+    push: {
+      type: Boolean,
+      default: true
+    },
+    email: {
+      type: Boolean,
+      default: true
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now

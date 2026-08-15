@@ -10,6 +10,12 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;
+  // Both optional: /auth/login and /auth/register now return them (see authController.js), but
+  // older cached auth state (or a backend response shape change) shouldn't crash a consumer that
+  // reads them - callers should treat a missing notificationPreferences as the schema default
+  // (both true), same fallback notificationService.js's deliverNotifications uses server-side.
+  pushToken?: string | null;
+  notificationPreferences?: { push: boolean; email: boolean };
 }
 
 interface AuthState {
@@ -43,6 +49,8 @@ function normalizeUser(raw: any): AuthUser {
     name: raw.name,
     email: raw.email,
     role: raw.role,
+    pushToken: raw.pushToken ?? null,
+    notificationPreferences: raw.notificationPreferences ?? { push: true, email: true },
   };
 }
 

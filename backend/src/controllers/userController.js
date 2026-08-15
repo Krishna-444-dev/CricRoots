@@ -1,6 +1,54 @@
 const User = require('../models/User');
 const Follow = require('../models/Follow');
 
+// @desc    Register (or replace) this device's Expo push token for the current user. Overwrites
+//          any previously-stored token - see the User model comment: only the single most-recent
+//          device is tracked, multi-device support is a known simplification left out of this pass.
+// @route   PUT /api/users/push-token
+// @access  Private
+exports.updatePushToken = async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    if (!pushToken || typeof pushToken !== 'string') {
+      return res.status(400).json({ success: false, message: 'pushToken is required' });
+    }
+
+    req.user.pushToken = pushToken;
+    await req.user.save();
+
+    res.status(200).json({ success: true, pushToken: req.user.pushToken });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Partial update of the current user's push/email notification opt-in preferences -
+//          either field may be omitted to leave it unchanged. See notificationService.js's
+//          deliverNotifications, which reads these before firing push/email for any notification.
+// @route   PUT /api/users/notification-preferences
+// @access  Private
+exports.updateNotificationPreferences = async (req, res) => {
+  try {
+    const { push, email } = req.body;
+    if (typeof push !== 'boolean' && typeof email !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Provide at least one of push/email as a boolean' });
+    }
+
+    // Defensive against a legacy document where the schema default hasn't been persisted yet
+    // (see the model comment on notificationPreferences) - guarantees an object exists to assign into.
+    if (!req.user.notificationPreferences) {
+      req.user.notificationPreferences = { push: true, email: true };
+    }
+    if (typeof push === 'boolean') req.user.notificationPreferences.push = push;
+    if (typeof email === 'boolean') req.user.notificationPreferences.email = email;
+    await req.user.save();
+
+    res.status(200).json({ success: true, notificationPreferences: req.user.notificationPreferences });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get a public user profile
 // @route   GET /api/users/:id
 // @access  Public

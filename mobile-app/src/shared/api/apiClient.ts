@@ -97,6 +97,15 @@ export const usersAPI = {
   getFollowing: (userId: string) => apiFetch<{ success: true; following: any[] }>(`/users/${userId}/following`),
   follow: (userId: string) => apiFetch(`/users/${userId}/follow`, 'POST'),
   unfollow: (userId: string) => apiFetch(`/users/${userId}/follow`, 'DELETE'),
+  // Registers (overwrites) this device's Expo push token for the logged-in user - see
+  // pushNotifications.ts, called once on login/app start after permission is granted.
+  updatePushToken: (pushToken: string) =>
+    apiFetch<{ success: true; pushToken: string }>('/users/push-token', 'PUT', { pushToken }),
+  // Partial update - only the keys passed are changed server-side.
+  updateNotificationPreferences: (prefs: { push?: boolean; email?: boolean }) =>
+    apiFetch<{ success: true; notificationPreferences: { push: boolean; email: boolean } }>(
+      '/users/notification-preferences', 'PUT', prefs
+    ),
 };
 
 // --- Players (backend/src/routes/playerRoutes.js) ---

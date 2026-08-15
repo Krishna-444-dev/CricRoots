@@ -410,13 +410,60 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   caused by a mis-derived `inn1Opponent` variable that actually pointed at the chasing team, not
   the bowling team - fixed by using the correct `inn1Team` (the side that batted first, now
   defending) directly.
+- **Push + email notification delivery**: real delivery on top of the in-app feed above, from
+  scratch (this codebase had zero email/push infra before this pass). New `User.pushToken`
+  (single most-recent device - multi-device is a known simplification, out of scope) and
+  `User.notificationPreferences.{push,email}` (both default `true`, independently toggleable).
+  `backend/src/services/pushNotificationService.js` (new `expo-server-sdk` dependency) validates
+  `Expo.isExpoPushToken` before sending, batches via `chunkPushNotifications`/
+  `sendPushNotificationsAsync`, logs ticket-level errors immediately, and schedules a receipt
+  check ~15 min later (an in-process `setTimeout`, not a real job queue - acceptable gap for this
+  pass) that clears `pushToken` on a `DeviceNotRegistered` receipt.
+  `backend/src/services/emailNotificationService.js` (new `nodemailer` dependency) uses real SMTP
+  when `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS` are set, else falls back to a
+  process-cached `nodemailer.createTestAccount()` Ethereal inbox for dev, logging
+  `getTestMessageUrl()` per send. Both wired into a single place -
+  `notificationService.js`'s new `deliverNotifications`, called from a new `insertAndDeliver`
+  that both `notifyMatchStatusChange` and `notifyTournamentAnnouncement` now call instead of
+  `Notification.insertMany` directly - so every current *and future* notification type gets
+  delivery for free, looked up per-recipient by `pushToken`/`notificationPreferences`/`email`,
+  with no per-call-site duplication. Same log-only try/catch discipline as the rest of this
+  codebase throughout: a delivery failure can never undo the in-app Notification (already
+  committed) or break the real action (match update, announcement post) that triggered it.
+  `PUT /api/users/push-token` and `PUT /api/users/notification-preferences` (both protected,
+  self-service) added to `userController.js`/`userRoutes.js`; `authController.js`'s
+  login/register responses now also include `pushToken`/`notificationPreferences` (previously
+  only `/auth/me` did) so a client has them without an extra round trip. Mobile: new
+  `expo-notifications`/`expo-constants` deps (SDK 54-compatible: `~0.32.17`/`~18.0.13`,
+  cross-checked against the `sdk-54` branch of the expo monorepo rather than grabbing latest);
+  `AuthContext.tsx` requests permission and registers the Expo push token once per authenticated
+  session (only prompts if permission is `undetermined` - no re-nagging after a decline); a new
+  Notifications section in `ProfileScreen.tsx` toggles both preference fields, re-pulling current
+  values from `/auth/me` on every focus so it can't drift from server truth. Web: no browser push
+  this pass (Web Push needs VAPID keys + a service worker, a separate bigger lift) - and no web
+  Settings/Profile page exists yet to hang an email toggle off of either, so web UI for
+  preferences is unstarted; the backend endpoint is there for whenever that UI lands. Live-verified
+  against the real backend + real MongoDB with a throwaway user/player/team/match/tournament
+  (created via the real API, deleted by exact ID afterward): registering set a syntactically-valid
+  but fake Expo token and confirmed both preference defaults were `true`; flipping a real match to
+  Live fired both channels - the real Expo push API rejected the fake token immediately with
+  `DeviceNotRegistered` (ticket-level, not just receipt-level - proves the send call itself is
+  correctly shaped) and a real Ethereal email was sent and its content spot-checked via the
+  preview URL (correct subject/recipient/body with the absolute match link resolved through
+  `WEB_APP_URL`); toggling `email: false` then completing the match confirmed the ticket-error log
+  still fired (push unaffected) but no email/preview-URL log appeared, while the in-app
+  Notification document was still created normally; toggling `push: false, email: true` and
+  posting a tournament announcement (the second call site) confirmed the inverse - no push log,
+  a new email sent. `node --check` clean on every changed backend file; `tsc --noEmit` clean on
+  both `web-app` and `mobile-app`.
 
 ### Backlog (not started, roughly in priority order)
 
-- **Push/email notification delivery** — the in-app notification feed above covers the "seen
-  when you check the app" case; actual push (Expo push tokens) or email delivery for a followed
-  team's match going live, or a tournament announcement, would need real delivery infra this app
-  doesn't have yet. Deliberately out of scope for the in-app pass.
+- **Web push + a web Settings/Profile page** — browser push needs VAPID keys and a service
+  worker (separate, bigger lift than the Expo push added above); this app also has no
+  Settings/Profile page on web yet at all, so there's nowhere to hang an email-preference toggle
+  either. The backend `PUT /api/users/notification-preferences` endpoint already supports it -
+  only the web UI is missing.
 - **Live streaming + AI highlights** (CricHeroes) — real video infrastructure, a much bigger lift
   than anything else on this list. Noted for completeness, not scoped or planned.
 - **Community feed** (CricHeroes: rules/education/trivia/quizzes/polls/stories) — CricRoots's
