@@ -1026,12 +1026,20 @@ export default function MatchPage() {
         )}
 
         {activeTab === 'ai-insights' && (
-          <AITacticalAdvisor
-            matchId={matchId}
-            userId={user?.id || ''}
-            token={token || ''}
-            isLive={match.status === 'Live'}
-          />
+          match.status === 'Live' ? (
+            <AITacticalAdvisor
+              matchId={matchId}
+              userId={user?.id || ''}
+              token={token || ''}
+              isLive
+            />
+          ) : (
+            <p className="text-sm text-ink-muted">
+              {match.status === 'Scheduled'
+                ? 'Live win probability and tactical advice will appear here once this match starts.'
+                : 'AI tactical insights are only generated while a match is live - see the Charts and Ball By Ball tabs for this match’s full analysis.'}
+            </p>
+          )
         )}
       </div>
     </div>
