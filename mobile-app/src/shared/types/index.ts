@@ -157,6 +157,17 @@ export interface Match {
   // only to appoint/remove (POST/DELETE /matches/:id/umpires). Populated as {_id,name} objects
   // from GET /matches/:id.
   umpires?: (User | string)[];
+  // Gallery tab photos - see backend/src/models/Match.js's `photos` field. Distinct from the
+  // (mobile-unused so far) `documents` array: a photo has a caption, not a fileName/category.
+  photos?: MatchPhoto[];
+}
+
+export interface MatchPhoto {
+  _id: string;
+  url: string;
+  caption: string;
+  uploadedBy?: User | string;
+  uploadedAt: string;
 }
 
 export interface TournamentStanding {

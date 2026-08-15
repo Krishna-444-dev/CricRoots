@@ -183,6 +183,17 @@ const matchSchema = new mongoose.Schema({
       uploadedAt: { type: Date, default: Date.now }
     }
   ],
+  // Match photos - CricClubs' Gallery tab. Same disk-upload pattern as `documents` above, but
+  // these are browsed for their own sake rather than categorized reference material, so a
+  // `caption` field instead of `fileName`/`category`.
+  photos: [
+    {
+      url: { type: String, required: true },
+      caption: { type: String, trim: true, default: '' },
+      uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      uploadedAt: { type: Date, default: Date.now }
+    }
+  ],
   result: {
     winningTeam: mongoose.Schema.Types.ObjectId,
     margin: String, // runs or wickets

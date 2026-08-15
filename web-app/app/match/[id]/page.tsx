@@ -129,6 +129,7 @@ interface Match {
   createdBy?: { _id: string; name: string };
   umpires?: ({ _id: string; name: string } | string)[];
   documents?: { _id: string; url: string; fileName: string; category: string; uploadedAt: string }[];
+  photos?: { _id: string; url: string; caption: string; uploadedBy?: { _id: string; name: string } | string; uploadedAt: string }[];
 }
 
 // Shape returned by GET /api/teams/:id (see TEAM_POPULATE_FIELDS in teamController.js) - a
@@ -192,12 +193,14 @@ function overBallLabel(balls: Ball[], index: number): string {
   return '';
 }
 
-type TabKey = 'info' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'mvp' | 'ai-insights';
+type TabKey = 'info' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'mvp' | 'gallery' | 'ai-insights';
 
 interface MVPEntry {
   playerId: string;
   points: number;
 }
+
+type MatchPhoto = NonNullable<Match['photos']>[number];
 
 // Player.profilePicture defaults to the literal string 'no-photo.jpg' (see
 // backend/src/models/Player.js), not a real URL - mirrors TournamentManager.tsx's PlayerAvatar
@@ -241,6 +244,13 @@ export default function MatchPage() {
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [docUploadError, setDocUploadError] = useState('');
   const docFileInputRef = React.useRef<HTMLInputElement>(null);
+  // Gallery tab - same upload pattern as Match Documents above (multipart POST, refetch on
+  // success), plus a lightbox for viewing a photo full-size (null = closed).
+  const [photoCaption, setPhotoCaption] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState('');
+  const photoFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<MatchPhoto | null>(null);
   // Squads - both teams' full rosters, fetched once the Info tab (default tab) has real team
   // ids to fetch. Not part of the fetchMatch poll loop - a roster doesn't change on the same
   // 10s cadence live scoring does.
@@ -467,6 +477,51 @@ export default function MatchPage() {
     }
   };
 
+  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    setPhotoUploadError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('caption', photoCaption.trim());
+      const res = await fetch(`/api/matches/${matchId}/photos`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchMatch();
+        setPhotoCaption('');
+      } else {
+        setPhotoUploadError(data.message || 'Upload failed');
+      }
+    } catch {
+      setPhotoUploadError('Could not reach the CricRoots server');
+    } finally {
+      setUploadingPhoto(false);
+      if (photoFileInputRef.current) photoFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async (photoId: string) => {
+    setPhotoUploadError('');
+    try {
+      const res = await apiFetch(`/api/matches/${matchId}/photos/${photoId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setLightboxPhoto((prev) => (prev?._id === photoId ? null : prev));
+        fetchMatch();
+      } else {
+        setPhotoUploadError(data.message || 'Could not remove photo');
+      }
+    } catch {
+      setPhotoUploadError('Could not reach the CricRoots server');
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.container}>
@@ -605,6 +660,9 @@ export default function MatchPage() {
         </button>
         <button className={`${styles.tab} ${activeTab === 'mvp' ? styles.activeTab : ''}`} onClick={() => setActiveTab('mvp')}>
           🥇 MVP
+        </button>
+        <button className={`${styles.tab} ${activeTab === 'gallery' ? styles.activeTab : ''}`} onClick={() => setActiveTab('gallery')}>
+          🖼️ Gallery
         </button>
         <button className={`${styles.tab} ${activeTab === 'ai-insights' ? styles.activeTab : ''}`} onClick={() => setActiveTab('ai-insights')}>
           🤖 AI Insights
@@ -1220,6 +1278,72 @@ export default function MatchPage() {
           </div>
         )}
 
+        {activeTab === 'gallery' && (
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <h3 className="text-sm font-bold text-ink mb-3">Gallery</h3>
+
+            {/* Upload gated the same simple way the Match Documents section is (match creator
+                only) - reusing isCreator rather than a separate check, consistent with that
+                section's rationale (backend's canManageMatch is broader, but a predictable
+                creator-only visual gate beats a surprising one). */}
+            {isCreator && (
+              <div className="flex gap-2 mb-3 flex-wrap">
+                <input
+                  value={photoCaption}
+                  onChange={(e) => setPhotoCaption(e.target.value)}
+                  placeholder="Caption (optional)"
+                  className="flex-1 min-w-[140px] text-sm bg-surface-alt border border-border-strong rounded-lg px-3 py-1.5 text-ink"
+                />
+                <button
+                  onClick={() => photoFileInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="text-sm px-3 py-1.5 bg-pitch-500 text-[#06170D] font-medium rounded-lg disabled:opacity-50 shrink-0"
+                >
+                  {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
+                </button>
+                <input
+                  ref={photoFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleUploadPhoto}
+                />
+              </div>
+            )}
+            {photoUploadError && <p className="mb-3 text-xs text-wicket-400">{photoUploadError}</p>}
+
+            {(match.photos?.length ?? 0) === 0 ? (
+              <p className="text-sm text-ink-muted">No photos uploaded yet.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {match.photos!.map((photo) => (
+                  <div key={photo._id} className="relative group">
+                    <button
+                      onClick={() => setLightboxPhoto(photo)}
+                      className="block w-full aspect-square rounded-lg overflow-hidden bg-surface-alt border border-border"
+                    >
+                      {/* Plain <img>, not next/image - relative /uploads/... URLs are proxied
+                          straight through (see next.config.js), no remote-pattern config needed
+                          for a self-hosted upload the same way group-attachment images already work. */}
+                      <img src={photo.url} alt={photo.caption || 'Match photo'} className="w-full h-full object-cover" />
+                    </button>
+                    {photo.caption && <p className="mt-1 text-xs text-ink-muted truncate">{photo.caption}</p>}
+                    {isCreator && (
+                      <button
+                        onClick={() => handleRemovePhoto(photo._id)}
+                        aria-label="Remove photo"
+                        className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white text-xs leading-none hover:bg-wicket-500"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'ai-insights' && (
           match.status === 'Live' ? (
             <AITacticalAdvisor
@@ -1237,6 +1361,32 @@ export default function MatchPage() {
           )
         )}
       </div>
+
+      {/* Gallery lightbox - simple full-screen overlay, no carousel library (none used
+          anywhere else in this app). Click the backdrop or Close to dismiss. */}
+      {lightboxPhoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <div className="max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={lightboxPhoto.url}
+              alt={lightboxPhoto.caption || 'Match photo'}
+              className="max-w-full max-h-[80vh] rounded-lg object-contain mx-auto"
+            />
+            {lightboxPhoto.caption && (
+              <p className="mt-3 text-center text-sm text-white">{lightboxPhoto.caption}</p>
+            )}
+            <button
+              onClick={() => setLightboxPhoto(null)}
+              className="mt-3 mx-auto block text-sm text-white/80 hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

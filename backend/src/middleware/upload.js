@@ -85,11 +85,46 @@ const uploadTournamentDocument = multer({
   limits: { fileSize: MAX_DOC_SIZE_BYTES }
 }).single('file');
 
+// Same disk-storage/random-filename approach again, in its own directory - a match's Gallery
+// tab (CricClubs' match-photos feature), image-only (no video, unlike group attachments above).
+// Reuses ALLOWED_MIME_TYPES.image rather than redefining the allowlist a third time.
+const MATCH_PHOTO_DIR = path.join(__dirname, '..', '..', 'uploads', 'match-photos');
+fs.mkdirSync(MATCH_PHOTO_DIR, { recursive: true });
+
+// Tighter than the 20MB image+video limit above - these are plain event photos (not videos,
+// which drove that limit up), so 8MB comfortably covers a full-resolution phone photo without
+// a handful of uploads filling up the volume mount as fast as the group-attachments case could.
+const MAX_MATCH_PHOTO_SIZE_BYTES = 8 * 1024 * 1024;
+
+const matchPhotoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, MATCH_PHOTO_DIR),
+  filename: (req, file, cb) => {
+    const randomName = crypto.randomBytes(16).toString('hex');
+    cb(null, `${randomName}${path.extname(file.originalname).slice(0, 10)}`);
+  }
+});
+
+function matchPhotoFileFilter(req, file, cb) {
+  if (!ALLOWED_MIME_TYPES.image.includes(file.mimetype)) {
+    return cb(new Error('Only JPEG/PNG/GIF/WebP images are allowed'));
+  }
+  cb(null, true);
+}
+
+const uploadMatchPhoto = multer({
+  storage: matchPhotoStorage,
+  fileFilter: matchPhotoFileFilter,
+  limits: { fileSize: MAX_MATCH_PHOTO_SIZE_BYTES }
+}).single('file');
+
 module.exports = {
   uploadGroupAttachment,
   attachmentTypeFromMime,
   UPLOAD_DIR,
   MAX_FILE_SIZE_BYTES,
   uploadTournamentDocument,
-  MAX_DOC_SIZE_BYTES
+  MAX_DOC_SIZE_BYTES,
+  uploadMatchPhoto,
+  MATCH_PHOTO_DIR,
+  MAX_MATCH_PHOTO_SIZE_BYTES
 };

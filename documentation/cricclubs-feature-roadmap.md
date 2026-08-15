@@ -319,6 +319,32 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   name, role, captain/VC badges), fetched from the already-fully-populated `GET /api/teams/:id`
   - no new backend work needed. Collapses to 5 players per team with a "Full Squad" toggle, same
   pattern as MVP/Awards. Guarded against the confirmed-orphaned test match (null `team1`/`team2`).
+- **Gallery tab**: closes the one deliberately-unaddressed gap called out from the original
+  CricClubs match-page screenshots - match photos, browsed in a grid with a lightbox, distinct
+  from the existing per-match `documents` library (reference files, not photos). New
+  `Match.photos: [{url, caption, uploadedBy, uploadedAt}]`, `uploadMatchPhoto` middleware
+  (`backend/src/middleware/upload.js` - own `uploads/match-photos` directory, reuses
+  `ALLOWED_MIME_TYPES.image`, tighter 8MB image-only cap vs. the 20MB image+video limit on group
+  attachments), and `addMatchPhoto`/`removeMatchPhoto` (`matchController.js`, identical
+  find-match/`canManageMatch`/save pattern as `addMatchDocument`/`removeMatchDocument`). One
+  deliberate deviation from the `documents` precedent: `removeMatchPhoto` also unlinks the file
+  from disk (documents don't) - photos get deleted far more casually than reference docs, so
+  letting orphans accumulate felt like a real disk-hygiene risk rather than a theoretical one.
+  Static serving needed no changes - the existing `/uploads` `express.static` mount already
+  covers any subdirectory. Web tab placed MVP -> Gallery -> AI Insights; upload/delete gated on
+  the same `isCreator`-style null-safe check (`Boolean(x) && Boolean(y) && x === y`) the
+  Documents section already established, reusing that exact variable rather than a new one.
+  Mobile got the identical tab, gated on the equally null-safe `isOwner` from
+  `computeCanScore`/`matchAuth.ts`, **with full upload capability** (not view-only) - mobile
+  already depends on `expo-image-picker` for group-chat attachments
+  (`GroupDetailScreen.tsx`/`apiClient.ts`'s `apiUpload` helper), so the Gallery upload reuses
+  that exact library/pattern rather than adding a new native dependency. Live-verified against
+  the real backend/MongoDB: uploaded a real PNG via curl multipart POST, confirmed it in the
+  match's `photos` array, confirmed the static URL served back byte-identical image data,
+  confirmed an unrelated user gets 403 on both upload and delete, confirmed a non-image upload
+  gets 400, then deleted it and confirmed it was gone from both the array and disk (and the
+  static URL then 404s) - all test data (one match, two users, one leftover file from a
+  deliberately-rejected unauthorized-upload attempt) cleaned up afterward.
 
 ### Backlog (not started, roughly in priority order)
 

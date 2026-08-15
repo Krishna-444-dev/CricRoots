@@ -19,11 +19,13 @@ const {
   removeUmpire,
   addMatchDocument,
   removeMatchDocument,
+  addMatchPhoto,
+  removeMatchPhoto,
   acquireScoringLock,
   releaseScoringLock
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/auth');
-const { uploadTournamentDocument } = require('../middleware/upload');
+const { uploadTournamentDocument, uploadMatchPhoto } = require('../middleware/upload');
 
 // Public routes
 router.get('/', getAllMatches);
@@ -59,5 +61,17 @@ router.post('/:id/documents', protect, (req, res, next) => {
   });
 }, addMatchDocument);
 router.delete('/:id/documents/:documentId', protect, removeMatchDocument);
+
+// Same callback-wrapping reason as /documents above - multer's fileFilter/limits rejections are
+// callback errors, not thrown/next()-forwarded ones.
+router.post('/:id/photos', protect, (req, res, next) => {
+  uploadMatchPhoto(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, message: err.message || 'Upload failed' });
+    }
+    next();
+  });
+}, addMatchPhoto);
+router.delete('/:id/photos/:photoId', protect, removeMatchPhoto);
 
 module.exports = router;
