@@ -12,7 +12,7 @@ import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId } from '../shared/utils/resolveRef';
 import { computeCanScore } from '../shared/utils/matchAuth';
-import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor } from '../shared/utils/matchStats';
+import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
 
@@ -466,10 +466,16 @@ interface KeyMoment {
   delta: number;
 }
 
+// CricClubs-style tabbed match center, matching the web restructure (see MatchDetailScreen's
+// git history / web-app/app/match/[id]/page.tsx) - Info / Ball By Ball / Full Scorecard /
+// Over by Over / Charts, plus our own AI Insights tab.
+type TabKey = 'info' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'aiInsights';
+
 export default function MatchDetailScreen({ route, navigation }: Props) {
   const { matchId } = route.params;
   const { user, token } = useAuth();
 
+  const [activeTab, setActiveTab] = useState<TabKey>('info');
   const [match, setMatch] = useState<Match | null>(null);
   const [powerplayOvers, setPowerplayOvers] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -686,12 +692,6 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             </View>
           )}
         </View>
-        {match.toss?.winningTeam && (
-          <Text style={styles.tossText}>
-            🪙 {teamName(match.toss.winningTeam as Match['team1'])} won the toss and elected to{' '}
-            {match.toss.decision === 'bowl' ? 'bowl' : 'bat'}.
-          </Text>
-        )}
       </View>
 
       <View style={styles.scoreCard}>
@@ -747,42 +747,72 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {/* At the Crease - live striker/non-striker/bowler figures. Mirrors web-app's
-          app/match/[id]/page.tsx "At the Crease" block. */}
-      {match.status === 'Live' && currentInnings?.liveState && (
-        <AtTheCrease liveState={currentInnings.liveState} />
-      )}
+      {/* Tab bar - same in-screen segmented-tab pattern TournamentDetailScreen uses (see its
+          `section` state / segment* styles), not a screen-navigation tab library. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabRow}>
+        {([
+          ['info', 'Info'],
+          ['ballByBall', 'Ball By Ball'],
+          ['scorecard', 'Full Scorecard'],
+          ['overByOver', 'Over by Over'],
+          ['charts', 'Charts'],
+          ['aiInsights', 'AI Insights'],
+        ] as [TabKey, string][]).map(([key, label]) => (
+          <TouchableOpacity
+            key={key}
+            style={[styles.tabBtn, activeTab === key && styles.tabBtnActive]}
+            onPress={() => setActiveTab(key)}
+          >
+            <Text style={[styles.tabBtnText, activeTab === key && styles.tabBtnTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-      {/* Recommended field placements for whoever's currently batting - see FieldingPlan.tsx
-          for why this is a ranked text list rather than a diagram on mobile. */}
-      {match.status === 'Live' && currentInnings?.liveState && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recommended Field</Text>
-          <View style={styles.fieldingList}>
-            {currentInnings.liveState.currentBatsmen.map((batsman, i) => (
-              batsman && (
-                <FieldingPlan
-                  key={batsman.id}
-                  playerId={batsman.id}
-                  playerName={batsman.name}
-                  roleLabel={i === 0 ? 'Striker' : 'Non-striker'}
-                />
-              )
-            ))}
-          </View>
-        </View>
-      )}
+      {activeTab === 'info' && (
+        <>
+          {match.toss?.winningTeam && (
+            <Text style={[styles.tossText, styles.tossTextInTab]}>
+              🪙 {teamName(match.toss.winningTeam as Match['team1'])} won the toss and elected to{' '}
+              {match.toss.decision === 'bowl' ? 'bowl' : 'bat'}.
+            </Text>
+          )}
 
-      {canScore && (
-        <TouchableOpacity
-          style={styles.scoreButton}
-          onPress={() => navigation.navigate('LiveScoring', { matchId: match._id })}
-        >
-          <Text style={styles.scoreButtonText}>
-            {match.status === 'Live' ? 'Continue Scoring' : 'Score this match'}
-          </Text>
-        </TouchableOpacity>
-      )}
+          {/* At the Crease - live striker/non-striker/bowler figures. Mirrors web-app's
+              app/match/[id]/page.tsx "At the Crease" block. */}
+          {match.status === 'Live' && currentInnings?.liveState && (
+            <AtTheCrease liveState={currentInnings.liveState} />
+          )}
+
+          {/* Recommended field placements for whoever's currently batting - see FieldingPlan.tsx
+              for why this is a ranked text list rather than a diagram on mobile. */}
+          {match.status === 'Live' && currentInnings?.liveState && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recommended Field</Text>
+              <View style={styles.fieldingList}>
+                {currentInnings.liveState.currentBatsmen.map((batsman, i) => (
+                  batsman && (
+                    <FieldingPlan
+                      key={batsman.id}
+                      playerId={batsman.id}
+                      playerName={batsman.name}
+                      roleLabel={i === 0 ? 'Striker' : 'Non-striker'}
+                    />
+                  )
+                ))}
+              </View>
+            </View>
+          )}
+
+          {canScore && (
+            <TouchableOpacity
+              style={styles.scoreButton}
+              onPress={() => navigation.navigate('LiveScoring', { matchId: match._id })}
+            >
+              <Text style={styles.scoreButtonText}>
+                {match.status === 'Live' ? 'Continue Scoring' : 'Score this match'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
       {match.status === 'Scheduled' && (
         <View style={styles.section}>
@@ -880,7 +910,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           <Text style={styles.scoutingButtonText}>Scouting Report &rarr;</Text>
         </TouchableOpacity>
       </View>
+        </>
+      )}
 
+      {activeTab === 'scorecard' && (
+        <>
       {/* Full Scorecard - read-only, visible to anyone viewing the match (not just the scorer;
       LiveScoringScreen has its own copy of this for the scorer specifically). Batting/bowling
       order is derived from first appearance in the ball log, same source playersWhoAppeared
@@ -984,7 +1018,60 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
       )}
+        </>
+      )}
 
+      {/* Over by Over - per-over rows (bowler, a chip per ball with a short outcome label,
+          over total, running score), computed fresh from ball data via matchStats.overByOver.
+          Mirrors web-app's new Over by Over tab. */}
+      {activeTab === 'overByOver' && (
+        <>
+          {match.innings.every((inn) => inn.balls.length === 0) ? (
+            <View style={styles.section}>
+              <Text style={styles.reportsHint}>Over-by-over detail will appear here once the match starts.</Text>
+            </View>
+          ) : (
+            match.innings.map((innings, idx) => {
+              if (innings.balls.length === 0) return null;
+              return (
+                <View key={idx} style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    {teamName(innings.team)} — {innings.runs}/{innings.wickets} ({innings.overs.toFixed(1)} ov)
+                  </Text>
+                  <View style={styles.overByOverCard}>
+                    {overByOver(innings.balls).slice().reverse().map((o) => (
+                      <View key={o.over} style={styles.overRow}>
+                        <View style={styles.overLabelCol}>
+                          <Text style={styles.overLabelText}>Over {o.over + 1}</Text>
+                          <Text style={styles.overBowlerName} numberOfLines={1}>
+                            {(o.bowlerId && playerDirectory.get(o.bowlerId)) ?? 'Bowler'}
+                          </Text>
+                        </View>
+                        <View style={styles.overBallsWrap}>
+                          {o.balls.map((b, i) => (
+                            <View key={i} style={[styles.overBallChip, b.isWicket && styles.overBallChipWicket]}>
+                              <Text style={[styles.overBallChipText, b.isWicket && styles.overBallChipTextWicket]}>{b.label}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <View style={styles.overSummaryCol}>
+                          <Text style={styles.overSummaryText}>
+                            {o.runs} run{o.runs === 1 ? '' : 's'}{o.wickets > 0 ? `, ${o.wickets}w` : ''}
+                          </Text>
+                          <Text style={styles.overSummaryTotal}>{o.runningTotal}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </>
+      )}
+
+      {activeTab === 'ballByBall' && (
+        <>
       {recentBalls.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Deliveries</Text>
@@ -1033,7 +1120,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           })}
         </View>
       )}
+        </>
+      )}
 
+      {activeTab === 'aiInsights' && (
+        <>
       {/* AI Tactical Advisor - win probability + tactical advice, wired up with a REST fetch
           on mount (so it shows real data immediately) plus the existing WebSocket for live
           updates as balls land. See AITacticalAdvisor.tsx. */}
@@ -1047,7 +1138,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           />
         </View>
       )}
+        </>
+      )}
 
+      {activeTab === 'charts' && (
+        <>
       {activeChart && activeChart.overs.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Over-by-over</Text>
@@ -1139,6 +1234,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             )
           ))}
         </View>
+      )}
+        </>
       )}
 
       <View style={{ height: 32 }} />
@@ -1359,4 +1456,44 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { color: colors.inkSecondary, fontSize: 11 },
+
+  // Tab bar - same in-screen segmented-tab visual pattern as TournamentDetailScreen's
+  // segmentScroll/segmentRow/segmentBtn (own `section` state there).
+  tabScroll: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabRow: { flexDirection: 'row', padding: 4 },
+  tabBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 9, alignItems: 'center' },
+  tabBtnActive: { backgroundColor: colors.pitch900 },
+  tabBtnText: { color: colors.inkMuted, fontSize: 13, fontWeight: '600' },
+  tabBtnTextActive: { color: colors.pitch400 },
+  tossTextInTab: { marginHorizontal: 16, marginTop: 14 },
+
+  // Over by Over tab.
+  overByOverCard: {
+    backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 4,
+  },
+  overRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 8,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  overLabelCol: { width: 78 },
+  overLabelText: { color: colors.inkMuted, fontSize: 11 },
+  overBowlerName: { color: colors.ink, fontSize: 12, fontWeight: '700', marginTop: 1 },
+  overBallsWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  overBallChip: {
+    minWidth: 22, height: 22, borderRadius: 6, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+  },
+  overBallChipWicket: { backgroundColor: 'rgba(248,113,113,0.15)', borderColor: 'rgba(248,113,113,0.4)' },
+  overBallChipText: { color: colors.inkSecondary, fontSize: 11, fontWeight: '700' },
+  overBallChipTextWicket: { color: colors.wicket500 },
+  overSummaryCol: { width: 74, alignItems: 'flex-end' },
+  overSummaryText: { color: colors.inkMuted, fontSize: 11 },
+  overSummaryTotal: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 1 },
 });
