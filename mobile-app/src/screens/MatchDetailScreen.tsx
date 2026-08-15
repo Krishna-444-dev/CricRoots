@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, Image } from 'react-native';
 import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
-import { api } from '../shared/api/apiClient';
+import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
-import { Match, BallEvent, Prediction, Player } from '../shared/types';
+import { Match, BallEvent, Prediction, Player, RosterTeam } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import AtTheCrease from '../components/AtTheCrease';
 import FieldingPlan from '../components/FieldingPlan';
@@ -13,6 +13,7 @@ import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId } from '../shared/utils/matchAuth';
 import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver } from '../shared/utils/matchStats';
+import { getInitials } from '../shared/utils/formatters';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
 
@@ -30,6 +31,36 @@ function manOfTheMatchName(mom: Match['manOfTheMatch']): string | null {
   if (!user || typeof user === 'string') return null;
   return user.name || null;
 }
+
+function squadPlayerName(player?: Player | string | null): string {
+  if (!player || typeof player === 'string') return 'TBD';
+  const u = player.user;
+  return u && typeof u === 'object' ? u.name || 'TBD' : 'TBD';
+}
+
+// Player.profilePicture defaults to the literal string 'no-photo.jpg' (see
+// backend/src/models/Player.js), not a real URL - mirrors TournamentDetailScreen.tsx's
+// PlayerAvatar fallback-to-initials pattern for the Squads section below.
+function SquadAvatar({ player }: { player?: Player | string | null }) {
+  if (!player || typeof player === 'string') {
+    return (
+      <View style={styles.rosterAvatarFallback}>
+        <Text style={styles.rosterAvatarFallbackText}>?</Text>
+      </View>
+    );
+  }
+  const hasRealPhoto = !!player.profilePicture && player.profilePicture !== 'no-photo.jpg';
+  if (hasRealPhoto) {
+    return <Image source={{ uri: resolveAttachmentUrl(player.profilePicture!) }} style={styles.rosterAvatarImg} />;
+  }
+  return (
+    <View style={styles.rosterAvatarFallback}>
+      <Text style={styles.rosterAvatarFallbackText}>{getInitials(squadPlayerName(player))}</Text>
+    </View>
+  );
+}
+
+const SQUAD_PREVIEW_COUNT = 5;
 
 // Which innings is "current" for the Recent Deliveries / commentary panel: whichever one has
 // balls bowled most recently. innings[1] only has balls once the second innings has started,
@@ -508,6 +539,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const [umpirePickerOpen, setUmpirePickerOpen] = useState(false);
   const [umpireBusy, setUmpireBusy] = useState(false);
   const [umpireError, setUmpireError] = useState<string | null>(null);
+  // Squads - both teams' full rosters (GET /api/teams/:id per side), same populated shape as
+  // TournamentDetailScreen's Teams tab (RosterTeam). One flag per team for the "Full Squad" toggle.
+  const [squadTeams, setSquadTeams] = useState<{ team1: RosterTeam | null; team2: RosterTeam | null }>({ team1: null, team2: null });
+  const [squadsLoading, setSquadsLoading] = useState(false);
+  const [squadsExpanded, setSquadsExpanded] = useState({ team1: false, team2: false });
 
   const load = useCallback(() => {
     api.matches
@@ -617,6 +653,31 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
       cancelled = true;
     };
   }, []);
+
+  // Squads - gated on team1/team2 actually resolving to an id (a handful of old test matches
+  // have orphaned team refs, see teamName's `!team` guard above) so this never fetches a roster
+  // for a null team. Keyed on the resolved ids rather than `match` itself.
+  const squadTeam1Id = resolveRefId(match?.team1);
+  const squadTeam2Id = resolveRefId(match?.team2);
+  useEffect(() => {
+    if (!squadTeam1Id && !squadTeam2Id) return;
+    let cancelled = false;
+    setSquadsLoading(true);
+    Promise.all([
+      squadTeam1Id ? api.teams.getTeamById(squadTeam1Id).catch(() => null) : Promise.resolve(null),
+      squadTeam2Id ? api.teams.getTeamById(squadTeam2Id).catch(() => null) : Promise.resolve(null),
+    ]).then(([r1, r2]) => {
+      if (cancelled) return;
+      setSquadTeams({
+        team1: r1?.success ? (r1.team as RosterTeam) : null,
+        team2: r2?.success ? (r2.team as RosterTeam) : null,
+      });
+      setSquadsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [squadTeam1Id, squadTeam2Id]);
 
   const handlePredict = async (teamId: string) => {
     if (!match || !user || predicting) return;
@@ -878,6 +939,69 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
               </Text>
             </TouchableOpacity>
           )}
+
+      {/* Squads - both teams' rosters side by side, mirrors TournamentDetailScreen's Teams tab
+          avatar/captain-badge convention plus the Awards tab's collapse-to-a-few + toggle
+          pattern. Skipped entirely for a team-less orphaned match. */}
+      {(match.team1 || match.team2) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Squads</Text>
+          <View style={styles.squadColumns}>
+            {([0, 1] as const).map((idx) => {
+              const teamRef = idx === 0 ? match.team1 : match.team2;
+              if (!teamRef) {
+                return (
+                  <View key={idx} style={styles.squadColumn}>
+                    <Text style={styles.muted}>Team not available.</Text>
+                  </View>
+                );
+              }
+              const squad = idx === 0 ? squadTeams.team1 : squadTeams.team2;
+              const expandKey = idx === 0 ? 'team1' : 'team2';
+              const expanded = squadsExpanded[expandKey];
+              const rosterPlayers = squad?.players || [];
+              const visiblePlayers = expanded ? rosterPlayers : rosterPlayers.slice(0, SQUAD_PREVIEW_COUNT);
+              return (
+                <View key={resolveRefId(teamRef) ?? idx} style={styles.squadColumn}>
+                  <Text style={styles.squadTeamName}>{teamName(teamRef)}</Text>
+                  {squadsLoading && !squad ? (
+                    <Text style={styles.muted}>Loading...</Text>
+                  ) : rosterPlayers.length === 0 ? (
+                    <Text style={styles.muted}>No roster available.</Text>
+                  ) : (
+                    <>
+                      {visiblePlayers.map((p) => (
+                        <View key={p._id} style={styles.squadPlayerRow}>
+                          <SquadAvatar player={p} />
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.squadNameRow}>
+                              <Text style={styles.squadPlayerName} numberOfLines={1}>{squadPlayerName(p)}</Text>
+                              {resolveRefId(squad?.captain) === p._id && (
+                                <Text style={styles.squadCaptainBadge}>C</Text>
+                              )}
+                              {resolveRefId(squad?.viceCaptain) === p._id && (
+                                <Text style={styles.squadViceCaptainBadge}>VC</Text>
+                              )}
+                            </View>
+                            <Text style={styles.squadPlayerRole}>{p.specialization}</Text>
+                          </View>
+                        </View>
+                      ))}
+                      {rosterPlayers.length > SQUAD_PREVIEW_COUNT && (
+                        <TouchableOpacity onPress={() => setSquadsExpanded((prev) => ({ ...prev, [expandKey]: !prev[expandKey] }))}>
+                          <Text style={styles.showAllLink}>
+                            {expanded ? 'Show less' : `Full Squad (${rosterPlayers.length}) ⌄`}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       {/* Umpires - creator-only, mirrors web-app's app/match/[id]/page.tsx Umpires block.
           Umpires get the same scoring rights as the creator without needing to be rostered. */}
@@ -1629,6 +1753,22 @@ const styles = StyleSheet.create({
   overSummaryCol: { width: 74, alignItems: 'flex-end' },
   overSummaryText: { color: colors.inkMuted, fontSize: 11 },
   overSummaryTotal: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 1 },
+
+  // Squads section (Info tab) - two side-by-side columns, avatar/name/role rows mirror
+  // TournamentDetailScreen's roster* styles; showAllLink matches its Awards-tab toggle style.
+  squadColumns: { flexDirection: 'row', gap: 16 },
+  squadColumn: { flex: 1, minWidth: 0 },
+  squadTeamName: { color: colors.ink, fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  squadPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  squadNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  squadPlayerName: { color: colors.ink, fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  squadPlayerRole: { color: colors.inkMuted, fontSize: 11, marginTop: 1 },
+  squadCaptainBadge: { color: colors.gold500, fontSize: 9, fontWeight: '700' },
+  squadViceCaptainBadge: { color: colors.pitch400, fontSize: 9, fontWeight: '700' },
+  showAllLink: { color: colors.pitch400, fontSize: 12, fontWeight: '600', marginTop: 2 },
+  rosterAvatarFallback: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  rosterAvatarFallbackText: { color: colors.inkMuted, fontSize: 11, fontWeight: '700' },
+  rosterAvatarImg: { width: 32, height: 32, borderRadius: 16 },
 
   // Umpires section (Info tab) - card + appoint modal, same modal/picker visual pattern as
   // TournamentDetailScreen's register-team picker.

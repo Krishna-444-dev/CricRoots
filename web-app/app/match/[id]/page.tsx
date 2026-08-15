@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
+import Badge from '@/components/ui/Badge';
 import AITacticalAdvisor from '@/components/AITacticalAdvisor';
 import ManhattanChart from '@/components/insights/ManhattanChart';
 import WormChart from '@/components/insights/WormChart';
@@ -129,6 +130,24 @@ interface Match {
   documents?: { _id: string; url: string; fileName: string; category: string; uploadedAt: string }[];
 }
 
+// Shape returned by GET /api/teams/:id (see TEAM_POPULATE_FIELDS in teamController.js) - a
+// fully populated roster for the Squads section below, distinct from Match['team1']/team2'
+// above which only carry _id/name.
+interface SquadPlayer {
+  _id: string;
+  user?: { name?: string };
+  specialization: string;
+  profilePicture?: string;
+}
+
+interface SquadTeam {
+  _id: string;
+  name: string;
+  captain?: SquadPlayer | null;
+  viceCaptain?: SquadPlayer | null;
+  players: SquadPlayer[];
+}
+
 interface PlayerDirectoryEntry {
   _id: string;
   user?: { _id: string; name?: string } | string;
@@ -172,6 +191,25 @@ function overBallLabel(balls: Ball[], index: number): string {
   return '';
 }
 
+// Player.profilePicture defaults to the literal string 'no-photo.jpg' (see
+// backend/src/models/Player.js), not a real URL - mirrors TournamentManager.tsx's PlayerAvatar
+// fallback-to-initials pattern for the Squads section below.
+function SquadAvatar({ player }: { player: SquadPlayer }) {
+  const name = player.user?.name || '';
+  const hasRealPhoto = !!player.profilePicture && player.profilePicture !== 'no-photo.jpg';
+  const initials = name.split(' ').map((p) => p.charAt(0)).join('').toUpperCase().slice(0, 2) || '?';
+  if (hasRealPhoto) {
+    return <img src={player.profilePicture} alt={name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />;
+  }
+  return (
+    <div className="w-9 h-9 rounded-full bg-surface-alt border border-border-strong text-ink-secondary flex items-center justify-center text-xs font-bold flex-shrink-0">
+      {initials}
+    </div>
+  );
+}
+
+const SQUAD_PREVIEW_COUNT = 5;
+
 type TabKey = 'info' | 'ball-by-ball' | 'scorecard' | 'over-by-over' | 'charts' | 'ai-insights';
 
 export default function MatchPage() {
@@ -193,6 +231,12 @@ export default function MatchPage() {
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [docUploadError, setDocUploadError] = useState('');
   const docFileInputRef = React.useRef<HTMLInputElement>(null);
+  // Squads - both teams' full rosters, fetched once the Info tab (default tab) has real team
+  // ids to fetch. Not part of the fetchMatch poll loop - a roster doesn't change on the same
+  // 10s cadence live scoring does.
+  const [squadTeams, setSquadTeams] = useState<{ team1: SquadTeam | null; team2: SquadTeam | null }>({ team1: null, team2: null });
+  const [squadsLoading, setSquadsLoading] = useState(false);
+  const [squadsExpanded, setSquadsExpanded] = useState({ team1: false, team2: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // CricClubs-style tabbed match center - Info / Ball By Ball / Full Scorecard / Over by Over /
@@ -224,6 +268,29 @@ export default function MatchPage() {
     }, 10000);
     return () => clearInterval(interval);
   }, [matchId]);
+
+  // Squads section - GET /api/teams/:id per side, gated on team1/team2 actually being present
+  // (a handful of old test matches have orphaned team refs, see the Match interface above) so
+  // this never fetches a roster for a null team id. Keyed on the team ids rather than `match`
+  // itself so the 10s match poll above doesn't re-fetch both rosters every cycle.
+  const team1Id = match?.team1?._id;
+  const team2Id = match?.team2?._id;
+  useEffect(() => {
+    if (!team1Id && !team2Id) return;
+    setSquadsLoading(true);
+    Promise.all([
+      team1Id ? fetch(`/api/teams/${team1Id}`).then((r) => r.json()) : Promise.resolve(null),
+      team2Id ? fetch(`/api/teams/${team2Id}`).then((r) => r.json()) : Promise.resolve(null),
+    ])
+      .then(([d1, d2]) => {
+        setSquadTeams({
+          team1: d1?.success ? d1.team : null,
+          team2: d2?.success ? d2.team : null,
+        });
+      })
+      .catch((err) => console.error(err))
+      .finally(() => setSquadsLoading(false));
+  }, [team1Id, team2Id]);
 
   // Names for the batsman/bowler IDs recorded on each ball - GET /api/players is the one
   // endpoint that populates the player -> user name relationship, unlike the team roster
@@ -539,6 +606,63 @@ export default function MatchPage() {
                 </Link>
               )}
             </div>
+
+            {/* Squads - both teams' rosters side by side, CricClubs' Info-tab pattern. Avatar
+                fallback and captain/vice-captain badges mirror TournamentManager.tsx's Teams tab
+                (same GET /api/teams/:id shape); collapse-to-a-few-plus-toggle mirrors the Awards
+                tab's Top Performers pattern. Skipped entirely for a team-less orphaned match. */}
+            {(match.team1 || match.team2) && (
+              <div className="bg-surface border border-border rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-ink mb-3">Squads</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  {([0, 1] as const).map((idx) => {
+                    const teamRef = idx === 0 ? match.team1 : match.team2;
+                    if (!teamRef) {
+                      return <p key={idx} className="text-xs text-ink-muted">Team not available.</p>;
+                    }
+                    const squad = idx === 0 ? squadTeams.team1 : squadTeams.team2;
+                    const expandKey = idx === 0 ? 'team1' : 'team2';
+                    const expanded = squadsExpanded[expandKey];
+                    const players = squad?.players || [];
+                    const visiblePlayers = expanded ? players : players.slice(0, SQUAD_PREVIEW_COUNT);
+                    return (
+                      <div key={teamRef._id}>
+                        <h4 className="text-sm font-semibold text-ink mb-2">{teamRef.name}</h4>
+                        {squadsLoading && !squad ? (
+                          <p className="text-xs text-ink-muted">Loading squad...</p>
+                        ) : players.length === 0 ? (
+                          <p className="text-xs text-ink-muted">No roster available.</p>
+                        ) : (
+                          <>
+                            {visiblePlayers.map((p) => (
+                              <div key={p._id} className="flex items-center gap-2.5 py-1.5">
+                                <SquadAvatar player={p} />
+                                <div className="min-w-0">
+                                  <p className="text-sm text-ink truncate">
+                                    {p.user?.name || 'Player'}
+                                    {squad?.captain?._id === p._id && <Badge variant="gold" className="ml-1.5">C</Badge>}
+                                    {squad?.viceCaptain?._id === p._id && <Badge variant="info" className="ml-1.5">VC</Badge>}
+                                  </p>
+                                  <p className="text-xs text-ink-muted">{p.specialization}</p>
+                                </div>
+                              </div>
+                            ))}
+                            {players.length > SQUAD_PREVIEW_COUNT && (
+                              <button
+                                onClick={() => setSquadsExpanded((prev) => ({ ...prev, [expandKey]: !prev[expandKey] }))}
+                                className="text-xs font-medium text-pitch-400 hover:text-pitch-300 mt-2"
+                              >
+                                {expanded ? 'Show less' : `Full Squad (${players.length}) ⌄`}
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {isCreator && (
               <div className="bg-surface border border-border rounded-xl p-4 mb-4">
