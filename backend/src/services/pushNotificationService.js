@@ -1,6 +1,16 @@
 const { Expo } = require('expo-server-sdk');
 const User = require('../models/User');
 
+// Pinned to the 3.x line deliberately, not the latest major: expo-server-sdk 5+ rewrote itself
+// as ESM-only and pulled in a modern `undici` (their own dependency, not Node's built-in one)
+// that assumes Node 20+ runtime globals/language features (`File`, `String.prototype.
+// toWellFormed`, ...). This project's actual deployed runtime is node:18-alpine (see
+// backend/Dockerfile) - a newer major crashes there on require() and again on the first real
+// send, even though `node --check` and a local run against a newer host Node both pass cleanly.
+// 3.15.0 is the last version before that rewrite: plain CommonJS, same `Expo` class API
+// (isExpoPushToken/chunkPushNotifications/sendPushNotificationsAsync/
+// chunkPushNotificationReceiptIds/getPushNotificationReceiptsAsync), verified against the
+// package source before pinning - not just assumed compatible.
 const expo = new Expo();
 
 // Expo says receipts aren't reliably available until some time after the ticket is issued -
