@@ -20,8 +20,17 @@ and why, see `documentation/cricclubs-feature-roadmap.md` and `documentation/mob
 
 ## Mobile / pilot testing
 
-- [ ] Root-cause why the EAS Update (OTA) path shows a silent blank screen with no error surfaced,
-      vs. the dev-server path's normal crash overlay — worked around, never actually explained.
+- [ ] Confirm the EAS Update (OTA) blank-screen fix on a real device — 2026-08-14: no error boundary
+      existed anywhere in the app (`App.tsx` was bare nested providers), which explains the asymmetry
+      (production/OTA bundles have no LogBox, so any uncaught mount-time error just fails silently,
+      while the same error under the Metro dev-server shows the normal red-screen overlay). Added
+      `mobile-app/src/components/ErrorBoundary.tsx` wrapping the whole provider tree — a future
+      occurrence now shows a real error message + stack instead of blank. The exact historical
+      trigger is still unconfirmed (no device access during the fix); a real, separate, adjacent risk
+      was flagged too: `apiClient.ts` falls back to the unreachable `api.cricroots.com` (no DNS) when
+      `EXPO_PUBLIC_API_URL` isn't set at publish time — set that env var explicitly on the next
+      `eas update` publish. Still open: force-quit + reopen Expo Go and confirm the fallback screen
+      (not blank) appears if/when the bug recurs.
 - [ ] Full App Store / Play Store submission, once past pilot testing (Apple Developer $99/yr,
       Google Play Console $25 one-time — see `going-legal-and-live.md` Track B).
 

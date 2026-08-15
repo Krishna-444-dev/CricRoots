@@ -140,22 +140,42 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
     across divisions). Fixed by also filtering `division: null`, so the flat `tournament.standings`
     field only ever reflects a non-divisioned tournament's own matches; a divisioned tournament's
     flat `standings`/`groups` now correctly stay at all-zero schema defaults, unused.
-  - **Explicitly deferred, not built** — the same CricClubs screenshots also showed a Fielding
-    (Most Catches) leaderboard tab, a "Top Performer of Series" ranked list with a points column
-    (vs. this app's plain top-20-by-average list), a Division-scoped Teams tab with
-    captain/vice-captain badges and player photos, and a multi-document library (6 PDFs: rules,
-    registration guide, captain guide, nomination sheet — vs. this app's single house-rules
-    upload). The user was explicitly offered a menu bundling these in with the Division rebuild and
-    chose the Division-only option — see backlog below.
+  - **Deferred at the time, since built** — the same CricClubs screenshots also showed a Fielding
+    (Most Catches) leaderboard tab, a "Top Performer of Series" ranked list with a points column, a
+    Division-scoped Teams tab with captain/vice-captain badges, and a multi-document library. The
+    user was initially offered a menu bundling these in with the Division rebuild and chose the
+    Division-only option — all four shipped later the same day once explicitly requested, see below.
+
+- **Fielding leaderboard + Top Performer of Series** (merged `d73b686`, built by a parallel worktree
+  agent): `getTournamentFieldingLeaderboard` in `tendencyAnalytics.js` mirrors the existing
+  batting/bowling leaderboard pattern (same division-scoping, `division: null` for a flat
+  tournament), counting catches/run-outs/stumpings per fielder from `ball.wicketType`/`ball.fielderId`
+  across a tournament's Completed matches. "Top Performer of Series" reuses the *exact* per-match MVP
+  weighting instead of inventing a separate metric: `mvpCalculator.js`'s `computeMatchMVP` was
+  refactored to expose the underlying `computeMatchMVPPoints(match)` points map (previously it only
+  returned the single winning player's ID), summed across a tournament's/division's matches for a
+  real points-based ranking — verified to still produce byte-identical `manOfTheMatch` picks against
+  25 real completed matches. Both wired into the existing `GET /:id/leaderboard` endpoint, web +
+  mobile Awards tab.
+- **Division-scoped Teams roster + multi-document library** (merged `b9090f2`, built by a parallel
+  worktree agent): new `GET /:id/teams?division=X` returns that division's (or the whole flat
+  tournament's) teams with captain/vice-captain/full roster populated, including `Player.profilePicture`
+  (falls back to an initials avatar for the placeholder default — no new photo-upload pipeline needed,
+  the field already existed). The single-slot `houseRulesDocument` was fully migrated into a real
+  `documents: [{url, fileName, category, uploadedAt}]` array (`POST`/`DELETE /:id/documents`) — zero
+  tournaments had one set at migration time, so no data migration was needed. Left a harmless ghost
+  `houseRulesDocument: {url: null, ...}` field on 4 pre-existing tournaments (Mongoose doesn't strip
+  fields removed from the schema on read); cleaned up afterward via a raw-driver `$unset` across the
+  collection, since Mongoose's own `updateMany` silently no-ops an `$unset` for a field no longer in
+  the schema — worth remembering next time a field gets removed from any model.
+- **Mobile ErrorBoundary** (`83aad93`, unrelated to CricClubs but shipped in the same parallel batch):
+  see `documentation/todo.md`'s Mobile/pilot-testing section for the full writeup of the EAS Update
+  blank-screen investigation this closes most of.
+- **Win-probability model retrained on real match outcomes** (`8eaacc2`, `ai-engine/`, unrelated to
+  CricClubs but shipped in the same parallel batch): see `documentation/todo.md`'s AI/data section for
+  the full writeup.
 
 ### Backlog (not started, roughly in priority order)
-
-- **CricClubs-parity gaps surfaced by the Division screenshots, deliberately deferred**: Fielding
-  (Most Catches) leaderboard alongside the existing batting/bowling ones; "Top Performer of Series"
-  as a ranked list with an actual points column, not just sorted-by-average; a division-scoped Teams
-  tab showing each team's roster with captain/vice-captain badges and player photos; a multi-document
-  library (the current house-rules upload only supports one file). Not requested yet — build only if
-  asked.
 
 - **Match notifications** — push/email when a followed team's match goes live or a tournament
   posts an announcement (announcement chat already exists; notification delivery doesn't).
@@ -168,7 +188,48 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   edtech/news modules already cover lessons and announcements; polls/trivia/quizzes would be new
   data models. Lower priority than the stats/analytics gaps above.
 
-## Notes on parallel-agent batches (2 so far)
+## Notes on parallel-agent batches (3 so far)
+
+**Batch 3** (2026-08-14, 5 agents: ball-by-ball commentary/voice, the EAS error-boundary fix, the
+fielding/top-performer leaderboard, the Teams/documents feature, and the AI win-probability
+retraining) — larger and more heterogeneous than the first two batches (backend+web+mobile+Python
+all at once, not just backend+web). What was different this time:
+
+- **One agent's task turned out to already be done.** The ball-by-ball-commentary/voice-scoring plan
+  it was handed was stale — that feature had actually shipped in an earlier, since-summarized part of
+  this same session (`0b27370`/`d6207e4`/`7ae502a`), but the plan file itself never got cleaned up
+  after completion, so it looked unstarted. The agent verified this properly (traced the git history,
+  re-ran the full verification suite against the already-merged code) rather than either blindly
+  redoing the work or blindly trusting that "the plan exists" meant "not done" — and correctly did
+  *not* create an empty commit. Lesson: a stale plan file is a real failure mode now that plans
+  persist across compactions; worth deleting `.claude/plans/*.md` once its work is confirmed shipped.
+- **Worktree isolation means the shared docker containers are blind to an agent's edits.** Both
+  `cricroots-backend` and `cricroots-ai-engine` bind-mount the *main* repo directory, not any
+  worktree — so `docker exec` from inside a worktree agent runs old code. Each backend-touching agent
+  instead ran its own local `node src/index.js` on a free port directly against the real MongoDB
+  (exposed on `localhost:27017` on the host) for live E2E verification. The Python agent similarly
+  couldn't `docker exec` its retrained model into place — it trained in its own local venv, and the
+  orchestrating session did the actual `docker cp` + container restart into the `cricsync_ai_models`
+  volume after merging. Worth remembering for any future batch that needs real E2E, not just static
+  checks.
+- **Two agents editing the same 5 files (`tournamentController.js`, `TournamentManager.tsx`,
+  `TournamentDetailScreen.tsx`, `apiClient.ts`, `types/index.ts`) still merged with zero manual
+  conflict resolution** — git's `ort` strategy handled it automatically both times, same as the
+  earlier batches' experience: different tabs/sections in the same file are non-overlapping insertion
+  points, not a real conflict, as long as each agent is told to make surgical edits and not reformat
+  unrelated code.
+- **A real Mongoose gotcha surfaced during merge-and-verify** (not by any agent, by the orchestrating
+  session afterward): `Tournament.updateMany({}, {$unset: {houseRulesDocument: ''}})` silently did
+  nothing — Mongoose's strict mode drops an update operation that references a field no longer in the
+  current schema, even though `$unset` on a truly-absent path would normally be a harmless no-op
+  anyway (the field *was* present in the raw documents, just not in the schema). Only the raw
+  `mongoose.connection.collection(...).updateMany(...)` (bypassing Mongoose's schema layer entirely)
+  actually removed it. Worth remembering any time a field is dropped from a schema after real data
+  already has it set.
+- Net effect: five feature-sized chunks (one of which turned out to need zero new work) landed in
+  under 25 minutes of wall-clock time for the four that did.
+
+**Batches 1 and 2** (earlier, 3 agents each):
 
 Fixture-generation, MVP/awards, and the event calendar (batch 1) and Manhattan/Worm charts, the MVP
 calculator, and achievement badges (batch 2) were each built by three background agents running in
