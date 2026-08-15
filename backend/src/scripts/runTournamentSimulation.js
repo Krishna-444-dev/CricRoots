@@ -104,17 +104,26 @@ async function main() {
   await connectDB();
   console.log(`\n=== Starting simulation: ${NUM_TEAMS} teams, ${NUM_GROUPS} groups, ${QUALIFIERS_PER_GROUP} qualifiers/group ===\n`);
 
+  const leagueName = process.env.SIM_LEAGUE_NAME || 'CricRoots Premier League';
   let leagueId = null;
   if (League) {
     try {
-      const league = await League.create({
-        name: 'CricRoots Premier League',
-        description: 'Flagship demo league - runs the Champions Series and future seasons.',
-        organizer: TEST_KRISHNA_USER_ID,
-        isPublic: true
-      });
-      leagueId = league._id;
-      console.log(`Created league: ${league.name} (${leagueId})`);
+      // Find-or-create, not always-create - a second run in the same league (e.g. a second
+      // division) must reuse the existing League document, not spawn a duplicate.
+      let league = await League.findOne({ name: leagueName });
+      if (league) {
+        leagueId = league._id;
+        console.log(`Reusing existing league: ${league.name} (${leagueId})`);
+      } else {
+        league = await League.create({
+          name: leagueName,
+          description: 'Flagship demo league - runs the Champions Series and future seasons.',
+          organizer: TEST_KRISHNA_USER_ID,
+          isPublic: true
+        });
+        leagueId = league._id;
+        console.log(`Created league: ${league.name} (${leagueId})`);
+      }
     } catch (e) {
       console.log('Skipping league creation (model exists but create failed):', e.message);
     }

@@ -107,13 +107,18 @@ const LAST_NAMES = [
 ];
 // Deliberately avoids "Falcons XI" - a real pre-existing team from this session's manual
 // pilot testing already uses that name; reusing it here risks exactly the kind of
-// name-collision mixup that caused an accidental deletion earlier in this run.
+// name-collision mixup that caused an accidental deletion earlier in this run. 48 entries -
+// enough for two 20-team divisions in the same run (via SIM_TEAM_NAME_OFFSET below) with no
+// name reused across them, plus some headroom for future runs.
 const TEAM_NAMES = [
   'Phoenix Blazers', 'Titans CC', 'Riverside Strikers', 'Ironwood Warriors', 'Coastal Kings', 'Highland Hawks',
   'Sunrise Panthers', 'Metro Gladiators', 'Silverline Royals', 'Thunderbolts CC', 'Redwood Rangers', 'Emerald Eagles',
   'Meadowbrook Lions', 'Stonebridge Spartans', 'Crescent Cobras', 'Harborview Vikings', 'Northgate Knights', 'Westfield Wanderers',
   'Ashwood Avengers', 'Pinehill Panthers', 'Lakeside Legends', 'Oakridge Outlaws', 'Brookfield Bulls', 'Summit Strikers',
-  'Valleyview Vipers', 'Cedarpoint Chargers', 'Windsor Wolves', 'Kingsland Comets'
+  'Valleyview Vipers', 'Cedarpoint Chargers', 'Windsor Wolves', 'Kingsland Comets', 'Fairhaven Falcons', 'Greystone Gladiators',
+  'Amberfield Archers', 'Blackwood Bandits', 'Copperfield Crusaders', 'Duskwood Dragons', 'Elmgate Elites', 'Foxhollow Flyers',
+  'Granite Guardians', 'Hawksridge Hunters', 'Ivywood Impalas', 'Junction Jaguars', 'Kestrel Knights', 'Longview Lancers',
+  'Mistvale Marauders', 'Norwood Nomads', 'Ashfield Outlaws', 'Palmerston Predators', 'Quarryhill Quicksilvers', 'Rosewood Raptors'
 ];
 const CITIES = [
   'Fairview', 'Riverdale', 'Brookhaven', 'Millfield', 'Ashford', 'Clearwater', 'Stonegate', 'Meadowlands',
@@ -121,6 +126,12 @@ const CITIES = [
   'Oakville', 'Pinecrest', 'Cedarville', 'Elmwood', 'Maple Heights', 'Sunnydale', 'Greenfield', 'Silverlake',
   'Ironbridge', 'Crescent Bay', 'Harborside', 'Kingswood'
 ];
+// Which slice of TEAM_NAMES this run uses - lets two divisions run in the same league without
+// duplicate team names (e.g. Division 1 uses offset 0, Division 2 uses offset 20).
+const TEAM_NAME_OFFSET = parseInt(process.env.SIM_TEAM_NAME_OFFSET || '0', 10);
+// Whether to seat the real Test Krishna account as captain of team 0 - off for any division
+// he shouldn't be registered in, since a player can't be on two divisions' rosters at once.
+const INCLUDE_KRISHNA = process.env.SIM_INCLUDE_KRISHNA !== 'false';
 
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -156,11 +167,12 @@ async function createTeamsAndPlayers() {
   const passwordHash = await bcrypt.hash('SimulatedPlayer123!', 10);
 
   // The real Test Krishna Player record was accidentally deleted earlier this session by an
-  // unrelated cleanup script and a restore attempt is pending approval (see
-  // restoreTestKrishna.js) - check it actually exists before referencing it as a captain, so
-  // this run can't create yet another dangling reference to a missing player.
-  const krishnaPlayerExists = !!(await Player.findById(TEST_KRISHNA_PLAYER_ID));
-  if (!krishnaPlayerExists) {
+  // unrelated cleanup script and has since been restored - still worth checking it actually
+  // exists before referencing it as a captain, so a run can never create a dangling reference
+  // to a missing player. INCLUDE_KRISHNA additionally lets a specific run opt him out entirely
+  // (e.g. a second division he must not also be registered in).
+  const krishnaPlayerExists = INCLUDE_KRISHNA && !!(await Player.findById(TEST_KRISHNA_PLAYER_ID));
+  if (INCLUDE_KRISHNA && !krishnaPlayerExists) {
     console.log(
       `WARNING: Test Krishna's player record (${TEST_KRISHNA_PLAYER_ID}) does not exist right now - ` +
         'team 1 will get a synthetic captain instead. Re-run once restoreTestKrishna.js has been approved and run.'
@@ -221,7 +233,7 @@ async function createTeamsAndPlayers() {
     }
 
     const team = await Team.create({
-      name: TEAM_NAMES[t],
+      name: TEAM_NAMES[TEAM_NAME_OFFSET + t],
       captain: captainId,
       viceCaptain: rosterPlayerIds[1] || null,
       players: rosterPlayerIds,
