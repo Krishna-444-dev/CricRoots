@@ -126,6 +126,7 @@ interface Match {
   toss?: { winningTeam: { _id: string; name: string } | null; decision: string | null } | null;
   createdBy?: { _id: string; name: string };
   umpires?: ({ _id: string; name: string } | string)[];
+  documents?: { _id: string; url: string; fileName: string; category: string; uploadedAt: string }[];
 }
 
 interface PlayerDirectoryEntry {
@@ -188,6 +189,10 @@ export default function MatchPage() {
   const [umpireToAdd, setUmpireToAdd] = useState('');
   const [umpireBusy, setUmpireBusy] = useState(false);
   const [umpireError, setUmpireError] = useState<string | null>(null);
+  const [uploadCategory, setUploadCategory] = useState('');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docUploadError, setDocUploadError] = useState('');
+  const docFileInputRef = React.useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // CricClubs-style tabbed match center - Info / Ball By Ball / Full Scorecard / Over by Over /
@@ -324,6 +329,50 @@ export default function MatchPage() {
       }
     } finally {
       setUmpireBusy(false);
+    }
+  };
+
+  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingDoc(true);
+    setDocUploadError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', uploadCategory.trim() || 'General');
+      const res = await fetch(`/api/matches/${matchId}/documents`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchMatch();
+        setUploadCategory('');
+      } else {
+        setDocUploadError(data.message || 'Upload failed');
+      }
+    } catch {
+      setDocUploadError('Could not reach the CricRoots server');
+    } finally {
+      setUploadingDoc(false);
+      if (docFileInputRef.current) docFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveDocument = async (documentId: string) => {
+    setDocUploadError('');
+    try {
+      const res = await apiFetch(`/api/matches/${matchId}/documents/${documentId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        fetchMatch();
+      } else {
+        setDocUploadError(data.message || 'Could not remove document');
+      }
+    } catch {
+      setDocUploadError('Could not reach the CricRoots server');
     }
   };
 
@@ -534,6 +583,64 @@ export default function MatchPage() {
                   </button>
                 </div>
                 {umpireError && <p className="mt-2 text-xs text-wicket-400">{umpireError}</p>}
+              </div>
+            )}
+
+            {/* Match Documents - team sheets, dispute reports, etc. Reference material scoped
+                to this one match, distinct from a tournament's own document library. Upload
+                gated the same simple way the Umpires section above is (match creator only) -
+                the backend's canManageMatch is actually broader (also allows umpires/rostered
+                players), but matching the creator-only visual gate already established for
+                Umpires keeps this section's behavior predictable rather than surprising. */}
+            {((match.documents?.length ?? 0) > 0 || user?.id === match.createdBy?._id) && (
+              <div className="bg-surface border border-border rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-ink mb-3">Match Documents</h3>
+                {(match.documents?.length ?? 0) > 0 ? (
+                  <ul className="mb-3 space-y-1.5">
+                    {match.documents!.map((doc) => (
+                      <li key={doc._id} className="flex items-center justify-between text-sm gap-2">
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-pitch-400 hover:text-pitch-300 truncate">
+                          📄 {doc.fileName} <span className="text-ink-muted">({doc.category})</span>
+                        </a>
+                        {user?.id === match.createdBy?._id && (
+                          <button
+                            onClick={() => handleRemoveDocument(doc._id)}
+                            className="text-xs text-wicket-400 hover:underline shrink-0"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-ink-muted mb-3">No documents uploaded yet.</p>
+                )}
+                {user?.id === match.createdBy?._id && (
+                  <div className="flex gap-2">
+                    <input
+                      value={uploadCategory}
+                      onChange={(e) => setUploadCategory(e.target.value)}
+                      placeholder="Category (e.g. Team Sheet)"
+                      className="flex-1 min-w-0 text-sm bg-surface-alt border border-border-strong rounded-lg px-3 py-1.5 text-ink"
+                    />
+                    <button
+                      onClick={() => docFileInputRef.current?.click()}
+                      disabled={uploadingDoc}
+                      className="text-sm px-3 py-1.5 bg-pitch-500 text-[#06170D] font-medium rounded-lg disabled:opacity-50 shrink-0"
+                    >
+                      {uploadingDoc ? 'Uploading...' : 'Upload'}
+                    </button>
+                    <input
+                      ref={docFileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={handleUploadDocument}
+                    />
+                  </div>
+                )}
+                {docUploadError && <p className="mt-2 text-xs text-wicket-400">{docUploadError}</p>}
               </div>
             )}
 

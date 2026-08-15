@@ -16,10 +16,13 @@ const {
   deleteMatch,
   addUmpire,
   removeUmpire,
+  addMatchDocument,
+  removeMatchDocument,
   acquireScoringLock,
   releaseScoringLock
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/auth');
+const { uploadTournamentDocument } = require('../middleware/upload');
 
 // Public routes
 router.get('/', getAllMatches);
@@ -41,5 +44,18 @@ router.delete('/:id/umpires/:userId', protect, removeUmpire);
 router.post('/:id/scoring-lock', protect, acquireScoringLock);
 router.delete('/:id/scoring-lock', protect, releaseScoringLock);
 router.delete('/:id', protect, deleteMatch);
+
+// multer's upload middleware is callback-based, not next()-throwing - wrap it so a rejected
+// file (wrong type, too large) comes back as a normal JSON error response, same pattern as
+// tournamentRoutes.js's document upload.
+router.post('/:id/documents', protect, (req, res, next) => {
+  uploadTournamentDocument(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, message: err.message || 'Upload failed' });
+    }
+    next();
+  });
+}, addMatchDocument);
+router.delete('/:id/documents/:documentId', protect, removeMatchDocument);
 
 module.exports = router;

@@ -951,6 +951,66 @@ exports.removeUmpire = async (req, res) => {
   }
 };
 
+// @desc    Upload a match-specific reference document (team sheet, dispute report, ...) -
+//          same category/upload pattern as Tournament.documents, distinct from it since a
+//          document here is scoped to just this match.
+// @route   POST /api/matches/:id/documents
+// @access  Private (anyone canManageMatch permits - organizer, an appointed umpire, or a
+//          rostered player on either team)
+exports.addMatchDocument = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (!(await canManageMatch(match, req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not authorized to upload a document for this match' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    match.documents.push({
+      url: `/uploads/tournament-documents/${req.file.filename}`,
+      fileName: req.file.originalname,
+      category: (req.body.category || 'General').toString().trim().slice(0, 100) || 'General',
+      uploadedAt: new Date()
+    });
+    await match.save();
+
+    res.status(200).json({ success: true, documents: match.documents });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Remove a match document
+// @route   DELETE /api/matches/:id/documents/:documentId
+// @access  Private (anyone canManageMatch permits)
+exports.removeMatchDocument = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (!(await canManageMatch(match, req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not authorized to remove this document' });
+    }
+
+    const { documentId } = req.params;
+    const exists = match.documents.some((doc) => doc._id.toString() === documentId);
+    if (!exists) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+    match.documents = match.documents.filter((doc) => doc._id.toString() !== documentId);
+    await match.save();
+
+    res.status(200).json({ success: true, documents: match.documents });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Claim (or renew) the exclusive right to score this match. The score page calls
 //          this before showing the scoring UI and again periodically as a heartbeat while
 //          it stays open - see LOCK_TIMEOUT_MS for how long a lock survives without renewal.

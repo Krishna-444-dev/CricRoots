@@ -168,6 +168,17 @@ const matchSchema = new mongoose.Schema({
     winningTeam: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
     decision: String // 'bat' or 'bowl'
   },
+  // Match-specific reference documents (team sheets, ground rules addenda, dispute reports, ...)
+  // - same shape/pattern as Tournament.documents, distinct from it since a document here is
+  // scoped to one match, not the whole tournament.
+  documents: [
+    {
+      url: { type: String, required: true },
+      fileName: { type: String, required: true },
+      category: { type: String, trim: true, default: 'General' },
+      uploadedAt: { type: Date, default: Date.now }
+    }
+  ],
   result: {
     winningTeam: mongoose.Schema.Types.ObjectId,
     margin: String, // runs or wickets
