@@ -263,6 +263,18 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   session's full simulated-data scale (~1,560 teams/players, 579 matches) - the Matches bug was
   unique to Match being the one model with a genuinely huge nested array (ball-by-ball data),
   nothing else in this codebase has an equivalent unbounded nested payload today.
+- **Fixed a real `undefined === undefined` authorization-display bug, found live** (`ede0536`):
+  the match page's Umpires/Documents-upload sections used `user?.id === match.createdBy?._id` to
+  decide who sees organizer-only controls. One real match in the DB has no `createdBy` set at all -
+  with both sides unresolved, that comparison reads true, showing organizer controls to any
+  anonymous visitor (the actions still 401 server-side if actually used, but showing privileged UI
+  to a logged-out viewer is still wrong). Swept the whole web app for the same `user?.id === x?.id`
+  pattern against a nullable `x` and fixed every real instance: leagues (isOrganizer), teams
+  (isCaptain/isViceCaptain/isCoach - viceCaptain was already correctly guarded, the other two
+  weren't), edtech lessons, marketplace listings, news posts. Left several other `user.id === ...`
+  checks alone after confirming they're either already guarded elsewhere or sit behind a
+  login-required page, where a null `user` would crash loudly instead of silently misfiring - a
+  different, lower-priority class of bug not addressed here.
 
 ### Backlog (not started, roughly in priority order)
 
