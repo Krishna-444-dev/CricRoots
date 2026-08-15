@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/AuthContext';
 import { apiFetch } from '@/lib/apiFetch';
@@ -155,6 +155,7 @@ function overBallLabel(balls: Ball[], index: number): string {
 
 export default function MatchPage() {
   const params = useParams();
+  const router = useRouter();
   const matchId = params.id as string;
   const { user, token } = useAuth();
 
@@ -170,6 +171,17 @@ export default function MatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'scorecard' | 'ai-insights'>('scorecard');
+  // Which innings' commentary is showing. Auto-follows whichever innings is currently being
+  // bowled (tracks the same "current" logic as the scorecard below) across every poll, until
+  // the viewer manually picks a side - then it stops following, the same way a chat view stops
+  // auto-scrolling once you scroll up yourself. Commentary is stored per-ball in the DB and
+  // never deleted, so both innings' full commentary stays viewable forever, not just while live.
+  const [commentaryInningsIdx, setCommentaryInningsIdx] = useState<0 | 1>(0);
+  const [followCurrentInnings, setFollowCurrentInnings] = useState(true);
+  useEffect(() => {
+    if (!match || !followCurrentInnings) return;
+    setCommentaryInningsIdx((match.innings[1]?.balls?.length ?? 0) > 0 ? 1 : 0);
+  }, [match, followCurrentInnings]);
 
   useEffect(() => {
     fetchMatch();
@@ -322,6 +334,12 @@ export default function MatchPage() {
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.headerContent}>
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-1 text-sm font-medium text-ink-secondary hover:text-ink transition-colors mb-3"
+          >
+            &larr; Back
+          </button>
           <h1 className={styles.matchTitle}>{match.title}</h1>
           <p className={styles.matchInfo}>
             {match.matchType} • {match.venue}
@@ -581,27 +599,51 @@ export default function MatchPage() {
               </div>
             </div>
 
-            {/* Live Commentary */}
-            {currentInnings?.balls && currentInnings.balls.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-base font-bold text-ink mb-3">Live Commentary</h3>
-                <div className="bg-surface border border-border rounded-xl divide-y divide-border max-h-96 overflow-y-auto">
-                  {currentInnings.balls.slice(-10).reverse().map((ball, i, arr) => {
-                    const originalIndex = currentInnings.balls.length - 1 - i;
-                    return (
-                      <div key={originalIndex} className="p-3 flex gap-3 items-start">
-                        <span className="text-xs font-mono text-ink-muted mt-0.5 shrink-0 w-10">
-                          {overBallLabel(currentInnings.balls, originalIndex)}
-                        </span>
-                        <p className={`text-sm ${ball.isWicket ? 'text-wicket-400 font-medium' : ball.runs === 4 || ball.runs === 6 ? 'text-pitch-400 font-medium' : 'text-ink-secondary'}`}>
-                          {ball.commentary || `${ball.runs} run${ball.runs === 1 ? '' : 's'}.`}
-                        </p>
-                      </div>
-                    );
-                  })}
+            {/* Commentary - full ball-by-ball for whichever innings is selected, preserved and
+                scrollable for the entire match, not just a recent-deliveries snippet. */}
+            {(match.innings[0]?.balls?.length > 0 || match.innings[1]?.balls?.length > 0) && (() => {
+              const selectedInnings = match.innings[commentaryInningsIdx];
+              const inningsTeamName = commentaryInningsIdx === 0 ? match.team1.name : match.team2.name;
+              return (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h3 className="text-base font-bold text-ink">Commentary</h3>
+                    <div className="flex gap-1">
+                      {([0, 1] as const).filter((idx) => match.innings[idx]?.balls?.length > 0).map((idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => { setCommentaryInningsIdx(idx); setFollowCurrentInnings(false); }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                            commentaryInningsIdx === idx ? 'bg-pitch-500/15 text-pitch-400' : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                          }`}
+                        >
+                          {idx === 0 ? match.team1.name : match.team2.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {selectedInnings?.balls?.length ? (
+                    <div className="bg-surface border border-border rounded-xl divide-y divide-border max-h-96 overflow-y-auto">
+                      {selectedInnings.balls.slice().reverse().map((ball, i) => {
+                        const originalIndex = selectedInnings.balls.length - 1 - i;
+                        return (
+                          <div key={originalIndex} className="p-3 flex gap-3 items-start">
+                            <span className="text-xs font-mono text-ink-muted mt-0.5 shrink-0 w-10">
+                              {overBallLabel(selectedInnings.balls, originalIndex)}
+                            </span>
+                            <p className={`text-sm ${ball.isWicket ? 'text-wicket-400 font-medium' : ball.runs === 4 || ball.runs === 6 ? 'text-pitch-400 font-medium' : 'text-ink-secondary'}`}>
+                              {ball.commentary || `${ball.runs} run${ball.runs === 1 ? '' : 's'}.`}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-ink-muted">{inningsTeamName} haven't batted yet.</p>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Key Moments */}
             {keyMoments.length > 0 && (

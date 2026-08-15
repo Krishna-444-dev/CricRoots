@@ -172,7 +172,12 @@ exports.createMatch = async (req, res) => {
 // @access  Public
 exports.getAllMatches = async (req, res) => {
   try {
+    // Excludes innings.balls - a list view has no use for full ball-by-ball data (commentary,
+    // per-delivery tagging, ...), and including it here was returning 50+MB for a few hundred
+    // real matches, taking 10+ seconds and effectively hanging the Matches page. innings.runs/
+    // wickets/overs are kept so the list can still show live/final scores per team.
     const matches = await Match.find()
+      .select('-innings.balls')
       .populate('team1')
       .populate('team2')
       .populate(MAN_OF_THE_MATCH_POPULATE)

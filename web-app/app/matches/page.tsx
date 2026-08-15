@@ -16,6 +16,7 @@ interface Match {
   status: string;
   venue: string;
   scheduledDate: string;
+  innings: { runs: number; wickets: number; overs: number }[];
 }
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
@@ -62,9 +63,20 @@ export default function MatchesPage() {
               <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0">
                   <h2 className="font-semibold text-ink truncate">{match.title}</h2>
-                  <p className="text-sm text-ink-secondary mt-0.5">
-                    {match.team1?.name} <span className="text-ink-muted">vs</span> {match.team2?.name}
-                  </p>
+                  {(match.status === 'Live' || match.status === 'Completed') && match.innings?.some((i) => i.overs > 0) ? (
+                    <div className="text-sm mt-0.5 space-y-0.5">
+                      <p className="text-ink-secondary">
+                        {match.team1?.name} <span className="font-mono text-ink">{match.innings[0]?.runs ?? 0}/{match.innings[0]?.wickets ?? 0}</span>
+                      </p>
+                      <p className="text-ink-secondary">
+                        {match.team2?.name} <span className="font-mono text-ink">{match.innings[1]?.runs ?? 0}/{match.innings[1]?.wickets ?? 0}</span>
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-ink-secondary mt-0.5">
+                      {match.team1?.name} <span className="text-ink-muted">vs</span> {match.team2?.name}
+                    </p>
+                  )}
                   <p className="text-xs text-ink-muted mt-1">
                     {match.venue} · {new Date(match.scheduledDate).toLocaleDateString()}
                   </p>
@@ -77,12 +89,16 @@ export default function MatchesPage() {
                 <Link href={`/match/${match._id}`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
                   View Scorecard
                 </Link>
-                <Link href={`/match/${match._id}/score`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
-                  Score
-                </Link>
-                <Link href={`/match/${match._id}/scouting`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
-                  Scouting
-                </Link>
+                {(match.status === 'Scheduled' || match.status === 'Live') && (
+                  <Link href={`/match/${match._id}/score`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
+                    Score
+                  </Link>
+                )}
+                {match.status !== 'Completed' && match.status !== 'Cancelled' && (
+                  <Link href={`/match/${match._id}/scouting`} className="text-sm font-medium text-pitch-400 hover:text-pitch-300">
+                    Scouting
+                  </Link>
+                )}
               </div>
             </Card>
           ))}
