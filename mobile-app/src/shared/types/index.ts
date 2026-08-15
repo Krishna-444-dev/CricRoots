@@ -254,10 +254,21 @@ export interface PlayerCareerStats {
     average: number; strikeRate: number; centuries: number; halfCenturies: number;
     fours: number; sixes: number; ducks: number; notOuts: number;
   };
+  byFormat: Array<{
+    matchType: string; matches: number; innings: number; notOuts: number; runs: number; balls: number;
+    average: number; strikeRate: number; highestScore: number; centuries: number; halfCenturies: number;
+    ducks: number; fours: number; sixes: number;
+  }>;
   bowling: { matches: number; innings: number; balls: number; runs: number; wickets: number; average: number; economyRate: number };
   fielding: { catches: number; runOuts: number; stumpings: number };
   overall: { matches: number; wins: number; losses: number; winPercentage: number; manOfTheMatch: number };
   wagonWheel: Array<{ zone: string; balls: number; runs: number; runsPercent: number }>;
+  runsPerInnings: Array<{ matchId: string; date: string; runs: number; notOut: boolean }>;
+  dismissalBreakdown: {
+    totalInnings: number;
+    notOut: number;
+    dismissals: Array<{ wicketType: string; count: number }>;
+  };
   achievements: Array<{ key: string; label: string; description: string; earned: boolean; count: number }>;
 }
 

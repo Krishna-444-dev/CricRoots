@@ -283,13 +283,14 @@ function accumulateMatchFigures(innings, playerId) {
   for (const inn of innings) {
     for (const ball of inn.balls) {
       if (ball.batsmanId && ball.batsmanId.toString() === playerId.toString()) {
-        battingEntry = battingEntry || { runs: 0, balls: 0, fours: 0, sixes: 0, out: false };
+        battingEntry = battingEntry || { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, wicketType: null };
         battingEntry.runs += ball.runs || 0;
         if (!(ball.isExtra && ball.extraType === 'wide')) battingEntry.balls += 1;
         if (!ball.isExtra && ball.runs === 4) battingEntry.fours += 1;
         if (!ball.isExtra && ball.runs === 6) battingEntry.sixes += 1;
         if (ball.isWicket) {
           battingEntry.out = true;
+          battingEntry.wicketType = ball.wicketType || null;
           dismissals.push({
             bowlerId: ball.bowlerId ? ball.bowlerId.toString() : null,
             wicketType: ball.wicketType,
@@ -329,7 +330,7 @@ async function getMatchByMatchBreakdown(playerId) {
       { 'innings.balls.batsmanId': oid(playerId) },
       { 'innings.balls.bowlerId': oid(playerId) }
     ]
-  }).select('innings result manOfTheMatch scheduledDate').sort('scheduledDate');
+  }).select('innings result manOfTheMatch scheduledDate matchType').sort('scheduledDate');
 
   return matches.map((match) => {
     const { battingEntry, bowlingEntry, battedForTeam, bowledAgainstTeam } =
@@ -345,6 +346,7 @@ async function getMatchByMatchBreakdown(playerId) {
     return {
       matchId: match._id.toString(),
       scheduledDate: match.scheduledDate,
+      matchType: match.matchType,
       playerTeam: playerTeam || null,
       winningTeam: match.result?.winningTeam ? match.result.winningTeam.toString() : null,
       isManOfTheMatch: !!(match.manOfTheMatch && match.manOfTheMatch.toString() === playerId.toString()),
@@ -352,6 +354,49 @@ async function getMatchByMatchBreakdown(playerId) {
       bowling: bowlingEntry
     };
   });
+}
+
+/**
+ * Batting career stats grouped by Match.matchType (T20/ODI/Test/Friendly) - the
+ * per-format breakdown table CricClubs shows (one row per format actually played).
+ * Reuses the same per-match batting entries getCareerStats' own aggregate is built
+ * from, just partitioned by format instead of pooled - so the "All Formats" row
+ * getCareerStats already returns as `batting` and these per-format rows always add
+ * up to the same totals. Mirrors getCareerStats.batting's field set exactly (including
+ * ducks/fours/sixes, already this codebase's convention) rather than copying
+ * CricClubs' "25s" column, which has no equivalent milestone elsewhere in this app.
+ */
+function buildBattingByFormat(breakdown) {
+  const groups = new Map();
+  for (const entry of breakdown) {
+    if (!entry.batting) continue;
+    const key = entry.matchType || 'Unknown';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry.batting);
+  }
+
+  return Array.from(groups.entries()).map(([matchType, entries]) => {
+    const runs = entries.reduce((s, e) => s + e.runs, 0);
+    const balls = entries.reduce((s, e) => s + e.balls, 0);
+    const dismissalsCount = entries.filter((e) => e.out).length;
+
+    return {
+      matchType,
+      matches: entries.length,
+      innings: entries.length,
+      notOuts: entries.length - dismissalsCount,
+      runs,
+      balls,
+      average: dismissalsCount > 0 ? round(runs / dismissalsCount) : runs,
+      strikeRate: balls > 0 ? round((runs / balls) * 100) : 0,
+      highestScore: entries.reduce((max, e) => Math.max(max, e.runs), 0),
+      centuries: entries.filter((e) => e.runs >= 100).length,
+      halfCenturies: entries.filter((e) => e.runs >= 50 && e.runs < 100).length,
+      ducks: entries.filter((e) => e.out && e.runs === 0).length,
+      fours: entries.reduce((s, e) => s + e.fours, 0),
+      sixes: entries.reduce((s, e) => s + e.sixes, 0)
+    };
+  }).sort((a, b) => b.matches - a.matches);
 }
 
 /**
@@ -423,7 +468,59 @@ async function getCareerStats(playerId) {
       losses: matchesWithKnownResult - wins,
       winPercentage: matchesWithKnownResult > 0 ? round((wins / matchesWithKnownResult) * 100) : 0,
       manOfTheMatch: manOfTheMatchCount
+    },
+    byFormat: buildBattingByFormat(breakdown)
+  };
+}
+
+/**
+ * Chronological runs-per-innings list for a single player - the data behind a
+ * "Runs per Innings" bar chart (CricClubs-style). One entry per innings this
+ * player batted in, oldest first (getMatchByMatchBreakdown is already sorted by
+ * scheduledDate).
+ */
+async function getRunsPerInnings(playerId) {
+  const breakdown = await getMatchByMatchBreakdown(playerId);
+  return breakdown
+    .filter((e) => e.batting)
+    .map((e) => ({
+      matchId: e.matchId,
+      date: e.scheduledDate,
+      runs: e.batting.runs,
+      notOut: !e.batting.out
+    }));
+}
+
+/**
+ * Career dismissal-type breakdown for a single player - the data behind a
+ * "Dismissal Type" pie chart. Counts how this player got OUT as a batsman
+ * (bowled/caught/lbw/run out/stumped/hit wicket/retired), plus how many
+ * innings they finished not out. Not to be confused with getFieldingStats,
+ * which credits this player as the FIELDER on someone else's dismissal.
+ */
+async function getDismissalBreakdown(playerId) {
+  const breakdown = await getMatchByMatchBreakdown(playerId);
+  const battingEntries = breakdown.filter((e) => e.batting).map((e) => e.batting);
+
+  const counts = {};
+  let notOut = 0;
+  for (const entry of battingEntries) {
+    if (!entry.out) {
+      notOut += 1;
+      continue;
     }
+    // 'retired hurt'/'retired out' are folded into one 'retired' bucket - the
+    // distinction matters for scoring, not for a career "how did you get out" chart.
+    const type = entry.wicketType === 'retired hurt' || entry.wicketType === 'retired out'
+      ? 'retired'
+      : (entry.wicketType || 'unknown');
+    counts[type] = (counts[type] || 0) + 1;
+  }
+
+  return {
+    totalInnings: battingEntries.length,
+    notOut,
+    dismissals: Object.entries(counts).map(([wicketType, count]) => ({ wicketType, count }))
   };
 }
 
@@ -1249,6 +1346,8 @@ module.exports = {
   getLiveMatchupPlan,
   getFieldingStats,
   getCareerStats,
+  getRunsPerInnings,
+  getDismissalBreakdown,
   getMatchByMatchBreakdown,
   getMatchPerformanceReport,
   getAchievements,
