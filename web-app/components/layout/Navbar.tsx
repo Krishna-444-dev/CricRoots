@@ -32,6 +32,7 @@ const NAV_ENTRIES: NavEntry[] = [
     { href: '/groups', label: 'Groups' },
     { href: '/news', label: 'News' },
     { href: '/edtech', label: 'Learn' },
+    { href: '/community', label: 'Trivia & Polls' },
   ] },
   { href: '/marketplace', label: 'Market' },
   { href: '/predictions/leaderboard', label: 'Predict' },

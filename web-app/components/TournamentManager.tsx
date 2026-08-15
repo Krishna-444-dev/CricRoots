@@ -10,11 +10,12 @@ import { inputClass, labelClass, errorBoxClass } from '@/components/ui/formStyle
 import { buttonVariants } from '@/components/ui/buttonStyles';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import PollsSection from '@/components/community/PollsSection';
 
 const TOURNAMENT_FORMATS = ['League', 'Knockout', 'Group', 'Round-Robin'] as const;
 const TOURNAMENT_MATCH_TYPES = ['T20', 'T10', 'ODI', 'Test'] as const;
 
-type TabKey = 'list' | 'standings' | 'matches' | 'bracket' | 'statistics' | 'announcements' | 'awards' | 'rules' | 'teams' | 'documents';
+type TabKey = 'list' | 'standings' | 'matches' | 'bracket' | 'statistics' | 'announcements' | 'polls' | 'awards' | 'rules' | 'teams' | 'documents';
 type TabDef = { key: TabKey; emoji: string; label: string };
 
 // Grouped into a two-tier bar so the tournament page's tab row doesn't grow unbounded as
@@ -35,6 +36,7 @@ const TAB_GROUPS: { key: string; emoji: string; label: string; tabs: TabDef[] }[
   ] },
   { key: 'info', emoji: '📄', label: 'Info', tabs: [
     { key: 'announcements', emoji: '📢', label: 'Announcements' },
+    { key: 'polls', emoji: '🗳️', label: 'Polls' },
     { key: 'rules', emoji: '📜', label: 'House Rules' },
     { key: 'documents', emoji: '📁', label: 'Documents' },
   ] },
@@ -214,7 +216,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'standings' | 'matches' | 'bracket' | 'statistics' | 'announcements' | 'awards' | 'rules' | 'teams' | 'documents'>('list');
+  const [activeTab, setActiveTab] = useState<TabKey>('list');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [announcements, setAnnouncements] = useState<ChatMessage[]>([]);
   const [announcementText, setAnnouncementText] = useState('');
@@ -1468,6 +1470,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({ tournament
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'polls' && selectedTournament && (
+          <div className={styles.card}>
+            <PollsSection scope="tournament" scopeId={selectedTournament._id} canManage={isOrganizer} />
           </div>
         )}
 

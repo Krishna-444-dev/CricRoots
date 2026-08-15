@@ -254,6 +254,49 @@ exports.getAllTournaments = async (req, res) => {
   }
 };
 
+// @desc    Tournaments the current user is actually involved in - organizing, or playing
+//          (rostered on a team registered in the tournament). Same Player -> Team -> Tournament
+//          join leagueController.js's getMyLeagues established this session for "what leagues
+//          is this user actually part of", one hop shorter here since tournaments hold their
+//          own `teams` array directly. Built for the Community page to scope poll-creation
+//          entry points to tournaments the viewer can actually manage/vote in.
+// @route   GET /api/tournaments/mine
+// @access  Private
+exports.getMyTournaments = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const organizedIds = (await Tournament.find({ organizer: userId }).select('_id')).map((t) => t._id.toString());
+
+    let playedIds = [];
+    const myPlayer = await Player.findOne({ user: userId }).select('_id');
+    if (myPlayer) {
+      const myTeamIds = (await Team.find({ players: myPlayer._id }).select('_id')).map((t) => t._id);
+      if (myTeamIds.length > 0) {
+        const tournaments = await Tournament.find({ teams: { $in: myTeamIds } }).select('_id');
+        playedIds = tournaments.map((t) => t._id.toString());
+      }
+    }
+
+    const allIds = [...new Set([...organizedIds, ...playedIds])];
+    const tournaments = await Tournament.find({ _id: { $in: allIds } })
+      .populate('organizer')
+      .populate('teams')
+      .sort({ startDate: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: tournaments.length,
+      tournaments
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // @desc    Get tournament by ID
 // @route   GET /api/tournaments/:id
 // @access  Public

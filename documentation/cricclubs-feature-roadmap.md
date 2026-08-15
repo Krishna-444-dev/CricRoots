@@ -456,6 +456,60 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   posting a tournament announcement (the second call site) confirmed the inverse - no push log,
   a new email sent. `node --check` clean on every changed backend file; `tsc --noEmit` clean on
   both `web-app` and `mobile-app`.
+- **Community feed: polls + trivia** — closes the interactive/social half of CricHeroes'
+  community feed (rules/education/trivia/quizzes/polls/stories); CricRoots's existing `Lesson`
+  and `NewsPost` models already covered the education/content half. New `Poll` model
+  (`backend/src/models/Poll.js`): a question with 2-6 options, scoped to exactly one of `team`
+  or `tournament` (enforced by a `pre('validate')` hook, mirroring
+  `Notification.relatedMatch`/`relatedTournament`'s optional-exclusive-ref shape but strict
+  here since an unscoped poll has nowhere to be discovered from) - `options[].votes` stores
+  voter user-ids directly (not just a count), reasonable at this app's roster scale, so a second
+  collection is never needed to answer "has this user voted." `pollController.js`: create is
+  gated the same way `teamController.js`'s `isTeamAdmin`/`tournamentController.js`'s
+  `organizer.toString() === req.user.id` already gate every other team/tournament management
+  action (team captain/vice-captain/coach, or the tournament organizer); voting is gated by
+  the *exact* `Team -> Player` join `leagueController.js`'s `getMyLeagues` and
+  `notificationService.js`'s `userIdsForTeams` both already established this session for "who
+  belongs to this team/tournament" (rostered on the team directly, or rostered on any team
+  registered in the tournament); re-voting moves a user's ballot instead of adding a second one;
+  close is creator-or-manager only. New `Trivia` model (`backend/src/models/Trivia.js`): a
+  single global (not team/tournament-scoped) cricket-knowledge question, 4 options, one correct
+  answer, answered once per user via `answeredBy`. `GET /api/trivia/current` deliberately
+  withholds `correctIndex`/`explanation` until the requesting user has actually answered
+  (checked server-side against `answeredBy`, never a client flag) - shipping the answer key
+  before that would let anyone read it straight off the network response. Seeded 10 real,
+  fact-checked trivia questions (`backend/src/scripts/seedTrivia.js`, find-or-create by question
+  text so reruns are idempotent) covering rules/terminology/one long-standing record (Brian
+  Lara's 400\*). New `GET /api/teams/mine`/`GET /api/tournaments/mine` (`getMyTeams`/
+  `getMyTournaments`) reuse `getMyLeagues`'s exact join pattern one level down, so the frontend
+  has a real "what teams/tournaments is this user actually part of" endpoint to scope poll
+  discovery to, rather than inventing a new mechanism. Web: new `/community` page (trivia card +
+  a `PollsSection` per own team/tournament, reusing `GET /api/leagues/mine`'s sibling endpoints
+  above), a "Trivia & Polls" entry in the Navbar's Community group, a compact `PollsSection` on
+  the Team detail page (right after Roster) and a new Polls tab in TournamentManager's Info
+  group (alongside Announcements/House Rules/Documents) - one shared `PollsSection` component
+  used in all three places rather than three copies. Mobile: identical structure - new
+  `CommunityScreen` reachable via a Community quick-link on the Home tab (matching where
+  News/Learn already live, since neither has its own persistent tab slot), plus the same
+  `PollsSection`/`TriviaCard` components dropped into `TeamDetailScreen`'s footer and a new
+  Polls segment on `TournamentDetailScreen`. Live-verified against the real backend + real
+  MongoDB: a throwaway team/tournament/6 users (captain, 2 rostered members, an outsider, an
+  organizer, a tournament-registered-team member) exercised every path end-to-end - non-admin
+  create rejected, captain create allowed, non-member vote rejected, 3 real votes tallied
+  correctly (66.7%/33.3%/0%), a re-vote moved rather than duplicated (confirmed back to
+  33/33/33), non-manager close rejected, close-then-vote rejected, the same organizer/rostered-
+  member pattern repeated for a tournament-scoped poll, and both `<2 options`/`both scopes`/
+  `neither scope` validation errors - 31/31 checks passed. Trivia: answered as two different
+  users (one right, one wrong), re-answer correctly rejected, unauthenticated response confirmed
+  to hide the answer key, authenticated re-fetch after answering confirmed to reveal it. A
+  second pass drove the actual web UI with Playwright (real login flow, not just localStorage
+  injection) against the real dev server - created a poll and voted through the rendered
+  `/community` page, the Team detail page, and TournamentManager's new Polls tab, zero console
+  errors. All throwaway users/players/teams/tournaments/polls deleted by exact ID afterward
+  (including two full sets left behind by earlier failed verification-script runs, found via
+  the same email-prefix query and cascade-deleted); the 10 seeded trivia questions themselves,
+  and the two throwaway test-users' answers stripped back out of `answeredBy`, are the only
+  state left behind - real content, not test data.
 
 ### Backlog (not started, roughly in priority order)
 
@@ -466,9 +520,6 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   only the web UI is missing.
 - **Live streaming + AI highlights** (CricHeroes) — real video infrastructure, a much bigger lift
   than anything else on this list. Noted for completeness, not scoped or planned.
-- **Community feed** (CricHeroes: rules/education/trivia/quizzes/polls/stories) — CricRoots's
-  edtech/news modules already cover lessons and announcements; polls/trivia/quizzes would be new
-  data models. Lower priority than the stats/analytics gaps above.
 
 ## Notes on parallel-agent batches (3 so far)
 
