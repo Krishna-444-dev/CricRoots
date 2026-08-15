@@ -4,7 +4,7 @@
 // this pass. See backend/src/index.js for the full mount list.
 
 import { Platform } from 'react-native';
-import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry } from '../types';
+import type { Prediction, LeaderboardEntry, Conversation, DirectMessage, Group, GroupMessage, PerformanceReport, Interruption, BattingRankingEntry, BowlingRankingEntry, RosterTeam } from '../types';
 
 // Single source of truth for the backend base URL. `EXPO_PUBLIC_*` env vars are inlined by
 // Metro at build time automatically (Expo SDK 49+) - no app.config.js or extra package needed.
@@ -215,6 +215,12 @@ export const tournamentsAPI = {
   // rather than a misleading single shape.
   getStandings: (tournamentId: string) => apiFetch<any>(`/tournaments/${tournamentId}/standings`),
   getTournamentMatches: (tournamentId: string) => apiFetch<{ success: true; matches: any[] }>(`/tournaments/${tournamentId}/matches`),
+  // Division-scoped (or, for a tournament with no divisions, whole-tournament) teams with
+  // rosters populated - see getTournamentTeams in tournamentController.js.
+  getTournamentTeams: (tournamentId: string, division?: string | null) =>
+    apiFetch<{ success: true; division: string | null; count: number; teams: RosterTeam[] }>(
+      `/tournaments/${tournamentId}/teams${division ? `?division=${encodeURIComponent(division)}` : ''}`
+    ),
   getStatistics: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/statistics`),
   getLeaderboard: (tournamentId: string, limit = 20, division?: string | null) =>
     apiFetch<{ success: true; batsmen: any[]; bowlers: any[] }>(
@@ -233,10 +239,13 @@ export const tournamentsAPI = {
   computeAwards: (tournamentId: string) => apiFetch(`/tournaments/${tournamentId}/compute-awards`, 'POST'),
   getMessages: (tournamentId: string) => apiFetch<{ success: true; messages: any[] }>(`/tournaments/${tournamentId}/messages`),
   postMessage: (tournamentId: string, text: string) => apiFetch(`/tournaments/${tournamentId}/messages`, 'POST', { text }),
-  uploadHouseRulesDocument: (tournamentId: string, file: { uri: string; name: string; type: string }) =>
-    apiUpload<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/house-rules-document`, file),
-  deleteHouseRulesDocument: (tournamentId: string) =>
-    apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/house-rules-document`, 'DELETE'),
+  // Document library (league rules, registration guide, captain guide, nomination sheet, etc.)
+  // - `category` is a free-text label, not a fixed enum. See addTournamentDocument/
+  // removeTournamentDocument in tournamentController.js.
+  uploadDocument: (tournamentId: string, file: { uri: string; name: string; type: string }, category: string) =>
+    apiUpload<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/documents`, file, { category }),
+  deleteDocument: (tournamentId: string, documentId: string) =>
+    apiFetch<{ success: true; tournament: any }>(`/tournaments/${tournamentId}/documents/${documentId}`, 'DELETE'),
 };
 
 // --- Leagues (backend/src/routes/leagueRoutes.js) ---
@@ -354,11 +363,14 @@ export function resolveAttachmentUrl(relativeUrl: string): string {
 // Multipart upload can't reuse apiFetch's JSON-only body handling - FormData needs its own
 // auto-generated multipart boundary Content-Type, which fetch sets itself as long as we don't
 // override it by hand.
-async function apiUpload<T = any>(path: string, file: { uri: string; name: string; type: string }): Promise<T> {
+async function apiUpload<T = any>(path: string, file: { uri: string; name: string; type: string }, fields?: Record<string, string>): Promise<T> {
   const formData = new FormData();
   // React Native's fetch accepts this {uri,name,type} shape as a Blob-like value for FormData,
   // even though it doesn't match the DOM File type - hence the `any` cast.
   formData.append('file', { uri: file.uri, name: file.name, type: file.type } as any);
+  if (fields) {
+    Object.entries(fields).forEach(([key, value]) => formData.append(key, value));
+  }
 
   const headers: Record<string, string> = {};
   if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;

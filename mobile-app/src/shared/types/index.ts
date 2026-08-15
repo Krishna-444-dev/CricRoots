@@ -18,6 +18,10 @@ export interface Player {
   battingStyle: 'Right-hand' | 'Left-hand';
   bowlingStyle: string;
   teams?: string[];
+  // Defaults to the literal string 'no-photo.jpg' (see backend/src/models/Player.js), not a
+  // real URL - most players in this app's real/simulated data don't have one, so screens should
+  // fall back to an initials avatar rather than loading this as an image when it's the default.
+  profilePicture?: string;
 }
 
 export interface Team {
@@ -208,8 +212,30 @@ export interface Tournament {
     awards: TournamentAwards;
   }[];
   houseRules?: string;
-  houseRulesDocument?: { url: string | null; fileName: string | null; uploadedAt: string | null };
+  // Document library (league rules, registration guide, captain guide, nomination sheet, etc.)
+  // - see backend/src/models/Tournament.js and getTournamentTeams/addTournamentDocument in
+  // tournamentController.js. Generalized from an earlier single houseRulesDocument slot.
+  documents?: TournamentDocument[];
   awards?: TournamentAwards;
+}
+
+export interface TournamentDocument {
+  _id: string;
+  url: string;
+  fileName: string;
+  category: string;
+  uploadedAt: string;
+}
+
+// Shape returned by GET /tournaments/:id/teams (getTournamentTeams) - a division's (or, for a
+// tournament with no divisions, the whole tournament's) teams with rosters populated.
+export interface RosterTeam {
+  _id: string;
+  name: string;
+  city?: string;
+  captain?: Player | null;
+  viceCaptain?: Player | null;
+  players: Player[];
 }
 
 export interface TournamentAwards {
