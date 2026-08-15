@@ -300,6 +300,25 @@ already collects — and unlike CricHeroes, none of it needs to sit behind a pay
   calls it until the viewer actually types something. Verified with a throwaway second league
   (different organizer, no roster relationship) confirmed excluded from "mine" but found via
   search, then deleted. Web and mobile both updated.
+- **AI-generated match summary** (`f5b0370`): a short natural-language recap, auto-generated once
+  a match completes and shown at the top of the match page's Info tab - the CricClubs "Summary"
+  behavior from the newest batch of match-page screenshots. Not an LLM call, same template/
+  phrase-bank convention as `commentaryGenerator.js`/the tactical advisor: reuses
+  `matchArticleGenerator.js`'s existing `computeMatchPerformances`/`pickHeroMoment` plus two newly
+  exported sentence-builders (`resultSentence`/`heroSentence`) so this and the tournament news
+  article read in the same voice instead of duplicating similar prose logic. Generated once
+  (`matchController.updateMatch` only fills it while `match.summary` is still empty) and stored
+  directly on `Match.summary`, unlike the tournament article which requires a `Tournament` and
+  writes a separate `NewsPost`. Live-verified via the real `PUT /api/matches/:id` completion flow.
+- **MVP tab** (`1a6c5a5`): new `GET /api/matches/:id/mvp` exposes the full per-match points
+  ranking (`computeMatchMVPPoints`, already existed for Man-of-the-Match selection, just wasn't
+  reachable as its own endpoint before). Web/mobile show it as a new tab, collapsed to the top 5
+  with the same "Show all" toggle pattern as Tournament Awards. Live-verified across 3 real
+  completed matches that the #1-ranked entry always matches `match.manOfTheMatch`.
+- **Squads section** (`3f32a47`): Info tab now shows both teams' rosters side by side (avatar,
+  name, role, captain/VC badges), fetched from the already-fully-populated `GET /api/teams/:id`
+  - no new backend work needed. Collapses to 5 players per team with a "Full Squad" toggle, same
+  pattern as MVP/Awards. Guarded against the confirmed-orphaned test match (null `team1`/`team2`).
 
 ### Backlog (not started, roughly in priority order)
 
