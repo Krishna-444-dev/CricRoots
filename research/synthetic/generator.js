@@ -66,6 +66,9 @@ const EFFECTIVENESS_SD = 0.4;
 const INTERACTION_SD = 0.6;
 const LINE_LENGTH_SD = 0.3;
 const RESPONSE_SD = 0.3;
+// World D- only: baseline boundary rate, matching the 2-in-8 boundary frequency of the original
+// uniform run distribution so the negative control's overall scoring stays comparable.
+const BOUNDARY_BASE_LOGIT = logit(0.25);
 
 /**
  * Builds a population: players with real-schema-shaped fields plus hidden ground-truth
@@ -87,8 +90,18 @@ const RESPONSE_SD = 0.3;
  * World B for the same seed, so Experiments 2-5 remain exactly reproducible.
  *   types: any of 'player' (V, E), 'interaction' (I), 'context' (LL)
  *   magnitude: multiplier m, expressed as a fraction of each term's own base SD
+ *
+ * `latentFactors` (default null, see world-d-design.md): "World D". When set to
+ * { K, sigmaPhi, mode }, draws a K-dimensional factor vector z_b per batter and a loading vector
+ * phi per (line,length) cell, so batters with similar z share a response PROFILE rather than just
+ * a level - the structure Worlds A/B lack entirely (D17).
+ *   mode 'target' = D+ : z_b . phi enters the dismissal logit
+ *   mode 'runs'   = D- : z_b . phi drives boundary-hitting instead, so the clusters are real and
+ *                        discoverable but carry NO information about the prediction target
+ * Drawn LAST, after drift, so any population built without it stays byte-identical to Worlds
+ * A/B/C for the same seed.
  */
-function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archetypeSignal = false, drift = null } = {}) {
+function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archetypeSignal = false, drift = null, latentFactors = null } = {}) {
   const rng = makeRng(seed);
 
   const batters = Array.from({ length: numBatters }, (_, i) => ({
@@ -178,6 +191,24 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archet
     }
   }
 
+  // World D latent factors - drawn LAST (world-d-design.md section 2). battingStyle was assigned
+  // far above and is independent of z by construction, so archetype and latent structure are
+  // genuinely different partitions - otherwise the benchmark would only be testing whether a
+  // method can rediscover a label we planted.
+  let latent;
+  if (latentFactors) {
+    const { K = 3, sigmaPhi = 0.22, mode = 'target' } = latentFactors;
+    const z = new Map();
+    for (const b of batters) z.set(b._id, Array.from({ length: K }, () => rng.normal(0, 1)));
+    const phi = new Map();
+    for (const line of LINES) {
+      for (const length of LENGTHS) {
+        phi.set(`${line}|${length}`, Array.from({ length: K }, () => rng.normal(0, sigmaPhi)));
+      }
+    }
+    latent = { K, sigmaPhi, mode, z, phi };
+  }
+
   // Index maps for O(1) entity lookup in trueProbability. Pure optimization - trueProbability
   // previously did a linear Array.find() per call, which is far too slow for the oracle table's
   // full enumeration once that table has to be rebuilt per distinct season time. Output is
@@ -187,8 +218,22 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archet
 
   return {
     batters, bowlers, interactions, lineLengthEffect, batterLineLengthResponse, archetypeEffect,
-    driftCoefficients, battersById, bowlersById, seed
+    driftCoefficients, latent, battersById, bowlersById, seed
   };
+}
+
+/** The World D latent contribution z_b . phi_{line,length}. Returns 0 for any population without
+ * latent factors, and for D- populations (mode 'runs') where the latent term drives scoring rather
+ * than dismissals - so every existing world is unaffected. */
+function latentTerm(population, batterId, line, length, forChannel) {
+  const L = population.latent;
+  if (!L || L.mode !== forChannel) return 0;
+  const z = L.z.get(batterId);
+  const phi = L.phi.get(`${line}|${length}`);
+  if (!z || !phi) return 0;
+  let s = 0;
+  for (let k = 0; k < z.length; k++) s += z[k] * phi[k];
+  return s;
 }
 
 /**
@@ -233,7 +278,8 @@ function trueProbability(population, batterId, bowlerId, line, length, t = 0) {
     ? population.archetypeEffect.get(`${batter.battingStyle}|${bowler.bowlingStyle}`) || 0
     : 0;
 
-  const logitP = BASE_RATE_LOGIT + vulnerability + effectiveness + interaction + lineLength + response + archetype;
+  const logitP = BASE_RATE_LOGIT + vulnerability + effectiveness + interaction + lineLength
+    + response + archetype + latentTerm(population, batterId, line, length, 'target');
   return sigmoid(logitP);
 }
 
@@ -397,7 +443,16 @@ function generateLeagueMatches({
       const length = rng.pick(LENGTHS);
       const pTrue = trueProbability(population, batter._id, bowler._id, line, length, t);
       const isWicket = rng.bernoulli(pTrue);
-      const runsThisBall = isWicket ? 0 : rng.pick([0, 0, 1, 1, 1, 2, 4, 6]);
+      // World D- (mode 'runs'): the latent factor drives BOUNDARY-HITTING rather than dismissals,
+      // so the behavioural clusters are real and discoverable from observed play while carrying no
+      // information about the prediction target. Returns 0 for every other world, leaving the
+      // original uniform pick exactly intact.
+      const scoringTilt = latentTerm(population, batter._id, line, length, 'runs');
+      const runsThisBall = isWicket
+        ? 0
+        : (scoringTilt !== 0 && rng.bernoulli(sigmoid(BOUNDARY_BASE_LOGIT + scoringTilt))
+          ? rng.pick([4, 6])
+          : rng.pick(scoringTilt !== 0 ? [0, 0, 1, 1, 1, 2] : [0, 0, 1, 1, 1, 2, 4, 6]));
       runs += runsThisBall;
       balls.push({
         ballNumber: i + 1,
@@ -451,5 +506,5 @@ function generateLeagueMatches({
 
 module.exports = {
   generatePopulation, trueProbability, generateMatches, generateLeagueMatches, generateFixtures,
-  makeRng, LINES, LENGTHS
+  makeRng, latentTerm, LINES, LENGTHS
 };

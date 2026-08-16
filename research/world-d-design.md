@@ -1,6 +1,7 @@
 # World D design proposal - a latent-factor benchmark for behavioural transfer
 
-**Status: PROPOSAL ONLY. No code. No experiments. Submitted for review.**
+**Status: APPROVED WITH ONE AMENDMENT (J2 split). Generators and validity gates implemented; NO
+method or baseline built, and none will be until the gates pass.**
 
 Builds a world in which behavioural transfer is **testable without being guaranteed**, per D17.
 Worlds A and B cannot test it — they contain no shared latent factors, so "behaviourally similar
@@ -67,6 +68,15 @@ line/length surface** — genuinely shareable structure, which is exactly what W
 measured after generation and **reported as measured**, whatever it comes to — exactly as World B's
 8.84% was.
 
+**Upper bound on strength, as important as the lower bound (review point).** The latent term must
+not be so strong that a handful of observations pins down `z_b`. If it were, the sparse-data regime
+this whole programme studies would evaporate — every method would identify players immediately and
+the benchmark would be measuring something else entirely. Targeting the same magnitude as the
+existing interaction (8.6%) and archetype (8.84%) terms keeps it in a range already demonstrated
+*not* to be trivially identifiable at this sparsity: Experiment 7 showed the joint model recovers
+archetype at correlation 0.81 and still gains nothing predictive from it. The realised share is
+reported alongside J1 so this can be checked rather than assumed.
+
 ---
 
 ## 3. World D− negative control
@@ -109,19 +119,38 @@ If these fail, the world is broken and no result from it means anything. Ordered
 > difference between same-style and different-style pairs. D+ must clearly separate. Also report
 > the realised latent variance share.
 
-**J2 — is the structure exploitable at all?** *(oracle upper bound)*
+**J2 — is the structure exploitable?** *(split into two questions, per review — they can diverge,
+and conflating them would discard a valuable result)*
+
+**J2a — does the latent factor carry useful information about the target at all?**
+> A predictor given **direct access to the true latent term** (`global` + `z_b · φ_{line,len}`) must
+> beat plain `global` on oracle MAE in D+. This asks whether D+ succeeded in creating predictively
+> useful structure. **If J2a fails, D+ is broken as a world** — the generator did not do its job —
+> and the direction dies for that reason, not because transfer is hard.
+
+**J2b — can that information be exploited by neighbourhood transfer at this sample size?**
 > An **oracle latent neighbourhood** — neighbours chosen by true `z` similarity — must beat `global`
-> on oracle MAE in D+. If perfect knowledge of the latent structure cannot beat a flat global rate
-> at this sparsity, the world still cannot test the question, exactly as Worlds A/B could not. **This
-> is the check that Worlds A/B failed** (oracle-similar 0.0642 vs global 0.0305), and it is the most
-> likely way World D also fails.
+> on oracle MAE in D+. This is the practical transfer question, and it is the check Worlds A/B
+> failed (oracle-similar 0.0642 vs global 0.0305).
+
+**Why the split matters.** These can diverge, and the divergence is informative rather than fatal:
+
+| J2a | J2b | Conclusion |
+|---|---|---|
+| fail | — | D+ failed to create useful structure. Redesign or abandon. Not a finding about transfer. |
+| pass | fail | **Latent information exists but sparse neighbourhood transfer is statistically inefficient.** A genuine, valuable negative result about the behavioural-transfer mechanism — the pooling variance cost exceeds the signal. Report it; do not build neighbourhood methods. |
+| pass | pass | The world can test the question. Proceed to baselines. |
+
+Under the old single-gate wording the middle row would have been recorded as "World D failed",
+discarding the most interesting outcome of the three.
 
 **J3 — does the negative control fire?**
 > The same oracle latent neighbourhood must **not** beat `global` in D−. If it does, the control is
 > broken and D− is not protecting anything.
 
-**J1, J2 and J3 must all pass before any similarity method is implemented.** A world that fails J2
-gets redesigned or abandoned; it does not get a method built on top of it.
+**J1, J2a, J2b and J3 must all pass before any similarity method is implemented.** A world that
+fails J2a gets redesigned or abandoned. A world that passes J2a but fails J2b yields the negative
+result in the table above and still gets no neighbourhood method built on top of it.
 
 ---
 
@@ -183,9 +212,13 @@ visible rather than avoidable.
 ## 8. Open questions for review
 
 1. **Is `K = 3` right?** Larger `K` makes the structure richer but harder to learn from ~14k balls,
-   and risks J2 failing for capacity reasons rather than structural ones.
-2. **Should the latent term also load on bowlers?** As specified only batters have `z`. Symmetric
-   latent structure on both sides is more realistic but doubles what must be learned.
+   and risks J2b failing for capacity reasons rather than structural ones.
+2. **Symmetric latent structure on bowlers (`z_b^T M z_w`) — DEFERRED, not rejected.** It is the
+   more general and more interesting problem, and closer to the cross-domain formulation ("can
+   sparse observations infer which entities are structurally similar and transfer through that
+   latent geometry?"). Deferred on the review's own reasoning: the first D+ should stay
+   interpretable, and a bilinear term doubles what must be learned while J2b is already the most
+   likely failure point. Revisit only if D+ passes its gates.
 3. **Is the D− channel choice right?** Driving run-scoring is realistic and discoverable, but our
    run model is currently crude. An alternative is a latent term on a genuinely separate observable
    we would have to invent — probably worse.
