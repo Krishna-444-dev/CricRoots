@@ -144,9 +144,23 @@ Primary:
 Secondary: overall oracle MAE, Brier, log loss, Spearman, decile calibration, selected `K`,
 restart spread, and the same suite in **D−** as the negative control.
 
-Reference points, both already available: `global` (0.036253 in D+) and the **J2a oracle**
-(0.034058) — the latter is the ceiling. Reporting what fraction of the available 0.002195 the model
-captures is more informative than an unanchored delta.
+**Reference points — corrected before results, see below.** `global` (0.036253 in D+) and the J2a
+oracle instrument (0.034058).
+
+**Correction (made mid-run, from arm A's intermediate value; no criterion changed).** An earlier
+version of this section called the J2a oracle "the ceiling" and proposed reporting what fraction of
+the available 0.002195 a model captures. That is wrong. Arm A — the existing joint model, with **no
+latent term at all** — scores **0.027018** on the identical test rows (same population, league, and
+split seeds; verified). It already beats the supposed ceiling by ~4x the entire gap J2a measured.
+
+The J2a instrument is `global` + the true latent term, so it is a ceiling **only for global-based
+predictors**. The joint model's free per-player effects capture substantially more than
+global-plus-perfect-latent-knowledge does. Treating 0.034058 as a ceiling, or 0.002195 as the
+available headroom, would badly misread arms B and C.
+
+**No criterion is affected**: L1, L2 and L3 all compare arms against **arm A** and across worlds,
+never against the J2a instrument. Only this section's framing was wrong, and it is fixed here rather
+than after seeing the arms it would have distorted.
 
 ---
 
