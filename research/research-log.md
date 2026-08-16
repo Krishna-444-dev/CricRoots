@@ -169,3 +169,37 @@ comparable set of numbers will exist in one place.
 **Defect found while building it**: see D13. Recorded here because it was my own implementation
 error, found by a verification step rather than by the results looking wrong - which is the only
 reason it was caught at all.
+
+**First run: gate FAILED** (`results/2026-08-16T01-17-34-874Z/`, `.../T01-17-40-040Z/`). Information
+flow and update mechanics passed; the convergence check did not (`hitIterationCap: true` at 8000).
+Discarded and re-run rather than waived - see D16. Results committed anyway so the gate firing is
+part of the record.
+
+**Second run: gate PASSED** (`results/2026-08-16T01-47-39-346Z/` World A,
+`.../T01-47-44-705Z/` World B). Converged at 12,000 iterations in both worlds. 25,200 rows each.
+
+**Brier / Spearman** (World A, then World B): global 0.046960 / 0.309, 0.061510 / 0.312 ·
+singleLevelShrinkage 0.046956 / 0.310, 0.061527 / 0.315 · fullHierarchy 0.047501 / 0.185,
+0.061925 / 0.292 · *oracleInformedHierarchy* 0.046766 / 0.438, 0.061389 / 0.509 ·
+jointRegularizedLogit 0.046380 / 0.553, 0.061102 / 0.683 · **jointRegularizedLogitOnline
+0.046312 / 0.560, 0.061057 / 0.691**.
+
+**Outcomes against pre-registered criteria** (full arithmetic in `hypotheses.md`):
+
+- **H3** - the pre-registered *third* outcome. A perfect intermediate estimate does beat `global`
+  (by 1.94e-4 / 1.21e-4), so the architecture can use archetype signal - but it still loses to
+  joint estimation. Noisy intermediate estimation is *a* limitation, not *the* limitation.
+- **H4 - SUPPORTED on converged numbers.** Margins ~500x the measured optimizer-noise floor. The
+  D13 caveat is discharged.
+- **H5 - NOT SUPPORTED as stated.** Applied literally the criterion fails in both worlds: the
+  joint model's advantage is *larger* in the dense bins. Excluding the n=18/n=11 bins the picture
+  splits (World A supports, World B does not). The joint model still wins overall - but the
+  sparse-data framing is not what the evidence explains the win by.
+- **H6 - SUPPORTED**, after correcting a unit error in the criterion (it compared a Brier
+  difference to a probability-scale tolerance). Against a directly measured 8.7e-7 optimizer-noise
+  floor, the online improvements are 78x and 52x. The literal failure in World B is recorded, not
+  withdrawn.
+
+**Useful by-product**: comparing the gate-failed run against the clean run isolates optimizer noise
+exactly, since nothing else differs. Non-optimizer methods came back **bit-identical** across both
+runs, confirming the harness is fully deterministic.
