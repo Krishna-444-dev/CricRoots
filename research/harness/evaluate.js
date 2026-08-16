@@ -26,7 +26,11 @@ const path = require('path');
 const { generatePopulation, generateLeagueMatches, trueProbability, makeRng } = require('../synthetic/generator');
 const baselines = require('../baselines');
 const { buildOracleArchetypeTable } = require('../oracles');
-const { fitWithCrossValidatedLambda } = require('../models/regularizedHierarchicalLogit');
+const { fitWithCrossValidatedLambda, createOnlineModel } = require('../models/regularizedHierarchicalLogit');
+
+// Fixed by research/models/online-fidelity-check.js on agreement with a fully converged cold
+// refit (worst case 1.4e-5 mean / 5.7e-5 max prediction difference), never by downstream results.
+const ONLINE_ITERATIONS_PER_BALL = 100;
 
 const Player = require(path.join(__dirname, '..', '..', 'backend', 'src', 'models', 'Player'));
 const Match = require(path.join(__dirname, '..', '..', 'backend', 'src', 'models', 'Match'));
@@ -125,6 +129,17 @@ const HISTORICAL_METHODS = {
     line: l,
     length: n
   }),
+  // Experiment 5 - same model class, but continuously updated from this match's revealed balls,
+  // so it sees exactly the information the database-querying methods see (research/
+  // experiment-5-design.md). ctx.onlineModel is rebuilt per test match; see the reset below.
+  jointRegularizedLogitOnline: async (b, w, l, n, playerLookup, ctx) => ctx.onlineModel.predict({
+    batterId: ctx.batsmanIdStr,
+    bowlerId: ctx.bowlerIdStr,
+    battingStyle: ctx.battingStyle,
+    bowlingStyle: ctx.bowlingStyle,
+    line: l,
+    length: n
+  }),
   fullHierarchy: (b, w, l, n) => baselines.fullHierarchy(b, w, l, n)
 };
 
@@ -214,6 +229,18 @@ async function runExperiment({
 
   for (let matchIdx = 0; matchIdx < testMatches.length; matchIdx++) {
     const testMatch = testMatches[matchIdx];
+    // Fresh online model per test match, rebuilt from a deep copy of the training-only base fit.
+    // This is the model-side equivalent of deleting the test match document below: without it, a
+    // (batter, bowler) interaction coefficient learned during one held-out match would leak into
+    // the next one. Optimizer state and design index extensions are reset with it.
+    const onlineModel = createOnlineModel({
+      baseParams: jointModel.params,
+      baseDesign: jointModel.design,
+      baseEncoded: jointModel.design.encoded,
+      lambda: jointModel.chosenLambda,
+      lambdaInteraction: jointModel.chosenLambdaInteraction,
+      onlineIterations: ONLINE_ITERATIONS_PER_BALL
+    });
     // Fresh, empty test-match document for this match only - inserted incrementally below.
     const testDoc = toMatchDoc(testMatch, idMap, rng);
     const emptyInnings = testDoc.innings.map((inn) => ({ ...inn, balls: [] }));
@@ -241,6 +268,7 @@ async function runExperiment({
           const ctx = {
             oracleTable,
             jointModel,
+            onlineModel,
             batsmanIdStr,
             bowlerIdStr,
             battingStyle: batterById.get(batsmanIdStr).battingStyle,
@@ -277,6 +305,17 @@ async function runExperiment({
           { _id: created._id },
           { $push: { [`innings.${inningsIdx}.balls`]: ball } }
         );
+        // The online model absorbs the ball at the SAME instant the database does - one reveal
+        // point for every method, so no method sees an observation before any other does.
+        onlineModel.observe({
+          batterId: batsmanIdStr,
+          bowlerId: bowlerIdStr,
+          battingStyle: batterById.get(batsmanIdStr).battingStyle,
+          bowlingStyle: bowlerById.get(bowlerIdStr).bowlingStyle,
+          line: ball.line,
+          length: ball.length,
+          isWicket: ball.isWicket
+        });
         globalBallCounter++;
       }
     }
@@ -296,7 +335,12 @@ async function runExperiment({
       jointModel: {
         chosenLambda: jointModel.chosenLambda,
         cvResults: jointModel.cvResults,
-        trainingRowCount: jointModel.trainingRowCount
+        trainingRowCount: jointModel.trainingRowCount,
+        // Recorded so a non-converged fit is visible in the results file rather than silent - the
+        // exact failure that made Experiment 4's numbers untrustworthy.
+        finalFitIterations: jointModel.finalFitIterations,
+        hitIterationCap: jointModel.hitIterationCap,
+        onlineIterationsPerBall: ONLINE_ITERATIONS_PER_BALL
       }
     }
   };
