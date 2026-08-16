@@ -406,8 +406,8 @@ this sparsity regardless of how well the neighbourhood is chosen.
 
 **This is a finding about the mechanism, not the simulator** - the distinction that D17 required.
 J1 and J2a establish the world is sound; the mechanism still failed inside it. No learned
-similarity method can beat the oracle it approximates, so this closes the direction rather than
-inviting a better similarity metric.
+similarity method can beat the oracle it approximates, so a better similarity *metric* would not
+rescue this mechanism.
 
 ---
 
@@ -477,3 +477,24 @@ confidence-like proxy must be built from *data* resampling, not optimiser restar
 **Falsification criterion**: preregistered in `experiment-9-design.md` §5, and gated on the label
 reliability check in §2 — if per-entity utility cannot be measured reliably, H13 is untestable at
 that volume and no proxy result from it means anything.
+
+---
+
+## Scope of the closures — what was killed, and what was not
+
+Added because several closure notes above were written more broadly than the evidence supports.
+**A refuted hypothesis is not a closed research area.** Recording the distinction explicitly so a
+later reader — or a later version of me — does not treat these as settled territory.
+
+| Closed | NOT closed |
+|---|---|
+| **H11** — pooling evidence over a *discrete neighbourhood* of similar entities, at this sparsity. Oracle neighbourhoods lost to global at every pool size, so a better similarity metric cannot rescue it. | Behavioural similarity used some *other* way — as a regularizer, a prior, or a structure on the parameter space rather than a set to average over. Untested. |
+| **H12** — a low-rank bilinear term selected by global CV, below ~325-649 balls/batter. | Contextual player representation in general; the same term is genuinely useful *above* that threshold (+1.03e-3, r=0.562). Also untested: any non-bilinear form. |
+| **H9** — nested-pool contamination as *the explanation* for the hierarchy's deficit. | Hierarchical modelling as an approach. The contamination is real and measurable; it just does not explain the performance gap. |
+| **H2** — archetype irrelevance as a *complete* explanation. | Archetype as a useful level. The oracle archetype beats global; the empirical estimator is what fails. |
+| **H13** — testability at 81 balls/batter, because the target is unmeasurable there. | Evidence-adaptive modelling as an idea. It is testable at 325+ and has simply not been tested. |
+
+**The pattern worth noticing**: every closure above is bounded by *the sparsity regime* or *the
+specific mechanism tried*, never by the underlying question. What has actually been established is
+narrower and more useful than a list of dead ends — it is a map of which mechanisms fail, and at
+what evidence volume they stop failing.
