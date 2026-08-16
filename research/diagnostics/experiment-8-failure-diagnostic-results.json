@@ -1,0 +1,235 @@
+{
+  "generatedAt": "2026-08-16T15:39:43.874Z",
+  "rows": [
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 2,
+      "balls": 16800,
+      "perBatter": 95.45454545454545,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 20,
+      "r": -0.0197468432789441,
+      "iterations": 3600,
+      "sdFit": 1.3309425801065738e-9,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 2,
+      "balls": 16800,
+      "perBatter": 95.45454545454545,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 5,
+      "r": 0.11560863347433918,
+      "iterations": 3400,
+      "sdFit": 0.21414107628690116,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 2,
+      "balls": 16800,
+      "perBatter": 95.45454545454545,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 1,
+      "r": 0.10634845087759014,
+      "iterations": 3600,
+      "sdFit": 1.109977938706454,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 8,
+      "balls": 67200,
+      "perBatter": 381.8181818181818,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 20,
+      "r": 0,
+      "iterations": 6000,
+      "sdFit": 0,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 8,
+      "balls": 67200,
+      "perBatter": 381.8181818181818,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 5,
+      "r": 0.45343727302043113,
+      "iterations": 6000,
+      "sdFit": 0.356926003734274,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 8,
+      "balls": 67200,
+      "perBatter": 381.8181818181818,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 1,
+      "r": 0.41482819452648767,
+      "iterations": 6000,
+      "sdFit": 0.6099220177264499,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 32,
+      "balls": 268800,
+      "perBatter": 1527.2727272727273,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 20,
+      "r": 0.8220308729521042,
+      "iterations": 8800,
+      "sdFit": 0.21326532304657322,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 32,
+      "balls": 268800,
+      "perBatter": 1527.2727272727273,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 5,
+      "r": 0.834922371413152,
+      "iterations": 8800,
+      "sdFit": 0.3817993867230659,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "full (as Exp 8)",
+      "rounds": 32,
+      "balls": 268800,
+      "perBatter": 1527.2727272727273,
+      "latentShare": 0.19104515808403771,
+      "lambdaLowRank": 1,
+      "r": 0.8349984423701878,
+      "iterations": 8800,
+      "sdFit": 0.4371999017749458,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 2,
+      "balls": 16800,
+      "perBatter": 95.45454545454545,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 20,
+      "r": -0.005684143177658959,
+      "iterations": 3200,
+      "sdFit": 2.2768176610702434e-9,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 2,
+      "balls": 16800,
+      "perBatter": 95.45454545454545,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 5,
+      "r": 0.07451085267383821,
+      "iterations": 3400,
+      "sdFit": 0.23102294157355807,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 2,
+      "balls": 16800,
+      "perBatter": 95.45454545454545,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 1,
+      "r": 0.06119960836908627,
+      "iterations": 3600,
+      "sdFit": 1.1469912963602795,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 8,
+      "balls": 67198,
+      "perBatter": 381.8068181818182,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 20,
+      "r": 0,
+      "iterations": 6000,
+      "sdFit": 0,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 8,
+      "balls": 67198,
+      "perBatter": 381.8068181818182,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 5,
+      "r": 0.31876819889592245,
+      "iterations": 6000,
+      "sdFit": 0.37492783525591633,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 8,
+      "balls": 67198,
+      "perBatter": 381.8068181818182,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 1,
+      "r": 0.27753719439027413,
+      "iterations": 6000,
+      "sdFit": 0.6389404240440126,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 32,
+      "balls": 268800,
+      "perBatter": 1527.2727272727273,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 20,
+      "r": 0.8192089031094064,
+      "iterations": 9000,
+      "sdFit": 0.20648646459912595,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 32,
+      "balls": 268800,
+      "perBatter": 1527.2727272727273,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 5,
+      "r": 0.8345712887023434,
+      "iterations": 9000,
+      "sdFit": 0.37609484156611606,
+      "sdTrue": 0.37427488926164915
+    },
+    {
+      "noise": "I and R suppressed",
+      "rounds": 32,
+      "balls": 268800,
+      "perBatter": 1527.2727272727273,
+      "latentShare": 0.20726466077738168,
+      "lambdaLowRank": 1,
+      "r": 0.8335151110401905,
+      "iterations": 9000,
+      "sdFit": 0.4346914961724515,
+      "sdTrue": 0.37427488926164915
+    }
+  ],
+  "kSelection": [
+    {
+      "rounds": 2,
+      "balls": 16800,
+      "K": 8,
+      "lambdaLowRank": 20
+    },
+    {
+      "rounds": 8,
+      "balls": 67200,
+      "K": 5,
+      "lambdaLowRank": 20
+    }
+  ]
+}
