@@ -274,3 +274,67 @@ Two distinct evaluation hazards, both discovered rather than anticipated:
    a base-rate component unrelated to model deterioration. **Consequence adopted for all future
    experiments: oracle MAE, not Brier, is the primary instrument when the test distribution itself
    changes between runs.**
+
+---
+
+## Experiments 8-9 arc - CLOSED. What is estimable about an individual, and at what scale
+
+Full chain: `experiment-8-design.md`, `world-d-design.md`, `experiment-9-design.md`, and the
+diagnostics in `diagnostics/` (failure, adoption curve, per-entity, M1 gate).
+
+### The central distinction, which the headline numbers obscure
+
+"Can CricRoots personalise at 81 balls/batter?" has **two different answers** depending on what
+kind of personalisation is meant, and conflating them would misstate the result badly.
+
+| Per-entity component | Worth at 81 balls/batter (World D+, oracle MAE) |
+|---|---|
+| **Scalar batter/bowler effects** | `global` 0.036253 -> `A_joint` 0.027018 — **0.009235, a 25.5% reduction** |
+| **Context-dependent latent representation** | `A_joint` 0.027018 -> `B_lowRank` 0.027019 — **−0.000001, nothing** |
+
+So individual-level modelling is **not** beyond reach at this scale. A per-player *level* is
+estimable and is the single most valuable component in the model — removing per-player terms was
+the largest degradation measured anywhere in the programme (+4.91e-3, roughly 40x any other
+ablation). What is beyond reach is the richer claim: *how this particular batter responds across
+specific contexts*.
+
+**The defensible product statement is therefore narrow and specific**: CricRoots can say how
+vulnerable a batter is in general. It cannot yet say, on individual evidence, how that batter
+responds to a particular line and length — and at 81 balls/batter it cannot even *measure* whether
+such a claim would help.
+
+### Three thresholds, independently measured, landing in the same regime
+
+| Question | Threshold |
+|---|---|
+| When does the latent representation become worth activating? | between **325 and 649** balls/batter (adoption curve; CV switches penalty, benefit +1.03e-3) |
+| When does per-entity utility become *measurable*? | reliability −0.11 at 81, **0.64 at 325**, 0.95 at 1298 (M1 gate) |
+| When does the representation become recoverable at all? | r_latent 0.12 / 0.45 / 0.84 at 95 / 382 / 1527 (failure diagnostic) |
+
+CricRoots operates at ~81. **Below all three.** These numbers are properties of this experimental
+environment and must not be quoted as universal constants.
+
+### What was refuted along the way
+
+- **H11** behavioural-neighbourhood transfer — refuted with oracle neighbourhoods, under conditions
+  maximally favourable to it.
+- **H12** low-rank joint estimation — unsupported at this sparsity; supported above the threshold.
+- **H13** observable evidence quality — **untestable at 81 balls/batter**, because the target
+  variable itself is unmeasurable there. Testable at 325+.
+
+### The methodological result, which may outlast the cricket one
+
+Three separate times, a question turned out to be unanswerable in the environment where it was
+asked — Experiment 1's sparsity distribution, Worlds A/B's absent latent structure, and now M1's
+unmeasurable target. Each would have produced a confident, wrong, negative conclusion about a
+*method*. The M1 gate is the first of the three that was caught **before** the effort was spent
+rather than after.
+
+**Standing rule adopted from this**: before testing whether X predicts Y, establish that Y is
+measurable in the regime being tested.
+
+### What was NOT concluded
+
+That personalisation is impossible, that the joint model should be replaced, or that any algorithm
+should be built. The open question is a product one and is deliberately left open here: what should
+a system deliver when individual-level evidence supports a scalar claim but not a contextual one?
