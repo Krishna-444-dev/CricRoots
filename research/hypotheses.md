@@ -162,8 +162,13 @@ designed, and this experiment must not be described as answering it.
 
 > A model that keeps learning as a match unfolds beats the same model fit once beforehand.
 
-**Status: SUPPORTED** (Experiment 5) - but only after correcting a unit error in the criterion
-below, which is documented rather than quietly fixed.
+**Status: PROVISIONALLY SUPPORTED under a corrected, post-audit noise floor - while the
+preregistered criterion itself FAILED in World B** (Experiment 5).
+
+This qualification is permanent and travels with H6 wherever it is cited. The replacement noise
+floor is scientifically sound and built from measurements that already existed, but it was
+conceived *after* seeing the result. It is therefore not preregistered evidence, and H6 must not
+be restated as plain "supported" on the strength of it.
 
 **Falsification criterion** (pre-registered in `experiment-5-design.md` before the run): H6 is
 unsupported if `jointRegularizedLogitOnline`'s Brier is not lower than `jointRegularizedLogit`'s by
