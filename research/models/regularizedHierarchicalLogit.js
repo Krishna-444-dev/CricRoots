@@ -86,10 +86,15 @@ function penalizedObjective(encoded, params, lambda, lambdaInteraction) {
  *  2. Stopping on relative improvement in the penalized objective rather than a fixed count, with
  *     iterationsRun reported so a run that hit the cap instead of converging is visible in the
  *     results file rather than invisible.
+ *
+ * maxIterations default (24000) is set well above the measured convergence point on the real
+ * experiment data (12000 iterations, verified as a genuine fixed point: caps of 24000 and 48000
+ * both stop at 12000 and produce bit-identical predictions). An earlier 8000 default truncated
+ * the fit - see decision D16.
  */
 function fit(encoded, sizes, {
   lambda, lambdaInteraction, learningRate = 0.05,
-  maxIterations = 8000, tolerance = 1e-8, checkEvery = 200, decayScale = 500
+  maxIterations = 24000, tolerance = 1e-8, checkEvery = 200, decayScale = 500
 }) {
   const params = {
     mu: 0,
@@ -222,7 +227,7 @@ function fitWithCrossValidatedLambda(rows, {
   lambdaGrid = [1, 5, 20, 100],
   interactionPenaltyMultiplier = 4, // a priori structural choice - interaction has by far the most parameters per observation
   folds = 3,
-  maxIterations = 8000,
+  maxIterations = 24000,
   tolerance = 1e-8,
   learningRate = 0.05
 } = {}) {

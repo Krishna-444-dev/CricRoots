@@ -241,3 +241,37 @@ parameters, base design maps, and fresh optimizer state.
 **Why**: without it, a `(batter, bowler)` interaction coefficient learned during one held-out match
 would carry into the next - the model-side equivalent of the cross-match leakage the harness
 already prevents by deleting each test match document after evaluating it.
+
+---
+
+## D16 - The verification gate failed on Experiment 5's first run; results discarded and re-run
+
+**Date**: 2026-08-16 · **Superseded results**: `results/2026-08-16T01-17-34-874Z/` (World A),
+`results/2026-08-16T01-17-40-040Z/` (World B)
+
+**What happened**: `research/diagnostics/verify-information-flow.js` was run before looking at any
+score, per the agreed review order. Every information-flow and update-mechanics check passed - the
+per-match reset was exact (36 test-match starts, 0 violations, max deviation 0.00e+0), updates
+demonstrably occurred (98.9% / 98.8% of post-evidence checkpoints moved more than the fidelity
+tolerance), and divergence grew with accumulated evidence. But the convergence check **failed in
+both worlds**: `hitIterationCap: true`, `finalFitIterations: 8000`.
+
+**Measured impact**: the `maxIterations = 8000` cap set in D13 was simply too low. On the exact
+experiment data the fit converges at **12,000** iterations, and that is a genuine fixed point -
+caps of 24,000 and 48,000 both stop at 12,000 and produce **bit-identical** predictions. The
+truncated 8,000-iteration fit differs from the converged one by mean 9.6e-6 / max 8.0e-5 in
+probability, which propagates to roughly 1e-6 in Brier: about **500x smaller** than the ~5e-4
+differences between methods.
+
+**Decision: discard and re-run anyway.** The measured impact is almost certainly immaterial, and
+that is precisely the argument that must not be allowed to carry. A gate that gets waived the
+first time it fires on grounds of "I measured it and it is probably fine" is not a gate. The fix
+is cheap (raise the cap; the fit then converges on its own at 12,000), so there is no real tension
+between rigour and cost here.
+
+**Also recorded**: the failed run's raw results are committed rather than deleted, so the gate
+firing is part of the record and not just a claim in this file.
+
+**Change made**: `maxIterations` default raised from 8,000 to 24,000 in both `fit` and
+`fitWithCrossValidatedLambda`. No tolerance, learning rate, decay schedule, online budget, or any
+other parameter was touched - and no experimental score was consulted in making the change.
