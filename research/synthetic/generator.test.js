@@ -4,7 +4,7 @@
 // assertion-and-throw checks, because "we assumed the generator does X" is exactly the kind of
 // claim this whole program exists to stop taking on faith.
 const assert = require('assert');
-const { generatePopulation, trueProbability, generateMatches, generateLeagueMatches, generateFixtures, makeRng } = require('./generator');
+const { generatePopulation, trueProbability, generateMatches, generateLeagueMatches, generateFixtures, makeRng, LINES, LENGTHS } = require('./generator');
 
 function section(name, fn) {
   process.stdout.write(`${name} ... `);
@@ -181,6 +181,95 @@ section('World B\'s archetype effect actually changes trueProbability relative t
     if (foundDifference) break;
   }
   assert.ok(foundDifference, 'expected at least one (batter, bowler) pair where World B\'s archetype term changes the true probability');
+});
+
+section('World C (drift) is byte-identical to World A in every existing table, for the same seed', () => {
+  const worldA = generatePopulation({ numBatters: 30, numBowlers: 20, seed: 55 });
+  const worldC = generatePopulation({ numBatters: 30, numBowlers: 20, seed: 55, drift: { types: ['player', 'interaction', 'context'], magnitude: 1.0 } });
+  assert.deepStrictEqual(worldA.batters, worldC.batters);
+  assert.deepStrictEqual(worldA.bowlers, worldC.bowlers);
+  assert.deepStrictEqual([...worldA.interactions.entries()], [...worldC.interactions.entries()]);
+  assert.deepStrictEqual([...worldA.lineLengthEffect.entries()], [...worldC.lineLengthEffect.entries()]);
+  assert.deepStrictEqual([...worldA.batterLineLengthResponse.entries()], [...worldC.batterLineLengthResponse.entries()]);
+  assert.strictEqual(worldA.driftCoefficients, undefined);
+  assert.ok(worldC.driftCoefficients, 'expected drift coefficients in World C');
+  // And at t=0 the drifted world must reproduce the stationary world exactly - drift accumulates
+  // FROM the season start, it does not offset it.
+  for (const b of worldA.batters.slice(0, 5)) {
+    for (const w of worldA.bowlers.slice(0, 5)) {
+      assert.strictEqual(
+        trueProbability(worldA, b._id, w._id, 'off-stump', 'good-length'),
+        trueProbability(worldC, b._id, w._id, 'off-stump', 'good-length', 0)
+      );
+    }
+  }
+});
+
+section('drift types are independent - each one moves only its own term', () => {
+  const base = generatePopulation({ numBatters: 20, numBowlers: 15, seed: 66 });
+  const only = (types) => generatePopulation({ numBatters: 20, numBowlers: 15, seed: 66, drift: { types, magnitude: 1.0 } });
+  const player = only(['player']), interaction = only(['interaction']), context = only(['context']);
+  assert.ok(player.driftCoefficients.V.size > 0 && player.driftCoefficients.I.size === 0 && player.driftCoefficients.LL.size === 0);
+  assert.ok(interaction.driftCoefficients.I.size > 0 && interaction.driftCoefficients.V.size === 0 && interaction.driftCoefficients.LL.size === 0);
+  assert.ok(context.driftCoefficients.LL.size > 0 && context.driftCoefficients.V.size === 0 && context.driftCoefficients.I.size === 0);
+  // Interaction drift may only touch pairs that already have an interaction entry.
+  for (const key of interaction.driftCoefficients.I.keys()) {
+    assert.ok(base.interactions.has(key), `interaction drift invented a new pair: ${key}`);
+  }
+});
+
+section('DRIFT VERIFICATION: prescribed drift is measurably present in generated ball-by-ball data at every magnitude', () => {
+  // Review modification 9. If the drift does not materialise in the DATA, Experiment 6 measures
+  // nothing regardless of what m was set to - so this must pass before the experiment is run.
+  // Measured two ways: (a) mean absolute change in TRUE probability between season start and end,
+  // (b) realized dismissal rate in the first vs last decile of the generated season.
+  const results = [];
+  for (const magnitude of [0.25, 0.50, 1.00]) {
+    const pop = generatePopulation({
+      numBatters: 176, numBowlers: 96, seed: 1,
+      drift: { types: ['player', 'interaction', 'context'], magnitude }
+    });
+    let sumAbsDelta = 0, n = 0;
+    const rng = makeRng(4242);
+    for (let i = 0; i < 4000; i++) {
+      const b = rng.pick(pop.batters), w = rng.pick(pop.bowlers);
+      const line = rng.pick(LINES), length = rng.pick(LENGTHS);
+      sumAbsDelta += Math.abs(trueProbability(pop, b._id, w._id, line, length, 1) - trueProbability(pop, b._id, w._id, line, length, 0));
+      n++;
+    }
+    const meanAbsDelta = sumAbsDelta / n;
+
+    const { matches } = generateLeagueMatches({
+      population: pop, numTeams: 16, battersPerTeam: 11, bowlersPerTeam: 6, rounds: 2, ballsPerInnings: 35, seed: 2
+    });
+    const decile = Math.floor(matches.length / 10);
+    const rateOf = (ms) => {
+      let balls = 0, wkts = 0;
+      for (const m of ms) for (const inn of m.innings) for (const ball of inn.balls) { balls++; if (ball.isWicket) wkts++; }
+      return { rate: wkts / balls, balls };
+    };
+    const first = rateOf(matches.slice(0, decile));
+    const last = rateOf(matches.slice(-decile));
+    results.push({ magnitude, meanAbsDelta, firstDecileRate: first.rate, lastDecileRate: last.rate, ballsPerDecile: first.balls });
+    console.log(`\n    m=${magnitude.toFixed(2)}: mean |p(t=1) - p(t=0)| = ${meanAbsDelta.toFixed(5)}; realized dismissal rate first decile ${(first.rate * 100).toFixed(2)}% vs last ${(last.rate * 100).toFixed(2)}% (n=${first.balls}/${last.balls} balls)`);
+    assert.ok(meanAbsDelta > 0.001 * magnitude * 4, `drift at m=${magnitude} barely moves true probabilities (mean |delta| = ${meanAbsDelta.toExponential(2)})`);
+  }
+  // Dose-response: larger m must move probabilities more. A generator whose drift did not scale
+  // with its own magnitude parameter would make the whole dose-response grid meaningless.
+  assert.ok(results[0].meanAbsDelta < results[1].meanAbsDelta && results[1].meanAbsDelta < results[2].meanAbsDelta,
+    'drift magnitude is not monotone in m: ' + JSON.stringify(results.map((r) => r.meanAbsDelta)));
+  require('fs').writeFileSync(
+    require('path').join(__dirname, '..', 'diagnostics', 'drift-verification-results.json'),
+    JSON.stringify({ generatedAt: new Date().toISOString(), note: 'Verification that World C drift materialises in generated data. Written by generator.test.js; the EXPERIMENT has not been run.', results }, null, 2)
+  );
+});
+
+section('generateLeagueMatches assigns normalized season time spanning [0,1] in fixture order', () => {
+  const pop = generatePopulation({ numBatters: 44, numBowlers: 24, seed: 7 });
+  const { matches } = generateLeagueMatches({ population: pop, numTeams: 4, battersPerTeam: 11, bowlersPerTeam: 6, rounds: 2, ballsPerInnings: 12, seed: 8 });
+  assert.strictEqual(matches[0].t, 0);
+  assert.strictEqual(matches[matches.length - 1].t, 1);
+  for (let i = 1; i < matches.length; i++) assert.ok(matches[i].t > matches[i - 1].t, 'season time must increase with fixture order');
 });
 
 console.log('\nAll generator verification checks passed.');

@@ -180,11 +180,14 @@ async function runExperiment({
   numTeams = 16, battersPerTeam = 11, bowlersPerTeam = 6, rounds = 2, populationSeed = 1,
   testFraction = 0.15, ballsPerInnings = 35, matchSeed = 2, splitSeed = 3,
   checkpointStride = 1, // evaluate every Nth ball within a test match; 1 = every ball
-  archetypeSignal = false // World B (research/synthetic/world-b-design.md) when true; World A (default) otherwise
+  archetypeSignal = false, // World B (research/synthetic/world-b-design.md) when true; World A (default) otherwise
+  drift = null, // World C (research/experiment-6-design.md) - { types: [...], magnitude: m }
+  splitMode = 'random' // 'random' = Experiments 2-5; 'temporal' = required under drift, see below
 } = {}) {
   const rng = makeRng(splitSeed);
   const population = generatePopulation({
-    numBatters: numTeams * battersPerTeam, numBowlers: numTeams * bowlersPerTeam, seed: populationSeed, archetypeSignal
+    numBatters: numTeams * battersPerTeam, numBowlers: numTeams * bowlersPerTeam, seed: populationSeed,
+    archetypeSignal, drift
   });
   // See research/synthetic/league-design.md for why match generation is fixture-based (a
   // realistic double round-robin across numTeams teams) rather than a fixed pair of teams
@@ -195,11 +198,22 @@ async function runExperiment({
     population, numTeams, battersPerTeam, bowlersPerTeam, rounds, ballsPerInnings, seed: matchSeed
   });
 
-  const shuffled = seededShuffle(matches, splitSeed);
+  // Split mode matters under drift. A random split would train on matches from AFTER the test
+  // period, leaking the future regime - so World C runs require splitMode:'temporal', which trains
+  // on the first (1-testFraction) of the season in fixture order and tests on the tail. The random
+  // mode is retained unchanged so Experiments 2-5 stay exactly reproducible, and so C0a can
+  // measure the split's own contribution independently of drift (experiment-6-design.md section 3).
   const numTestMatches = Math.round(matches.length * testFraction);
   const numTrainMatches = matches.length - numTestMatches;
-  const trainMatches = shuffled.slice(0, numTrainMatches);
-  const testMatches = shuffled.slice(numTrainMatches, numTrainMatches + numTestMatches);
+  if (splitMode !== 'random' && splitMode !== 'temporal') {
+    throw new Error(`Unknown splitMode: ${splitMode}`);
+  }
+  if (drift && splitMode !== 'temporal') {
+    throw new Error('World C (drift) requires splitMode:"temporal" - a random split leaks the post-test regime into training');
+  }
+  const ordered = splitMode === 'temporal' ? matches : seededShuffle(matches, splitSeed);
+  const trainMatches = ordered.slice(0, numTrainMatches);
+  const testMatches = ordered.slice(numTrainMatches, numTrainMatches + numTestMatches);
 
   const idMap = await seedPlayers(population, rng);
 
@@ -213,9 +227,16 @@ async function runExperiment({
   const trainDocs = trainMatches.map((m) => toMatchDoc(m, idMap, rng));
   await Match.insertMany(trainDocs);
 
-  // Experiment 4 instruments, both built once here rather than per checkpoint (see
-  // research/experiment-4-design.md).
-  const oracleTable = buildOracleArchetypeTable(population);
+  // Experiment 4 instruments, built once here rather than per checkpoint (see
+  // research/experiment-4-design.md). Under World C drift the oracle is time-dependent, so tables
+  // are built per distinct season time and cached - one per test match, since every ball in a
+  // match shares its match's t. Without drift every t maps to the same table.
+  const oracleTableCache = new Map();
+  const oracleTableAt = (t) => {
+    const key = population.driftCoefficients ? t : 0;
+    if (!oracleTableCache.has(key)) oracleTableCache.set(key, buildOracleArchetypeTable(population, key));
+    return oracleTableCache.get(key);
+  };
   // The joint model is fit ONCE, on training matches only. This is a disclosed asymmetry: unlike
   // every other method here, it never sees the current test match's already-revealed balls, so it
   // is working from strictly LESS information. Refitting at all checkpoints is computationally
@@ -229,6 +250,8 @@ async function runExperiment({
 
   for (let matchIdx = 0; matchIdx < testMatches.length; matchIdx++) {
     const testMatch = testMatches[matchIdx];
+    const matchTime = testMatch.t ?? 0;
+    const oracleTable = oracleTableAt(matchTime);
     // Fresh online model per test match, rebuilt from a deep copy of the training-only base fit.
     // This is the model-side equivalent of deleting the test match document below: without it, a
     // (batter, bowler) interaction coefficient learned during one held-out match would leak into
@@ -285,8 +308,12 @@ async function runExperiment({
               line: ball.line,
               length: ball.length,
               trueOutcome: ball.isWicket ? 1 : 0,
-              pTrue: trueProbability(population, batsmanIdStr, bowlerIdStr, ball.line, ball.length),
+              pTrue: trueProbability(population, batsmanIdStr, bowlerIdStr, ball.line, ball.length, matchTime),
               exactMatchupN,
+              // Season time and position of this test match, for the descriptive temporal-block
+              // analysis in research/diagnostics/temporal-block-analysis.js (World C).
+              seasonTime: matchTime,
+              testMatchIndex: matchIdx,
               // Balls of THIS test match already revealed at this checkpoint - the information the
               // fit-once joint model does not have but every DB-querying method does. Recorded so
               // the disclosed asymmetry can be quantified rather than only described.
@@ -331,7 +358,8 @@ async function runExperiment({
     meta: {
       numTeams, battersPerTeam, bowlersPerTeam, rounds,
       numTrainMatches, numTestMatches, ballsPerInnings, checkpointStride,
-      populationSeed, matchSeed, splitSeed, archetypeSignal,
+      populationSeed, matchSeed, splitSeed, archetypeSignal, splitMode,
+      drift: drift ? { types: [...drift.types].sort(), magnitude: drift.magnitude } : null,
       jointModel: {
         chosenLambda: jointModel.chosenLambda,
         cvResults: jointModel.cvResults,

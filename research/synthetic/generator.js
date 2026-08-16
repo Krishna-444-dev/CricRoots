@@ -58,6 +58,14 @@ function logit(p) {
 
 const BASE_RATE_LOGIT = logit(0.045); // matches the real product's own baseline dismissal rate
 const ARCHETYPE_EFFECT_SD = 0.35; // see world-b-design.md - same order of magnitude as lineLengthEffect's 0.3
+// Base standard deviations, named so World C's drift magnitudes can be expressed as fractions of
+// each term's own spread (experiment-6-design.md section 2) rather than as bare numbers. Values
+// are unchanged from the literals they replace, so Worlds A and B are bit-for-bit unaffected.
+const VULNERABILITY_SD = 0.4;
+const EFFECTIVENESS_SD = 0.4;
+const INTERACTION_SD = 0.6;
+const LINE_LENGTH_SD = 0.3;
+const RESPONSE_SD = 0.3;
 
 /**
  * Builds a population: players with real-schema-shaped fields plus hidden ground-truth
@@ -71,20 +79,28 @@ const ARCHETYPE_EFFECT_SD = 0.35; // see world-b-design.md - same order of magni
  * does not. Drawn LAST, after every other table below, so the archetypeSignal:false and
  * archetypeSignal:true populations are byte-identical in every other field for the same seed -
  * this flag changes nothing about the existing five terms or their distributions.
+ *
+ * `drift` (default null, see experiment-6-design.md): "World C". When set to
+ * { types: [...], magnitude: m }, draws per-entity linear drift coefficients so that selected
+ * ground-truth terms become functions of normalized season time t. Drawn AFTER the archetype
+ * table for the same reason: a population built without `drift` is byte-identical to World A /
+ * World B for the same seed, so Experiments 2-5 remain exactly reproducible.
+ *   types: any of 'player' (V, E), 'interaction' (I), 'context' (LL)
+ *   magnitude: multiplier m, expressed as a fraction of each term's own base SD
  */
-function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archetypeSignal = false } = {}) {
+function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archetypeSignal = false, drift = null } = {}) {
   const rng = makeRng(seed);
 
   const batters = Array.from({ length: numBatters }, (_, i) => ({
     _id: `batter_${i}`,
     battingStyle: rng.pick(BATTING_STYLES),
-    vulnerability: rng.normal(0, 0.4) // + = more dismissal-prone than average
+    vulnerability: rng.normal(0, VULNERABILITY_SD) // + = more dismissal-prone than average
   }));
 
   const bowlers = Array.from({ length: numBowlers }, (_, i) => ({
     _id: `bowler_${i}`,
     bowlingStyle: rng.pick(BOWLING_STYLES),
-    effectiveness: rng.normal(0, 0.4) // + = more wicket-taking than average
+    effectiveness: rng.normal(0, EFFECTIVENESS_SD) // + = more wicket-taking than average
   }));
 
   // Sparse interaction: most batter/bowler pairs have ~zero special interaction beyond their
@@ -96,7 +112,7 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archet
   for (const b of batters) {
     for (const w of bowlers) {
       if (rng.chance(INTERACTION_PROBABILITY)) {
-        interactions.set(`${b._id}|${w._id}`, rng.normal(0, 0.6));
+        interactions.set(`${b._id}|${w._id}`, rng.normal(0, INTERACTION_SD));
       }
     }
   }
@@ -106,7 +122,7 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archet
   const lineLengthEffect = new Map(); // `${line}|${length}` -> effect
   for (const line of LINES) {
     for (const length of LENGTHS) {
-      lineLengthEffect.set(`${line}|${length}`, rng.normal(0, 0.3));
+      lineLengthEffect.set(`${line}|${length}`, rng.normal(0, LINE_LENGTH_SD));
     }
   }
 
@@ -119,7 +135,7 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archet
     for (const line of LINES) {
       for (const length of LENGTHS) {
         if (rng.chance(RESPONSE_PROBABILITY)) {
-          batterLineLengthResponse.set(`${b._id}|${line}|${length}`, rng.normal(0, 0.3));
+          batterLineLengthResponse.set(`${b._id}|${line}|${length}`, rng.normal(0, RESPONSE_SD));
         }
       }
     }
@@ -138,7 +154,41 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archet
     }
   }
 
-  return { batters, bowlers, interactions, lineLengthEffect, batterLineLengthResponse, archetypeEffect, seed };
+  // World C drift coefficients - drawn LAST so that a population generated without `drift` is
+  // byte-identical to World A / World B for the same seed (verified in generator.test.js).
+  // Each is a per-entity slope applied linearly in normalized season time t (experiment-6-design.md
+  // section 2). R_ikl and A_ab are deliberately NOT given drift: holding two terms stationary means
+  // observed degradation is attributable to the terms that actually moved.
+  let driftCoefficients;
+  if (drift && drift.magnitude > 0 && drift.types && drift.types.length > 0) {
+    const m = drift.magnitude;
+    const types = new Set(drift.types);
+    driftCoefficients = { types: [...types].sort(), magnitude: m, V: new Map(), E: new Map(), I: new Map(), LL: new Map() };
+    if (types.has('player')) {
+      for (const b of batters) driftCoefficients.V.set(b._id, rng.normal(0, m * VULNERABILITY_SD));
+      for (const w of bowlers) driftCoefficients.E.set(w._id, rng.normal(0, m * EFFECTIVENESS_SD));
+    }
+    if (types.has('interaction')) {
+      // Only pairs that already have an interaction entry - drift modifies existing head-to-head
+      // relationships rather than inventing new ones mid-season.
+      for (const key of interactions.keys()) driftCoefficients.I.set(key, rng.normal(0, m * INTERACTION_SD));
+    }
+    if (types.has('context')) {
+      for (const key of lineLengthEffect.keys()) driftCoefficients.LL.set(key, rng.normal(0, m * LINE_LENGTH_SD));
+    }
+  }
+
+  // Index maps for O(1) entity lookup in trueProbability. Pure optimization - trueProbability
+  // previously did a linear Array.find() per call, which is far too slow for the oracle table's
+  // full enumeration once that table has to be rebuilt per distinct season time. Output is
+  // unchanged (asserted in generator.test.js).
+  const battersById = new Map(batters.map((b) => [b._id, b]));
+  const bowlersById = new Map(bowlers.map((w) => [w._id, w]));
+
+  return {
+    batters, bowlers, interactions, lineLengthEffect, batterLineLengthResponse, archetypeEffect,
+    driftCoefficients, battersById, bowlersById, seed
+  };
 }
 
 /**
@@ -146,15 +196,36 @@ function generatePopulation({ numBatters = 40, numBowlers = 40, seed = 1, archet
  * true dismissal probability for any (batter, bowler, line, length), independent of how much
  * (or how little) data has actually been observed for that combination. This is what
  * metrics.js's oracle comparison evaluates estimates against.
+ *
+ * `t` is normalized season time in [0, 1] and matters only for World C populations (those built
+ * with a `drift` option). It defaults to 0, and for any population without driftCoefficients the
+ * value of `t` is irrelevant - so every existing caller keeps its exact previous behaviour.
  */
-function trueProbability(population, batterId, bowlerId, line, length) {
-  const batter = population.batters.find((b) => b._id === batterId);
-  const bowler = population.bowlers.find((w) => w._id === bowlerId);
+function trueProbability(population, batterId, bowlerId, line, length, t = 0) {
+  const batter = population.battersById
+    ? population.battersById.get(batterId)
+    : population.batters.find((b) => b._id === batterId);
+  const bowler = population.bowlersById
+    ? population.bowlersById.get(bowlerId)
+    : population.bowlers.find((w) => w._id === bowlerId);
   if (!batter || !bowler) throw new Error(`Unknown batter/bowler: ${batterId}/${bowlerId}`);
 
-  const interaction = population.interactions.get(`${batterId}|${bowlerId}`) || 0;
-  const lineLength = population.lineLengthEffect.get(`${line}|${length}`) || 0;
+  let interaction = population.interactions.get(`${batterId}|${bowlerId}`) || 0;
+  let lineLength = population.lineLengthEffect.get(`${line}|${length}`) || 0;
   const response = population.batterLineLengthResponse.get(`${batterId}|${line}|${length}`) || 0;
+  let vulnerability = batter.vulnerability;
+  let effectiveness = bowler.effectiveness;
+
+  // World C (experiment-6-design.md section 2). Absent driftCoefficients - i.e. every World A and
+  // World B population - this block is skipped entirely and the arithmetic below is the original
+  // five-term (or six-term, with archetype) sum, unchanged.
+  const d = population.driftCoefficients;
+  if (d && t !== 0) {
+    vulnerability += t * (d.V.get(batterId) || 0);
+    effectiveness += t * (d.E.get(bowlerId) || 0);
+    interaction += t * (d.I.get(`${batterId}|${bowlerId}`) || 0);
+    lineLength += t * (d.LL.get(`${line}|${length}`) || 0);
+  }
   // World B only (world-b-design.md) - absent (undefined) in every population generated with the
   // default archetypeSignal:false, so this term is always exactly 0 there, matching the original
   // five-term formula precisely.
@@ -162,7 +233,7 @@ function trueProbability(population, batterId, bowlerId, line, length) {
     ? population.archetypeEffect.get(`${batter.battingStyle}|${bowler.bowlingStyle}`) || 0
     : 0;
 
-  const logitP = BASE_RATE_LOGIT + batter.vulnerability + bowler.effectiveness + interaction + lineLength + response + archetype;
+  const logitP = BASE_RATE_LOGIT + vulnerability + effectiveness + interaction + lineLength + response + archetype;
   return sigmoid(logitP);
 }
 
@@ -309,7 +380,10 @@ function generateLeagueMatches({
 
   const fixtures = generateFixtures({ numTeams, rounds, seed: seed + 1000 });
 
-  const inningsFor = (battingRoster, bowlingRoster) => {
+  // `t` is this match's normalized season time, passed through to trueProbability so that World C
+  // populations sample from the regime in force at that point in the season. For World A/B
+  // populations it has no effect whatsoever (experiment-6-design.md section 2).
+  const inningsFor = (battingRoster, bowlingRoster, t) => {
     // Fresh random batting order every innings - see league-design.md.
     const battingOrder = seededShuffleInPlace([...battingRoster], rng);
     const balls = [];
@@ -321,7 +395,7 @@ function generateLeagueMatches({
       const bowler = rng.pick(bowlingRoster);
       const line = rng.pick(LINES);
       const length = rng.pick(LENGTHS);
-      const pTrue = trueProbability(population, batter._id, bowler._id, line, length);
+      const pTrue = trueProbability(population, batter._id, bowler._id, line, length, t);
       const isWicket = rng.bernoulli(pTrue);
       const runsThisBall = isWicket ? 0 : rng.pick([0, 0, 1, 1, 1, 2, 4, 6]);
       runs += runsThisBall;
@@ -353,11 +427,16 @@ function generateLeagueMatches({
     const teamA = teams[teamAIdx];
     const teamB = teams[teamBIdx];
     const teamABats = rng.chance(0.5);
-    const inn1 = teamABats ? inningsFor(teamA.batters, teamB.bowlers) : inningsFor(teamB.batters, teamA.bowlers);
-    const inn2 = teamABats ? inningsFor(teamB.batters, teamA.bowlers) : inningsFor(teamA.batters, teamB.bowlers);
+    // Normalized season time for this match. Position in the fixture sequence IS the season
+    // timeline - the fixtures were shuffled once at generation, so index order is match order.
+    const t = fixtures.length > 1 ? m / (fixtures.length - 1) : 0;
+    const inn1 = teamABats ? inningsFor(teamA.batters, teamB.bowlers, t) : inningsFor(teamB.batters, teamA.bowlers, t);
+    const inn2 = teamABats ? inningsFor(teamB.batters, teamA.bowlers, t) : inningsFor(teamA.batters, teamB.bowlers, t);
 
     return {
       _synthetic: true,
+      matchIndex: m,
+      t,
       title: `Synthetic Match ${m} (Team ${teamAIdx} vs Team ${teamBIdx})`,
       matchType: 'T20',
       status: 'Completed',

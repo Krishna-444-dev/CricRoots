@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-08-16T02:52:50.466Z",
+  "note": "Verification that World C drift materialises in generated data. Written by generator.test.js; the EXPERIMENT has not been run.",
+  "results": [
+    {
+      "magnitude": 0.25,
+      "meanAbsDelta": 0.006653989962789299,
+      "firstDecileRate": 0.04583333333333333,
+      "lastDecileRate": 0.04345238095238095,
+      "ballsPerDecile": 1680
+    },
+    {
+      "magnitude": 0.5,
+      "meanAbsDelta": 0.013742551940191446,
+      "firstDecileRate": 0.05178571428571429,
+      "lastDecileRate": 0.05178571428571429,
+      "ballsPerDecile": 1680
+    },
+    {
+      "magnitude": 1,
+      "meanAbsDelta": 0.029850431473501502,
+      "firstDecileRate": 0.05178571428571429,
+      "lastDecileRate": 0.047619047619047616,
+      "ballsPerDecile": 1680
+    }
+  ]
+}

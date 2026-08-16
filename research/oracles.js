@@ -20,8 +20,14 @@ const { trueProbability, LINES, LENGTHS } = require('./synthetic/generator');
  * Deliberately mirrors the real getPlayerIdsByArchetype's pooling definition (every player in the
  * population sharing the style, not just those on the current teams) so the oracle answers the
  * same question the empirical rung is trying to answer, only perfectly.
+ *
+ * `t` is normalized season time (World C only, experiment-6-design.md section 7). Under drift the
+ * oracle MUST read the true probability in force at the checkpoint's own point in the season -
+ * an oracle frozen at training-time parameters would be measuring staleness, not the ceiling,
+ * which would quietly turn the upper bound into a different quantity. For World A/B populations
+ * `t` has no effect. Callers must build one table per distinct `t` they evaluate at.
  */
-function buildOracleArchetypeTable(population) {
+function buildOracleArchetypeTable(population, t = 0) {
   const battersByStyle = new Map();
   for (const b of population.batters) {
     if (!battersByStyle.has(b.battingStyle)) battersByStyle.set(b.battingStyle, []);
@@ -41,7 +47,7 @@ function buildOracleArchetypeTable(population) {
           let sum = 0;
           for (const b of batters) {
             for (const w of bowlers) {
-              sum += trueProbability(population, b._id, w._id, line, length);
+              sum += trueProbability(population, b._id, w._id, line, length, t);
             }
           }
           table.set(`${battingStyle}|${bowlingStyle}|${line}|${length}`, sum / (batters.length * bowlers.length));
