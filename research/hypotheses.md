@@ -255,7 +255,8 @@ function has seen evaluation data, the hypothesis is unsupported.
 > individual estimate by the individual's own data, the blend moves less than intended -
 > systematic **under-shrinkage of precisely the noisiest estimates**.
 
-**Status: UNTESTED, and currently INDISTINGUISHABLE from H2's surviving partial form.**
+**Status: UNSUPPORTED** (Experiment 7). The mechanism is real and measurable; correcting it does
+not improve prediction. The two statements are separate and both are kept.
 
 See `research/nested-evidence-finding.md` for the measurement. Contamination at the finest rung is
 mean 15.6% / median 11.8% / p90 31.3% / max 100% on Experiment 6's training set, with typical pool
@@ -332,3 +333,49 @@ not in the runs with the most drift.
 
 **Consequence**: adaptive forgetting, dynamic player state, and temporal evidence allocation
 (roadmap D-III, D-IV, temporal part of D-I) are **not evidence-motivated**. Do not build them.
+
+---
+
+## H9 closure detail (Experiment 7)
+
+**The mechanism was confirmed descriptively.** Achieved shrinkage `ΔS = S_B - S_A` was positive in
+both worlds (+3.76e-3 World A, +6.48e-3 World B): the contaminated hierarchy really does shrink
+less than the leave-one-out version, exactly as predicted.
+
+**The correction did not help.** Arm B was marginally *worse* than arm A on oracle MAE in both
+worlds (0.0319 vs 0.0317; 0.0357 vs 0.0356). G1 NOT MET where archetype carries real signal - the
+decisive test by design.
+
+**The H-A / H-B confound is now broken, against H9.** Arm B sat at **-3.1%** (World A) and
+**-2.0%** (World B) of the way from arm A to arm C - indistinguishable from A, nowhere near C.
+Removing contamination while keeping the archetype rungs recovers none of the deficit; removing the
+rungs entirely recovers all of it. **H-A (archetype noise) dominates.**
+
+**Do not rescue H9 with the underpowered G2 trend.** Only one overlap stratum reached the minimum
+count, so the trend was not evaluable - but G1's failure alone is sufficient, and does not depend
+on G2's power.
+
+**Standing distinction to preserve wherever H9 is cited**: *contamination causes measurable
+under-shrinkage* (supported, descriptive) is not the same claim as *removing contamination improves
+prediction* (unsupported). The first is a property of the estimator; the second is what would have
+made it matter.
+
+---
+
+## The open question after Experiment 7
+
+Not a hypothesis yet - deliberately. What the evidence now jointly implies, with no explanation
+attached:
+
+- Archetype carries **genuine signal** in World B (8.84% of logit variance, by construction).
+- `oracleArchetypeOnly` beats `global` (0.0276 vs 0.0305 oracle MAE) - so that signal is worth
+  having.
+- `archetypeOnly` (empirical) is **worse** than `global` (0.0399 vs 0.0305) - so the practical
+  estimator is not extracting it.
+- Neither contamination (H9) nor archetype irrelevance (H2) explains the gap.
+- The joint model beats everything (0.0240).
+
+Something is being lost between "the signal exists" and "the sequential estimator uses it". The
+next step is a **diagnostic, not a hypothesis** - see `diagnostics/archetype-estimation-diagnostic.js`.
+Naming a mechanism before measuring one is how the last four hypotheses were formed, and three of
+them were unsupported.
