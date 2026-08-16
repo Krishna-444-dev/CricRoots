@@ -488,11 +488,30 @@ later reader — or a later version of me — does not treat these as settled te
 
 | Closed | NOT closed |
 |---|---|
-| **H11** — pooling evidence over a *discrete neighbourhood* of similar entities, at this sparsity. Oracle neighbourhoods lost to global at every pool size, so a better similarity metric cannot rescue it. | Behavioural similarity used some *other* way — as a regularizer, a prior, or a structure on the parameter space rather than a set to average over. Untested. |
+| **H11** — *substituting* a discrete neighbourhood's evidence for an entity's own, at this sparsity. Oracle neighbourhoods lost to global at every pool size, so a better similarity metric cannot rescue **that** mechanism. | Similarity as *shrinkage* rather than substitution — see the note below, this is a materially different mechanism and is untested. Also untested: similarity as a prior, or as geometry on the parameter space. |
 | **H12** — a low-rank bilinear term selected by global CV, below ~325-649 balls/batter. | Contextual player representation in general; the same term is genuinely useful *above* that threshold (+1.03e-3, r=0.562). Also untested: any non-bilinear form. |
 | **H9** — nested-pool contamination as *the explanation* for the hierarchy's deficit. | Hierarchical modelling as an approach. The contamination is real and measurable; it just does not explain the performance gap. |
 | **H2** — archetype irrelevance as a *complete* explanation. | Archetype as a useful level. The oracle archetype beats global; the empirical estimator is what fails. |
 | **H13** — testability at 81 balls/batter, because the target is unmeasurable there. | Evidence-adaptive modelling as an idea. It is testable at 325+ and has simply not been tested. |
+
+**Precision on H11, because the scoping above turns on it.** The estimator tested excluded the
+target entity's own data entirely — `player-response-structure-diagnostic.js:130,140` builds each
+neighbourhood from `pop.batters.filter(o => o._id !== b._id)`, and the pooled rate is computed only
+over those neighbours. So H11 tested **substitution**: replace what we know about this batter with
+what we know about similar batters.
+
+A fused/graph penalty of the form `L_pred + λ Σ w_ij ||θ_i − θ_j||²` is **not** that. It retains the
+entity's own likelihood contribution and only constrains how far its parameters may drift from
+similar entities' — soft shrinkage, jointly estimated, with the strength of the pull determined by
+the data rather than fixed in advance. The bias/variance tradeoff is different in kind, not just in
+degree. H11 says nothing about it.
+
+**Also worth correcting a claim made earlier in review**: that an entity-adaptive rule "could be
+built but not validated" at 81 balls/batter. That is too strong. M1 showed *per-entity utility* is
+unmeasurable there — so the rule's **individual decisions** cannot be checked. But an entity-adaptive
+rule can still be validated **in aggregate**, by comparing overall held-out error against a global
+rule across all 2,520 checkpoints, where there is ample power. What would remain unverifiable is
+*why* it helped, not *whether* it did.
 
 **The pattern worth noticing**: every closure above is bounded by *the sparsity regime* or *the
 specific mechanism tried*, never by the underlying question. What has actually been established is
