@@ -108,3 +108,58 @@ a later step will "obviously" pass - each one is checked before moving to the ne
 8. The first controlled experiment, run for real, results reported raw
    (`research: first controlled experiment`) - per explicit instruction, results come back for
    joint interpretation before any conclusion is written down anywhere.
+
+
+---
+
+# The validity gates
+
+Added 2026-08-16, after nine experiments. Every gate below exists because its absence produced a
+wrong conclusion at least once — none was foresight. Sources: D13, D16, D17, D18, D19, and the M1
+result.
+
+**The two rules these gates operationalise:**
+
+> **Before testing whether X predicts Y, establish that Y is measurable in the regime being tested.**
+>
+> **Before concluding that X failed, establish that X was active and correctly implemented.**
+
+## The order
+
+```
+  1  Is the QUESTION answerable in this environment?
+  2  Is the TARGET measurable at this evidence volume?
+  3  Is the METHOD correctly implemented?
+  4  Was the METHOD ACTIVE during the run?
+  5  Did the OPTIMISER converge?
+  6  Is the REPRESENTATION capable of expressing the structure?
+                          |
+                          v
+              only now:  DOES THE IDEA WORK?
+```
+
+| Gate | Check | Precedent for why it exists |
+|---|---|---|
+| 1 | Does the environment contain the structure the question is about? | Worlds A/B contained no shared latent factors — a transfer question was asked where transfer was impossible by construction (D17). Experiment 1's sparsity distribution was the same class of error. |
+| 2 | Split-half / variance-decomposition reliability of the target | M1: per-entity utility had **negative** reliability at 81 balls/batter. Six proxies were about to be correlated against noise. |
+| 3 | Verify the implementation recovers the structure when it is unambiguously present | The low-rank optimiser was checked against known rank-2 data (r=0.9413) before use; without it a null result would have been uninterpretable. |
+| 4 | Report the magnitude of the fitted component, not only its accuracy | Experiment 8: `r_latent = -0.044` read as "tried and failed" when `sd(fitted) = 1e-9` meant no component existed. |
+| 5 | Convergence criterion, `iterationsRun`, `hitIterationCap`, restart spread | Experiment 4 never converged; Experiment 6's first run hit the cap silently (D13, D16). |
+| 6 | Oracle comparison — hand the method the true quantity and see whether the architecture can use it | Experiment 4A separated "noisy intermediate estimate" from "architecture cannot use it". |
+
+## Two honest caveats about this diagram
+
+**It is not strictly a pre-flight sequence.** Gates 4 and 5 can only be checked *after* a run, and
+gate 2 sometimes requires a fit to evaluate. It is a checklist of what must be established **before
+a conclusion is drawn**, not a set of steps completed in order before starting.
+
+**Gate 6 and "the idea is bad" are inferential, not detectable.** There is no direct test for
+"wrong representation" or "bad idea." They are what remains once gates 1-5 are cleared, and any
+conclusion of that kind must say so explicitly rather than presenting itself as measured.
+
+## What this is for
+
+A conclusion of the form *"method X does not work"* is only admissible once gates 1-5 have been
+cleared and reported alongside it. Without that, the six failure modes in D19 are
+indistinguishable, and the recorded conclusion may name the wrong one — which is what happened, in
+different ways, in Experiments 1, 4, 6 and 8.
