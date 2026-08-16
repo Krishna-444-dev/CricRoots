@@ -1,0 +1,1341 @@
+{
+  "runName": "6-C0b",
+  "startedAt": "2026-08-16T02:58:30.793Z",
+  "elapsedMs": 1598053,
+  "codeVersion": "ee241d5bfcfe6804f1f00a1be7c428243a6c36c4",
+  "config": {
+    "numTeams": 16,
+    "battersPerTeam": 11,
+    "bowlersPerTeam": 6,
+    "rounds": 2,
+    "populationSeed": 1,
+    "testFraction": 0.15,
+    "ballsPerInnings": 35,
+    "matchSeed": 2,
+    "splitSeed": 3,
+    "checkpointStride": 1,
+    "splitMode": "temporal",
+    "drift": null
+  },
+  "meta": {
+    "numTeams": 16,
+    "battersPerTeam": 11,
+    "bowlersPerTeam": 6,
+    "rounds": 2,
+    "numTrainMatches": 204,
+    "numTestMatches": 36,
+    "ballsPerInnings": 35,
+    "checkpointStride": 1,
+    "populationSeed": 1,
+    "matchSeed": 2,
+    "splitSeed": 3,
+    "archetypeSignal": false,
+    "splitMode": "temporal",
+    "drift": null,
+    "jointModel": {
+      "chosenLambda": 5,
+      "cvResults": [
+        {
+          "lambda": 1,
+          "meanValidationLogLoss": 0.19839533819716937
+        },
+        {
+          "lambda": 5,
+          "meanValidationLogLoss": 0.19494542203651685
+        },
+        {
+          "lambda": 20,
+          "meanValidationLogLoss": 0.1969933812602931
+        },
+        {
+          "lambda": 100,
+          "meanValidationLogLoss": 0.19998765443100033
+        }
+      ],
+      "trainingRowCount": 14280,
+      "finalFitIterations": 14200,
+      "hitIterationCap": false,
+      "onlineIterationsPerBall": 100
+    }
+  },
+  "rowCount": 25200,
+  "summary": {
+    "global": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.03924651203968254,
+      "logLoss": 0.17134602664419418,
+      "oracleError": {
+        "mae": 0.0256,
+        "mse": 0.001236
+      },
+      "spearmanCorrelation": 0.3336,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0232,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0314,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0353,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0396,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0454,
+          "actualRate": 0.0556
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0482,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0517,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0648,
+          "actualRate": 0.0238
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0765,
+          "actualRate": 0.0675
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0936,
+          "actualRate": 0.0714
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04236364276811593,
+          "oracleError": {
+            "mae": 0.0274,
+            "mse": 0.00144
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.03339068980392158,
+          "oracleError": {
+            "mae": 0.0268,
+            "mse": 0.001328
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.04400451773242631,
+          "oracleError": {
+            "mae": 0.0241,
+            "mse": 0.001127
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.03086861041551245,
+          "oracleError": {
+            "mae": 0.0245,
+            "mse": 0.001027
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.0377910326923077,
+          "oracleError": {
+            "mae": 0.0167,
+            "mse": 0.000461
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "rawExactMatchup": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 125,
+      "brierScore": 0.032,
+      "logLoss": 0.4420973058551107,
+      "oracleError": {
+        "mae": 0.0559,
+        "mse": 0.010014
+      },
+      "spearmanCorrelation": 0.0113,
+      "decileCalibration": [
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0.0769
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0.0769
+        },
+        {
+          "n": 13,
+          "meanPredicted": 0,
+          "actualRate": 0
+        },
+        {
+          "n": 8,
+          "meanPredicted": 0.125,
+          "actualRate": 0.125
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.09090909090909091,
+          "oracleError": {
+            "mae": 0.125,
+            "mse": 0.07748
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0,
+          "oracleError": {
+            "mae": 0.0567,
+            "mse": 0.004444
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.0392156862745098,
+          "oracleError": {
+            "mae": 0.0426,
+            "mse": 0.002744
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.125,
+          "oracleError": {
+            "mae": 0.0403,
+            "mse": 0.001889
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "singleLevelShrinkage": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.039239832928833325,
+      "logLoss": 0.17128738508592353,
+      "oracleError": {
+        "mae": 0.0256,
+        "mse": 0.001234
+      },
+      "spearmanCorrelation": 0.3344,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0231,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0312,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0352,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0395,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0452,
+          "actualRate": 0.0476
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0481,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0516,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0645,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0764,
+          "actualRate": 0.0675
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0935,
+          "actualRate": 0.0714
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04236364276811593,
+          "oracleError": {
+            "mae": 0.0274,
+            "mse": 0.00144
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.0333978468652518,
+          "oracleError": {
+            "mae": 0.0267,
+            "mse": 0.00132
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.0439819331134407,
+          "oracleError": {
+            "mae": 0.0242,
+            "mse": 0.001129
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.030859724781844722,
+          "oracleError": {
+            "mae": 0.0244,
+            "mse": 0.001023
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.037878758728966344,
+          "oracleError": {
+            "mae": 0.016,
+            "mse": 0.000433
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "archetypeOnly": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.039889466702380916,
+      "logLoss": 0.2148372098808825,
+      "oracleError": {
+        "mae": 0.0363,
+        "mse": 0.00225
+      },
+      "spearmanCorrelation": 0.1751,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0065,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0225,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0293,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0392,
+          "actualRate": 0.0437
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0485,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.058,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0727,
+          "actualRate": 0.0556
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0915,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.1306,
+          "actualRate": 0.0754
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04313251811594198,
+          "oracleError": {
+            "mae": 0.0385,
+            "mse": 0.002651
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.03326861620320853,
+          "oracleError": {
+            "mae": 0.0395,
+            "mse": 0.002548
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.04525549925170065,
+          "oracleError": {
+            "mae": 0.0335,
+            "mse": 0.001878
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.03155767102493071,
+          "oracleError": {
+            "mae": 0.0348,
+            "mse": 0.001967
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.030332896923076922,
+          "oracleError": {
+            "mae": 0.0305,
+            "mse": 0.001714
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "fullHierarchyNoArchetype": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.039239832928833325,
+      "logLoss": 0.17128738508592353,
+      "oracleError": {
+        "mae": 0.0256,
+        "mse": 0.001234
+      },
+      "spearmanCorrelation": 0.3344,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0231,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0312,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0352,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0395,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0452,
+          "actualRate": 0.0476
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0481,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0516,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0645,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0764,
+          "actualRate": 0.0675
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0935,
+          "actualRate": 0.0714
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04236364276811593,
+          "oracleError": {
+            "mae": 0.0274,
+            "mse": 0.00144
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.0333978468652518,
+          "oracleError": {
+            "mae": 0.0267,
+            "mse": 0.00132
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.0439819331134407,
+          "oracleError": {
+            "mae": 0.0242,
+            "mse": 0.001129
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.030859724781844722,
+          "oracleError": {
+            "mae": 0.0244,
+            "mse": 0.001023
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.037878758728966344,
+          "oracleError": {
+            "mae": 0.016,
+            "mse": 0.000433
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "oracleArchetypeOnly": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.03924075505776843,
+      "logLoss": 0.17129056305478657,
+      "oracleError": {
+        "mae": 0.0244,
+        "mse": 0.001065
+      },
+      "spearmanCorrelation": 0.4524,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0278,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0385,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0448,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0488,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0522,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0556,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0596,
+          "actualRate": 0.0595
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.064,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0711,
+          "actualRate": 0.0556
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0948,
+          "actualRate": 0.0714
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04233518160178995,
+          "oracleError": {
+            "mae": 0.0254,
+            "mse": 0.001216
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.03358867737686555,
+          "oracleError": {
+            "mae": 0.0249,
+            "mse": 0.001108
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.043874623361278973,
+          "oracleError": {
+            "mae": 0.0238,
+            "mse": 0.001016
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.030959577491934828,
+          "oracleError": {
+            "mae": 0.0235,
+            "mse": 0.000871
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.03685977510321212,
+          "oracleError": {
+            "mae": 0.0185,
+            "mse": 0.000495
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "oracleInformedHierarchy": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.03923321372872925,
+      "logLoss": 0.17121153273949777,
+      "oracleError": {
+        "mae": 0.0243,
+        "mse": 0.001063
+      },
+      "spearmanCorrelation": 0.4532,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0277,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0384,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0446,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0486,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.052,
+          "actualRate": 0.0278
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0554,
+          "actualRate": 0.0317
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0593,
+          "actualRate": 0.0516
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0638,
+          "actualRate": 0.0437
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0709,
+          "actualRate": 0.0556
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0948,
+          "actualRate": 0.0714
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04233518160178995,
+          "oracleError": {
+            "mae": 0.0254,
+            "mse": 0.001216
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.03359951108809593,
+          "oracleError": {
+            "mae": 0.0248,
+            "mse": 0.001104
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.04384936114906789,
+          "oracleError": {
+            "mae": 0.0238,
+            "mse": 0.001018
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.030939155031328932,
+          "oracleError": {
+            "mae": 0.0233,
+            "mse": 0.000862
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.0370356181135941,
+          "oracleError": {
+            "mae": 0.0179,
+            "mse": 0.000459
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "jointRegularizedLogit": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.03907638262245946,
+      "logLoss": 0.16749369258027652,
+      "oracleError": {
+        "mae": 0.0211,
+        "mse": 0.000877
+      },
+      "spearmanCorrelation": 0.6114,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0191,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0267,
+          "actualRate": 0.0079
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0314,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0364,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0419,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0481,
+          "actualRate": 0.0635
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0561,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0655,
+          "actualRate": 0.0516
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0823,
+          "actualRate": 0.0675
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.1244,
+          "actualRate": 0.0794
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.042706412601499745,
+          "oracleError": {
+            "mae": 0.0222,
+            "mse": 0.00096
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.03254521710055466,
+          "oracleError": {
+            "mae": 0.0211,
+            "mse": 0.000814
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.04364487106550656,
+          "oracleError": {
+            "mae": 0.0207,
+            "mse": 0.00086
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.031080019042818572,
+          "oracleError": {
+            "mae": 0.0206,
+            "mse": 0.00088
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.03971267561221749,
+          "oracleError": {
+            "mae": 0.0161,
+            "mse": 0.000549
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "jointRegularizedLogitOnline": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.03887899975350948,
+      "logLoss": 0.16635589389276126,
+      "oracleError": {
+        "mae": 0.0204,
+        "mse": 0.000833
+      },
+      "spearmanCorrelation": 0.6177,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0181,
+          "actualRate": 0.0238
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0251,
+          "actualRate": 0.0079
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0299,
+          "actualRate": 0.0238
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0342,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0396,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.045,
+          "actualRate": 0.0476
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0524,
+          "actualRate": 0.0437
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0613,
+          "actualRate": 0.0556
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0762,
+          "actualRate": 0.0714
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.1164,
+          "actualRate": 0.0794
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04259460956132454,
+          "oracleError": {
+            "mae": 0.0221,
+            "mse": 0.000945
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.0324097787328004,
+          "oracleError": {
+            "mae": 0.0207,
+            "mse": 0.000793
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.04349555481552102,
+          "oracleError": {
+            "mae": 0.0196,
+            "mse": 0.000805
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.030540643085050154,
+          "oracleError": {
+            "mae": 0.0192,
+            "mse": 0.000788
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.039025438901401914,
+          "oracleError": {
+            "mae": 0.0137,
+            "mse": 0.000339
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    },
+    "fullHierarchy": {
+      "totalCheckpoints": 2520,
+      "nonNullPredictions": 2520,
+      "brierScore": 0.03952682055555552,
+      "logLoss": 0.17452600068276236,
+      "oracleError": {
+        "mae": 0.0322,
+        "mse": 0.00183
+      },
+      "spearmanCorrelation": 0.2193,
+      "decileCalibration": [
+        {
+          "n": 252,
+          "meanPredicted": 0.0075,
+          "actualRate": 0.0238
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0151,
+          "actualRate": 0.0437
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0261,
+          "actualRate": 0.0397
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0328,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0406,
+          "actualRate": 0.0556
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.047,
+          "actualRate": 0.0198
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0546,
+          "actualRate": 0.0357
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.0678,
+          "actualRate": 0.0476
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.085,
+          "actualRate": 0.0516
+        },
+        {
+          "n": 252,
+          "meanPredicted": 0.1209,
+          "actualRate": 0.0714
+        }
+      ],
+      "sampleEfficiency": [
+        {
+          "range": "0-0",
+          "n": 690,
+          "brier": 0.04281712326086956,
+          "oracleError": {
+            "mae": 0.0345,
+            "mse": 0.002175
+          }
+        },
+        {
+          "range": "1-1",
+          "n": 561,
+          "brier": 0.033363852584670235,
+          "oracleError": {
+            "mae": 0.0355,
+            "mse": 0.002143
+          }
+        },
+        {
+          "range": "2-4",
+          "n": 882,
+          "brier": 0.044375945782312944,
+          "oracleError": {
+            "mae": 0.0291,
+            "mse": 0.001484
+          }
+        },
+        {
+          "range": "5-9",
+          "n": 361,
+          "brier": 0.03139794105263157,
+          "oracleError": {
+            "mae": 0.0309,
+            "mse": 0.001594
+          }
+        },
+        {
+          "range": "10-14",
+          "n": 26,
+          "brier": 0.03355425192307693,
+          "oracleError": {
+            "mae": 0.0228,
+            "mse": 0.000871
+          }
+        },
+        {
+          "range": "15-24",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "25-49",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        },
+        {
+          "range": "50+",
+          "n": 0,
+          "brier": null,
+          "oracleError": null
+        }
+      ]
+    }
+  }
+}
