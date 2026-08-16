@@ -275,3 +275,37 @@ firing is part of the record and not just a claim in this file.
 **Change made**: `maxIterations` default raised from 8,000 to 24,000 in both `fit` and
 `fitWithCrossValidatedLambda`. No tolerance, learning rate, decay schedule, online budget, or any
 other parameter was touched - and no experimental score was consulted in making the change.
+
+---
+
+## D17 - Worlds A and B cannot test behavioural transfer; the null result does not count against it
+
+**Date**: 2026-08-16 · **Diagnostic**: `diagnostics/player-response-structure-diagnostic.js`
+
+**Finding**: in the current generator, of the terms that vary by batter, `V_b` is an independently
+drawn scalar, `I_bw` and `R_b` are independently drawn per pair/per cell, and `A` depends only on
+`battingStyle`. **There are no shared latent factors.** Two batters resemble each other only via a
+similar scalar offset or the same declared style.
+
+**Measured confirmation**: residual response-surface correlation is mean 0.0101 across all batter
+pairs and is the same for same-style (0.0115) as different-style (0.0088) pairs. Oracle
+neighbourhoods - chosen using the *hidden true* surfaces, a strict upper bound - scored 0.0642
+oracle MAE against 0.0704 for **random** neighbourhoods of the same size, and both lost to plain
+global (0.0305).
+
+**Decisions, fixed now:**
+
+1. Behavioural transfer is **structurally untestable** in Worlds A and B.
+2. **The null result does not count against the algorithmic idea.** Treating it as evidence would
+   repeat Experiment 1's error: concluding about a method from a property of the data generator.
+3. **Do not build World D merely to produce a positive result.** A world constructed so that
+   similarity helps will show that similarity helps, and would prove nothing.
+4. If World D is built, the latent structure, effect size, residual variance, archetype
+   contribution, sparsity regime, and evaluation criteria are all fixed **before** implementation.
+5. It must include a **negative-control world** in which latent factors exist but are irrelevant to
+   the prediction target - so that a method which blindly transfers between similar entities is
+   penalised rather than rewarded. Without this the benchmark is gameable.
+
+**Also standing**: the strongest existing baselines must be identified and implemented *before* any
+novel method is designed. For this problem the bar is a **low-rank/factorised joint model**, not the
+sequential hierarchy - that bar was cleared long ago by a simpler method.
