@@ -411,3 +411,36 @@ global one IS testable at current scale. Per-entity attribution of *why* it help
 sparsity?** H11 refuted substitution. A fused penalty retains the entity's own evidence and only
 limits drift. Untested. Requires a prior-art pass over graph/fused/network-lasso regularisation
 before any novelty claim.
+
+---
+
+## D20 - Never overwrite observational data to fit today's research question
+
+**Date**: 2026-08-16 · **Origin**: the eligible-ball definition
+
+Store what happened. Define eligibility as a **function of the question**, applied at analysis time:
+
+```
+Eligible(question, delivery)
+```
+
+not as a filter applied at capture time. The raw event keeps every observed field; each analytical
+layer declares its own rule and states it.
+
+**Why this is a decision and not a preference**: the alternative fails silently. Someone asks why
+tagging completeness moved from 88% to 93%, and the answer turns out to be that the denominator
+changed — with no record of when or why. Season-over-season comparisons then quietly stop meaning
+anything, and there is no way to reconstruct the earlier figure.
+
+**Worked case** — `wide` is eligible for a *bowler-tendency* question (it has a line and length;
+that is generally why it was called) and not for a *batter-response* question (the batter never
+played it). One delivery, two correct answers, determined by the question rather than the data.
+`penalty` is excluded everywhere: no delivery occurred.
+
+**This reconciles something flagged earlier as a defect.** `line` and `length` defaulting to
+`'unknown'` looked like a data-quality hole. Under D20 it is the *correct* capture behaviour — it
+records "not observed" rather than fabricating a value or refusing the write. The actual gap is
+that **nothing measures the rate of `'unknown'`**, which is an instrumentation problem, not a schema
+one. Fix the measurement, keep the default.
+
+**Scope**: applies to any observational data this system captures, not only deliveries.
