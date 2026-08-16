@@ -428,3 +428,52 @@ That is what would make the latent structure worth having. If it only helps once
 are already estimable, it adds nothing at the sparsity CricRoots actually operates in.
 
 Design: `research/experiment-8-design.md`. Not yet implemented.
+
+---
+
+## H12 closure (Experiment 8 + diagnostics)
+
+**Status: UNSUPPORTED at the sparsity CricRoots operates in; SUPPORTED above a measurable
+threshold.**
+
+L1, L2 and L3 all NOT MET in Experiment 8. The diagnostics then established why, and the answer
+turned out to be neither of the two explanations initially offered:
+
+- **Not sparsity alone.** The corrected model-based limit says r ≈ 0.42 is achievable at 75
+  balls/batter; observed was ≈ 0.
+- **Not noise structure.** Suppressing the independent `I_bw` and `R_b,ll` terms never helped and
+  hurt at low and moderate volume.
+- **It was a selection decision.** Cross-validation chose a penalty that collapses the bilinear
+  term to exactly zero. The adoption curve located where that reverses: between **325 and 649**
+  training balls per batter, CV switches to a live penalty on held-out validation alone, recovery
+  reaches 0.562, and held-out benefit turns positive (+1.03e-3, a 5.2% relative MAE reduction).
+
+**CricRoots operates at ~81 balls/batter, roughly 8x below that threshold.**
+
+---
+
+## H13 - Observable evidence quality predicts representation usefulness
+
+> Among entities with comparable observation *counts*, observable properties of their accumulated
+> evidence predict whether a richer representation will improve that entity's held-out performance.
+
+**Status: UNTESTED. Design: `research/experiment-9-design.md`. Not implemented.**
+
+**Motivating evidence** (per-entity diagnostic): recovery varies substantially between batters and
+observation count explains essentially none of it — within-quartile spread is **99%** of overall
+spread at 81 balls/batter and **98%** at 325, with `corr(accuracy, n)` ≈ 0 at both. What weakly
+does predict recovery is intrinsic: `corr(accuracy, |z_b|)` = 0.169/0.269 and
+`corr(accuracy, sd of own true surface)` = 0.188/0.293.
+
+**The difficulty that makes this a real question rather than a foregone one**: those predictive
+properties are *hidden*. `z_b` is not observable at prediction time. H13 asks whether anything
+*observable* stands in for them.
+
+**Also established, and load-bearing for the design**: cross-seed stability is **not** evidence of
+correctness. At 81 balls/batter confidence averaged 0.797 while accuracy averaged 0.046; at 325
+confidence was exactly 1.000 for every batter while accuracy ranged -0.126 to 0.588. Any
+confidence-like proxy must be built from *data* resampling, not optimiser restarts.
+
+**Falsification criterion**: preregistered in `experiment-9-design.md` §5, and gated on the label
+reliability check in §2 — if per-entity utility cannot be measured reliably, H13 is untestable at
+that volume and no proxy result from it means anything.
