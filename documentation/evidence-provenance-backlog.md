@@ -1,4 +1,4 @@
-# Backlog: surface evidence provenance in the matchup recommendation
+# Backlog: data instrumentation and evidence provenance
 
 **Status: BACKLOG. Not to be implemented while the research programme is active** (decision D8 —
 production stays frozen so Experiments 1-9 remain reproducible). Recorded now so the finding is not
@@ -111,3 +111,65 @@ open research question.
 What it improves is **claim accuracy** — the product stops implying an estimate is batter-specific
 when its evidence is population-level. Those are different things, and only the second is being
 claimed here. It uses information the system was already producing and discarding at the last step.
+
+
+---
+
+# Priority order when production unfreezes
+
+Derived from the research programme, ordered by *what cannot be fixed later*.
+
+## 1. Capture per-ball match state — unbackfillable
+
+`Match.js` stores `line`, `length`, `shotType`, `shotZone`, `fielderId`, `fielderPosition` per ball.
+It does **not** store score, wickets, or phase at the moment of the ball — only innings totals.
+Those could in principle be reconstructed by replaying an innings, but only for complete
+uninterrupted innings, and fragilely.
+
+**This is first because it is the only item on the list that cannot be done retroactively.** Any
+future question of the form "does this batter respond differently under pressure" needs it, and
+every match played without it is permanently lost to that question.
+
+## 2. Instrument tagging completeness — including per-player distribution
+
+`line` and `length` both `default: 'unknown'`, so a ball saves cleanly with no tag. Completeness is
+therefore a property of scorer behaviour under live time pressure, and **nothing currently measures
+it**.
+
+Track, per match and per session:
+
+```
+both tagged | line missing | length missing | both missing | explicitly 'unknown'
+```
+
+**And per player, not only globally** — a platform can show 95% completeness overall while a
+specific batter sits at 20%, and that batter is unusable for anything beyond a scalar estimate.
+
+**The per-player metrics are already specified.** Experiment 9's proxies P1 (count of distinct
+line/length cells faced) and P2 (Shannon entropy of the ball distribution across the 42 cells) were
+designed to predict representation usefulness — a prediction task that M1 showed is untestable at
+current scale. But as *descriptive statistics about data completeness* they need no research
+validation at all, and they answer exactly the question this item asks: 81 balls concentrated in
+three contexts is a different dataset from 81 spread across thirty.
+
+See `research/experiment-9-design.md` §3 for the definitions.
+
+**Specification detail to settle**: what counts as an *eligible* ball. Wides, no-balls, byes and
+leg-byes are flagged via `isExtra` / `extraType`, and some are not meaningfully taggable for
+line/length. Completeness measured against all balls will understate quality; measured against a
+defined eligible subset it will not.
+
+## 3. Surface evidence provenance — the change described above
+
+Smallest change, no new data required, addresses the overclaim directly.
+
+## 4. Only then, improve the intelligence
+
+The research programme has not produced a method that beats the deployed one *at current evidence
+volumes* — and has produced measurements suggesting the richer methods need substantially more data
+per player than currently exists.
+
+---
+
+**The through-line**: capture → measure data quality → expose provenance → then improve the model.
+Reversing that order builds intelligence on an instrument nobody has verified is working.
