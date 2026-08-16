@@ -126,6 +126,80 @@ async function oracleInformedHierarchy(batsmanId, bowlerId, line, length, player
   return blended.value !== null ? blended.value / 100 : null;
 }
 
+/** Experiment 7 arm B (research/experiment-7-design.md) - the SAME four-level chain
+ * getMatchupPlan builds, through the SAME real hierarchicalBlend, differing in exactly one
+ * respect: the archetype pools exclude the target player, so a level's shrinkage target no longer
+ * contains the observations being shrunk.
+ *
+ *   L1 exact                = {b} x {w}                     unchanged
+ *   L2 batter-vs-arch(LOO)  = {b} x (arch(w) \ {w})
+ *   L3 arch-vs-arch(LOO)    = (arch(b) \ {b}) x (arch(w) \ {w})
+ *   L4 global                                               UNCHANGED - contamination there is
+ *                                                           ~0.02%, and leaving it alone keeps
+ *                                                           arms A and B differing only where
+ *                                                           contamination is material.
+ *
+ * Level construction mirrors tendencyAnalytics.js:160-172 exactly (raw 0-100 dismissalRate scale,
+ * {value, n} per level, default k). tendencyAnalytics.js and statUtils.js are untouched. */
+async function fullHierarchyLOO(batsmanId, bowlerId, line, length, playerLookup) {
+  const { battingStyle, bowlingStyle } = await playerLookup(batsmanId, bowlerId);
+  const [bowlerArchIds, batterArchIds] = await Promise.all([
+    getPlayerIdsByArchetype({ bowlingStyle }),
+    getPlayerIdsByArchetype({ battingStyle })
+  ]);
+  const bowlerArchLOO = bowlerArchIds.filter((id) => String(id) !== String(bowlerId));
+  const batterArchLOO = batterArchIds.filter((id) => String(id) !== String(batsmanId));
+
+  const [exact, bVsArch, archVsArch, global] = await Promise.all([
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: [bowlerId] }),
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: bowlerArchLOO }),
+    getLineLengthBreakdown({ batsmanIds: batterArchLOO, bowlerIds: bowlerArchLOO }),
+    getLineLengthBreakdown({})
+  ]);
+
+  const levels = [exact, bVsArch, archVsArch, global].map((source) => {
+    const bucket = findBucket(source, line, length);
+    return { value: bucket ? bucket.dismissalRate : 0, n: bucket ? bucket.balls : 0 };
+  });
+  const blended = hierarchicalBlend(levels);
+  return blended.value !== null ? blended.value / 100 : null;
+}
+
+/** Experiment 7 mechanism diagnostics (research/experiment-7-design.md section 5). Records the
+ * bucket-level pool sizes under both arms at one checkpoint, so overlap fractions and achieved
+ * shrinkage can be computed afterwards from the committed raw results. Purely observational - no
+ * prediction is produced here and nothing feeds back into any method. */
+async function nestingDiagnostics(batsmanId, bowlerId, line, length, playerLookup) {
+  const { battingStyle, bowlingStyle } = await playerLookup(batsmanId, bowlerId);
+  const [bowlerArchIds, batterArchIds] = await Promise.all([
+    getPlayerIdsByArchetype({ bowlingStyle }),
+    getPlayerIdsByArchetype({ battingStyle })
+  ]);
+  const bowlerArchLOO = bowlerArchIds.filter((id) => String(id) !== String(bowlerId));
+  const batterArchLOO = batterArchIds.filter((id) => String(id) !== String(batsmanId));
+
+  const [exact, bVsArch, bVsArchLOO, archVsArch, archVsArchLOO, global] = await Promise.all([
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: [bowlerId] }),
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: bowlerArchIds }),
+    getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: bowlerArchLOO }),
+    getLineLengthBreakdown({ batsmanIds: batterArchIds, bowlerIds: bowlerArchIds }),
+    getLineLengthBreakdown({ batsmanIds: batterArchLOO, bowlerIds: bowlerArchLOO }),
+    getLineLengthBreakdown({})
+  ]);
+  const nOf = (bd) => { const b = findBucket(bd, line, length); return b ? b.balls : 0; };
+  const rateOf = (bd) => { const b = findBucket(bd, line, length); return b ? b.dismissalRate / 100 : null; };
+
+  return {
+    exactBucketN: nOf(exact),
+    exactBucketRate: rateOf(exact),
+    bVsArchBucketN: nOf(bVsArch),
+    bVsArchLOOBucketN: nOf(bVsArchLOO),
+    archVsArchBucketN: nOf(archVsArch),
+    archVsArchLOOBucketN: nOf(archVsArchLOO),
+    globalBucketN: nOf(global)
+  };
+}
+
 /** Proposed method - the real, unmodified getMatchupPlan. */
 async function fullHierarchy(batsmanId, bowlerId, line, length) {
   const plan = await getMatchupPlan(batsmanId, bowlerId);
@@ -150,6 +224,8 @@ module.exports = {
   singleLevelShrinkage,
   archetypeOnly,
   fullHierarchyNoArchetype,
+  fullHierarchyLOO,
+  nestingDiagnostics,
   oracleArchetypeOnly,
   oracleInformedHierarchy,
   fullHierarchy,

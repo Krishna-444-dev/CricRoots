@@ -119,6 +119,8 @@ const HISTORICAL_METHODS = {
   singleLevelShrinkage: (b, w, l, n) => baselines.singleLevelShrinkage(b, w, l, n),
   archetypeOnly: (b, w, l, n, playerLookup) => baselines.archetypeOnly(b, w, l, n, playerLookup),
   fullHierarchyNoArchetype: (b, w, l, n) => baselines.fullHierarchyNoArchetype(b, w, l, n),
+  // Experiment 7 arm B - same chain, archetype pools exclude the target (research/experiment-7-design.md)
+  fullHierarchyLOO: (b, w, l, n, playerLookup) => baselines.fullHierarchyLOO(b, w, l, n, playerLookup),
   oracleArchetypeOnly: (b, w, l, n, playerLookup, ctx) => baselines.oracleArchetypeOnly(b, w, l, n, playerLookup, ctx.oracleTable),
   oracleInformedHierarchy: (b, w, l, n, playerLookup, ctx) => baselines.oracleInformedHierarchy(b, w, l, n, playerLookup, ctx.oracleTable),
   jointRegularizedLogit: async (b, w, l, n, playerLookup, ctx) => ctx.jointModel.predict({
@@ -182,7 +184,8 @@ async function runExperiment({
   checkpointStride = 1, // evaluate every Nth ball within a test match; 1 = every ball
   archetypeSignal = false, // World B (research/synthetic/world-b-design.md) when true; World A (default) otherwise
   drift = null, // World C (research/experiment-6-design.md) - { types: [...], magnitude: m }
-  splitMode = 'random' // 'random' = Experiments 2-5; 'temporal' = required under drift, see below
+  splitMode = 'random', // 'random' = Experiments 2-5; 'temporal' = required under drift, see below
+  collectNestingDiagnostics = false // Experiment 7 - adds 6 DB queries per checkpoint, off by default
 } = {}) {
   const rng = makeRng(splitSeed);
   const population = generatePopulation({
@@ -287,6 +290,11 @@ async function runExperiment({
           // per method.
           const exactMatchupBreakdown = await getLineLengthBreakdown({ batsmanIds: [ball.batsmanId], bowlerIds: [ball.bowlerId] });
           const exactMatchupN = exactMatchupBreakdown.totalBalls;
+          // Experiment 7 mechanism diagnostics - bucket-level pool sizes under both arms, recorded
+          // once per checkpoint (method-independent, like exactMatchupN). Purely observational.
+          const nesting = collectNestingDiagnostics
+            ? await baselines.nestingDiagnostics(ball.batsmanId, ball.bowlerId, ball.line, ball.length, playerLookup)
+            : null;
 
           const ctx = {
             oracleTable,
@@ -314,6 +322,7 @@ async function runExperiment({
               // analysis in research/diagnostics/temporal-block-analysis.js (World C).
               seasonTime: matchTime,
               testMatchIndex: matchIdx,
+              ...(nesting || {}),
               // Balls of THIS test match already revealed at this checkpoint - the information the
               // fit-once joint model does not have but every DB-querying method does. Recorded so
               // the disclosed asymmetry can be quantified rather than only described.
@@ -358,7 +367,7 @@ async function runExperiment({
     meta: {
       numTeams, battersPerTeam, bowlersPerTeam, rounds,
       numTrainMatches, numTestMatches, ballsPerInnings, checkpointStride,
-      populationSeed, matchSeed, splitSeed, archetypeSignal, splitMode,
+      populationSeed, matchSeed, splitSeed, archetypeSignal, splitMode, collectNestingDiagnostics,
       drift: drift ? { types: [...drift.types].sort(), magnitude: drift.magnitude } : null,
       jointModel: {
         chosenLambda: jointModel.chosenLambda,

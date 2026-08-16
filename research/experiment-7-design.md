@@ -1,6 +1,6 @@
 # Experiment 7 design - H9, nested-pool contamination
 
-**Status: DESIGN ONLY, SUBMITTED FOR REVIEW. No code written. Nothing run.**
+**Status: APPROVED WITH CHANGES. Design below incorporates all five review points.**
 
 Tests whether the sequential hierarchy's failure is caused by its shrinkage targets containing the
 observations being shrunk, and — critically — whether that mechanism can be **separated** from the
@@ -38,17 +38,25 @@ An intermediate result means both contribute, which is also informative.
 
 Currently (`tendencyAnalytics.js:137-147`) the pools are strictly nested because
 `getPlayerIdsByArchetype` never excludes the target. Arm B makes each level exclude the finer level
-inside it, giving **disjoint incremental evidence**:
+inside it, giving **non-overlapping observation pools**:
 
 ```
-L1  exact         = {b} x {w}
-L2  batter-vs-arch(LOO)  = {b} x (arch(w) \ {w})          this batter vs OTHER bowlers of that style
+L1  exact                = {b} x {w}                       unchanged
+L2  batter-vs-arch(LOO)  = {b} x (arch(w) \ {w})           this batter vs OTHER bowlers of that style
 L3  arch-vs-arch(LOO)    = (arch(b) \ {b}) x (arch(w) \ {w})
-L4  global(LOO)          = all balls involving neither b nor w
+L4  global               = every tagged ball                UNCHANGED - see below
 ```
 
-Every level then contributes information the finer levels do not already contain — the incremental
-decomposition, rather than four overlapping views of one dataset.
+**L4 stays plain global in both arms** (review change 1). Its contamination is ~0.02%, i.e.
+negligible, and leaving it alone means arms A and B differ *only* at the two rungs where
+contamination is material. Making L4 leave-one-out as well would turn arm B into "modified
+hierarchy **and** modified global prior", which is a less clean causal comparison for no measurable
+gain.
+
+Calling these pools **non-overlapping** rather than "disjoint evidence" (review change 5): the
+observation *sets* no longer intersect, but the information in them is not independent — the same
+batter appears across L1 and L2, so their estimates remain correlated. Nothing here claims
+independence.
 
 **Implementation constraint**: built in `research/baselines.js` by passing filtered id lists to the
 **real, unmodified** `getLineLengthBreakdown` and `hierarchicalBlend`. `tendencyAnalytics.js` and
@@ -89,17 +97,37 @@ between-method gaps.
 Brier moving in the predicted direction is not evidence the predicted mechanism caused it — the
 lesson from H5. So the mechanism is measured directly.
 
+**G2 population (review change 2)**: restricted to checkpoints where the exact matchup actually
+participates in the blend, i.e. it has at least one ball in the specific (line, length) bucket being
+predicted. `hierarchicalBlend` skips zero-`n` levels entirely, so where the exact level is absent
+there is nothing being shrunk and no contamination at that bucket.
+
+**This distinction is load-bearing**: `overlapFraction = 0` because there is no fine-level evidence
+is a completely different state from `overlapFraction = 0` because a populated fine level happens
+not to overlap. Conflating them would make "no exact evidence" look like "zero contamination".
+Checkpoints with no exact-bucket evidence are reported **separately** as a coverage category, never
+folded into the strata.
+
 Per checkpoint, record:
 
-- `overlapFraction r = |E_exact| / |E_bVsArch|` — the contamination at that checkpoint
-- `S_A = |p_exact_raw - p_final|` under arm A (achieved shrinkage, contaminated)
-- `S_B = |p_exact_raw - p_final|` under arm B (achieved shrinkage, uncontaminated)
+- `r = exactBucketN / bVsArchBucketN` — bucket-level overlap, the contamination that actually
+  affects *this* blend
+- `S_A = |p_exact_raw - p_final_A|` — achieved shrinkage, contaminated
+- `S_B = |p_exact_raw - p_final_B|` — achieved shrinkage, uncontaminated
+- `ΔS = S_B - S_A`, reported directly
 
-Then stratify `S_A` and `S_B` by `r` ∈ {0-5%, 5-10%, 10-20%, 20-50%, 50%+}.
+Stratify by `r` ∈ {0-5%, 5-10%, 10-20%, 20-50%, 50%+}, **with per-stratum counts always shown**.
 
-**H9 predicts `S_A < S_B`, with the gap widening as `r` rises** — under-shrinkage that scales with
-contamination. A flat gap across `r` would mean arm B differs for some reason *other* than
-contamination, which would undercut the mechanism even if arm B won.
+**H9 predicts `ΔS > 0` and increasing in `r`.** Criterion (review change 3, deliberately not
+"monotonic in every bin"): the mean and median `ΔS` must be **non-decreasing across strata that
+meet a minimum count**, and the highest-populated stratum must show `ΔS > 0`. Experiment 5's
+n=18 and n=11 bins are the precedent — a strict every-bin monotonicity test is hostage to whichever
+stratum happens to be near-empty. We are testing a mechanism, not fitting a smooth curve.
+
+**Known limitation, stated in advance**: bucket-level exact evidence existed at only 110 of 2,520
+checkpoints in Experiment 5. If G2's population is similarly small here, that is a genuine power
+limit and will be reported as one rather than glossed. Arms A and B can still differ at more
+checkpoints via the L3 rung, which is recorded separately.
 
 ---
 
@@ -114,9 +142,10 @@ in their own units.
 > anything material and **H9 is unsupported**.
 
 **G2 — is the mechanism the one claimed?**
-> Supported only if achieved shrinkage `S_A < S_B` AND the gap increases monotonically across the
-> `r` strata. If arm B wins without this signature, it wins for some other reason and H9 is **not**
-> the explanation — report the win, reject the mechanism.
+> Supported only if `ΔS = S_B - S_A > 0` AND mean/median `ΔS` is **non-decreasing across strata
+> meeting a minimum count**, with the highest-populated stratum showing `ΔS > 0` (see §5 for why
+> this replaces strict per-bin monotonicity). If arm B wins without this signature, it wins for
+> some other reason and H9 is **not** the explanation — report the win, reject the mechanism.
 
 **G3 — does it break the H-A / H-B confound?**
 > Descriptive-but-decisive: report where arm B falls between arms A and C. Near C → contamination
@@ -129,6 +158,16 @@ in their own units.
 
 **Stated in advance**: G1 and G2 must **both** hold for H9 to be supported. A Brier or oracle-MAE
 win without the shrinkage signature is not support for this hypothesis.
+
+**Descriptive logging, not additional tests (review change 4)**: record per-rung overlap fractions
+`r2 = |L1 ∩ L2| / |L2|`, `r3 = |L2 ∩ L3| / |L3|`, and `r_global` at every checkpoint. These are
+**not** hypothesis tests and may not be promoted into claims. They cost almost nothing now and are
+what would let a follow-up identify *which* rung causes the damage — a question worth being able to
+answer if H9 is supported, and not worth an experiment of its own before then.
+
+**No fourth arm (review change 5)**: isolating L2-only contamination is deliberately deferred. The
+three-arm design answers the primary question; if it returns A > B > C, isolating the responsible
+rung becomes Experiment 8, and if it returns A ≈ B the question never arises.
 
 ---
 
