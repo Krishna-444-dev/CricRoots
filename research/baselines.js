@@ -12,6 +12,7 @@ const {
   getLiveMatchupPlan
 } = require(path.join(__dirname, '..', 'backend', 'src', 'services', 'tendencyAnalytics'));
 const { blendWithPrior, hierarchicalBlend } = require(path.join(__dirname, '..', 'backend', 'src', 'utils', 'statUtils'));
+const { lookupOracleArchetype } = require('./oracles');
 
 function findBucket(breakdown, line, length) {
   return breakdown.buckets.find((b) => b.line === line && b.length === length) || null;
@@ -91,6 +92,40 @@ async function fullHierarchyNoArchetype(batsmanId, bowlerId, line, length) {
   return blended.value !== null ? blended.value / 100 : null;
 }
 
+/** DIAGNOSTIC ONLY (research/experiment-4-design.md, Experiment 4A) - reads synthetic ground
+ * truth via research/oracles.js, so this is an upper bound on what perfect archetype estimation
+ * could deliver, never a deployable method. Predicts the exact true archetype-pool probability
+ * directly: the perfect version of the archetypeOnly baseline, measuring the ceiling of archetype
+ * information alone. Takes the already-built oracle table (built once per experiment, not per
+ * checkpoint) plus the same playerLookup archetypeOnly uses. */
+async function oracleArchetypeOnly(batsmanId, bowlerId, line, length, playerLookup, oracleTable) {
+  const { battingStyle, bowlingStyle } = await playerLookup(batsmanId, bowlerId);
+  return lookupOracleArchetype(oracleTable, battingStyle, bowlingStyle, line, length);
+}
+
+/** DIAGNOSTIC ONLY (research/experiment-4-design.md, Experiment 4A) - same caveat as above. The
+ * real, unmodified hierarchicalBlend with the EMPIRICAL exact-matchup rate on top and the ORACLE
+ * archetype probability as the coarsest level, trusted as-is (see experiment-4-design.md for why
+ * it isn't blended further into global). Isolates "noisy intermediate estimation" from "sequential
+ * blending as such": same k=15 mechanism as every other method, but the level it backs off to is
+ * perfect instead of estimated. */
+async function oracleInformedHierarchy(batsmanId, bowlerId, line, length, playerLookup, oracleTable) {
+  const { battingStyle, bowlingStyle } = await playerLookup(batsmanId, bowlerId);
+  const oracleValue = lookupOracleArchetype(oracleTable, battingStyle, bowlingStyle, line, length);
+  if (oracleValue === null) return null;
+  const exact = await getLineLengthBreakdown({ batsmanIds: [batsmanId], bowlerIds: [bowlerId] });
+  const exactBucket = findBucket(exact, line, length);
+  // Oracle value is a probability in [0,1]; hierarchicalBlend's other levels here use the 0-100
+  // dismissalRate scale getMatchupPlan feeds it, so the oracle is converted up and the result
+  // converted back down - keeping the blend arithmetic identical to production's.
+  const levels = [
+    { value: exactBucket ? exactBucket.dismissalRate : 0, n: exactBucket ? exactBucket.balls : 0 },
+    { value: oracleValue * 100, n: Number.MAX_SAFE_INTEGER }
+  ];
+  const blended = hierarchicalBlend(levels);
+  return blended.value !== null ? blended.value / 100 : null;
+}
+
 /** Proposed method - the real, unmodified getMatchupPlan. */
 async function fullHierarchy(batsmanId, bowlerId, line, length) {
   const plan = await getMatchupPlan(batsmanId, bowlerId);
@@ -115,6 +150,8 @@ module.exports = {
   singleLevelShrinkage,
   archetypeOnly,
   fullHierarchyNoArchetype,
+  oracleArchetypeOnly,
+  oracleInformedHierarchy,
   fullHierarchy,
   fullHierarchyWithLive
 };

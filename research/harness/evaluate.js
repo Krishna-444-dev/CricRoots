@@ -25,6 +25,8 @@ const mongoose = require('mongoose');
 const path = require('path');
 const { generatePopulation, generateLeagueMatches, trueProbability, makeRng } = require('../synthetic/generator');
 const baselines = require('../baselines');
+const { buildOracleArchetypeTable } = require('../oracles');
+const { fitWithCrossValidatedLambda } = require('../models/regularizedHierarchicalLogit');
 
 const Player = require(path.join(__dirname, '..', '..', 'backend', 'src', 'models', 'Player'));
 const Match = require(path.join(__dirname, '..', '..', 'backend', 'src', 'models', 'Match'));
@@ -103,14 +105,53 @@ function seededShuffle(arr, seed) {
   return out;
 }
 
+// Each method receives (batsmanObjectId, bowlerObjectId, line, length, playerLookup, ctx), where
+// ctx carries the per-experiment instruments built once up front (oracle table, fitted joint
+// model) plus the generator-level string ids. The oracle* methods are DIAGNOSTIC ONLY - see
+// research/oracles.js and research/experiment-4-design.md.
 const HISTORICAL_METHODS = {
   global: (b, w, l, n) => baselines.globalRate(b, w, l, n),
   rawExactMatchup: (b, w, l, n) => baselines.rawExactMatchup(b, w, l, n),
   singleLevelShrinkage: (b, w, l, n) => baselines.singleLevelShrinkage(b, w, l, n),
   archetypeOnly: (b, w, l, n, playerLookup) => baselines.archetypeOnly(b, w, l, n, playerLookup),
   fullHierarchyNoArchetype: (b, w, l, n) => baselines.fullHierarchyNoArchetype(b, w, l, n),
+  oracleArchetypeOnly: (b, w, l, n, playerLookup, ctx) => baselines.oracleArchetypeOnly(b, w, l, n, playerLookup, ctx.oracleTable),
+  oracleInformedHierarchy: (b, w, l, n, playerLookup, ctx) => baselines.oracleInformedHierarchy(b, w, l, n, playerLookup, ctx.oracleTable),
+  jointRegularizedLogit: async (b, w, l, n, playerLookup, ctx) => ctx.jointModel.predict({
+    batterId: ctx.batsmanIdStr,
+    bowlerId: ctx.bowlerIdStr,
+    battingStyle: ctx.battingStyle,
+    bowlingStyle: ctx.bowlingStyle,
+    line: l,
+    length: n
+  }),
   fullHierarchy: (b, w, l, n) => baselines.fullHierarchy(b, w, l, n)
 };
+
+/** Flattens training matches into the observation rows the joint model fits on. Uses the
+ * generator's own string ids and the population's style fields - the same information the
+ * database-backed methods get from Player documents, just read directly. */
+function toTrainingRows(trainMatches, population) {
+  const batterById = new Map(population.batters.map((b) => [b._id, b]));
+  const bowlerById = new Map(population.bowlers.map((w) => [w._id, w]));
+  const rows = [];
+  for (const match of trainMatches) {
+    for (const inn of match.innings) {
+      for (const ball of inn.balls) {
+        rows.push({
+          batterId: ball.batsmanId,
+          bowlerId: ball.bowlerId,
+          battingStyle: batterById.get(ball.batsmanId).battingStyle,
+          bowlingStyle: bowlerById.get(ball.bowlerId).bowlingStyle,
+          line: ball.line,
+          length: ball.length,
+          isWicket: ball.isWicket
+        });
+      }
+    }
+  }
+  return rows;
+}
 
 /**
  * Runs the full Track A experiment. Assumes an already-connected mongoose instance (see
@@ -157,6 +198,18 @@ async function runExperiment({
   const trainDocs = trainMatches.map((m) => toMatchDoc(m, idMap, rng));
   await Match.insertMany(trainDocs);
 
+  // Experiment 4 instruments, both built once here rather than per checkpoint (see
+  // research/experiment-4-design.md).
+  const oracleTable = buildOracleArchetypeTable(population);
+  // The joint model is fit ONCE, on training matches only. This is a disclosed asymmetry: unlike
+  // every other method here, it never sees the current test match's already-revealed balls, so it
+  // is working from strictly LESS information. Refitting at all checkpoints is computationally
+  // prohibitive. Each row records withinMatchBallsRevealed so the size of this handicap is
+  // measurable rather than merely asserted.
+  const jointModel = fitWithCrossValidatedLambda(toTrainingRows(trainMatches, population));
+  const batterById = new Map(population.batters.map((b) => [b._id, b]));
+  const bowlerById = new Map(population.bowlers.map((w) => [w._id, w]));
+
   const results = [];
 
   for (let matchIdx = 0; matchIdx < testMatches.length; matchIdx++) {
@@ -185,8 +238,17 @@ async function runExperiment({
           const exactMatchupBreakdown = await getLineLengthBreakdown({ batsmanIds: [ball.batsmanId], bowlerIds: [ball.bowlerId] });
           const exactMatchupN = exactMatchupBreakdown.totalBalls;
 
+          const ctx = {
+            oracleTable,
+            jointModel,
+            batsmanIdStr,
+            bowlerIdStr,
+            battingStyle: batterById.get(batsmanIdStr).battingStyle,
+            bowlingStyle: bowlerById.get(bowlerIdStr).bowlingStyle
+          };
+
           for (const [methodName, fn] of Object.entries(HISTORICAL_METHODS)) {
-            const prediction = await fn(ball.batsmanId, ball.bowlerId, ball.line, ball.length, playerLookup);
+            const prediction = await fn(ball.batsmanId, ball.bowlerId, ball.line, ball.length, playerLookup, ctx);
             results.push({
               matchIdx,
               globalBallCounter,
@@ -197,6 +259,10 @@ async function runExperiment({
               trueOutcome: ball.isWicket ? 1 : 0,
               pTrue: trueProbability(population, batsmanIdStr, bowlerIdStr, ball.line, ball.length),
               exactMatchupN,
+              // Balls of THIS test match already revealed at this checkpoint - the information the
+              // fit-once joint model does not have but every DB-querying method does. Recorded so
+              // the disclosed asymmetry can be quantified rather than only described.
+              withinMatchBallsRevealed: globalBallCounter,
               method: methodName,
               prediction
             });
@@ -226,7 +292,12 @@ async function runExperiment({
     meta: {
       numTeams, battersPerTeam, bowlersPerTeam, rounds,
       numTrainMatches, numTestMatches, ballsPerInnings, checkpointStride,
-      populationSeed, matchSeed, splitSeed, archetypeSignal
+      populationSeed, matchSeed, splitSeed, archetypeSignal,
+      jointModel: {
+        chosenLambda: jointModel.chosenLambda,
+        cvResults: jointModel.cvResults,
+        trainingRowCount: jointModel.trainingRowCount
+      }
     }
   };
 }
