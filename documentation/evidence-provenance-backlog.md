@@ -154,10 +154,35 @@ three contexts is a different dataset from 81 spread across thirty.
 
 See `research/experiment-9-design.md` §3 for the definitions.
 
-**Specification detail to settle**: what counts as an *eligible* ball. Wides, no-balls, byes and
-leg-byes are flagged via `isExtra` / `extraType`, and some are not meaningfully taggable for
-line/length. Completeness measured against all balls will understate quality; measured against a
-defined eligible subset it will not.
+### Eligible-ball definition — a DATA CONTRACT, to be frozen before collection starts
+
+Not a research decision. If the denominator drifts, "92% complete this season" and "92% next
+season" are not comparable, and the metric silently stops meaning anything.
+
+Keep two denominators, and store the raw flags so either can be recomputed:
+
+- **All recorded deliveries** — never filtered, the audit trail
+- **Research-eligible deliveries** — the metric's denominator, defined per `extraType`
+
+Proposed dispositions, with reasons, to be argued with before freezing:
+
+| `extraType` | Bowled? | Faced by batter? | Line/length meaningful? |
+|---|---|---|---|
+| `none` | yes | yes | yes — clearly eligible |
+| `no-ball` | yes | yes | yes — eligible |
+| `bye` | yes | yes (missed it) | yes — eligible |
+| `leg-bye` | yes | yes (hit the body) | yes — eligible |
+| `wide` | yes | **arguably not** | **depends on the question** |
+| `penalty` | **no delivery occurred** | no | no — clearly excluded |
+
+**The complication worth surfacing now**: `wide` splits by question, not by data. A wide *has* a
+line and length — that is generally why it was called — so for a **bowler-tendency** question it is
+a legitimate observation. For a **batter-response** question it is not: the batter did not play it.
+
+So a single global eligibility rule cannot serve both. **This argues for storing raw `isExtra` /
+`extraType` and computing the denominator per question, rather than baking one definition into the
+stored metric.** A defined *family* of completeness figures, each with its rule stated, rather than
+one number whose meaning depends on a choice nobody records.
 
 ## 3. Surface evidence provenance — the change described above
 
