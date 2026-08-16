@@ -157,13 +157,33 @@ function main() {
     console.log(`     corr(accuracy, |z_b|)   = ${corr(acc, per.map((p) => p.zNorm)).toFixed(4)}   <- strength of the batter's own latent position`);
     console.log(`     corr(accuracy, sdTrue)  = ${corr(acc, per.map((p) => p.sdTrue)).toFixed(4)}   <- how much their latent surface actually varies`);
     console.log('');
-    console.log(`  BY TRAINING-OBSERVATION QUARTILE:`);
+    // Quartile MEANS answer "does n explain the average". They cannot answer "do entities at the
+    // SAME n differ from each other" - for that the within-quartile SPREAD is the relevant number,
+    // since n is nearly constant inside a quartile. Both are reported.
+    console.log(`  BY TRAINING-OBSERVATION QUARTILE   (mean +/- within-quartile sd)`);
     const sorted = [...per].sort((a, b) => a.n - b.n);
     for (let q = 0; q < 4; q++) {
       const sl = sorted.slice(Math.floor(q * per.length / 4), Math.floor((q + 1) * per.length / 4));
       const su = sl.filter((p) => p.utility !== null);
-      console.log(`     Q${q + 1}  n ${sl[0].n}-${sl[sl.length - 1].n}   accuracy ${mean(sl.map((p) => p.accuracy)).toFixed(4)}   confidence ${mean(sl.map((p) => p.confidence)).toFixed(4)}   utility ${su.length ? mean(su.map((p) => p.utility)).toExponential(2) : 'n/a'}`);
+      const A = sl.map((p) => p.accuracy), C = sl.map((p) => p.confidence);
+      console.log(`     Q${q + 1}  n ${sl[0].n}-${sl[sl.length - 1].n}`
+        + `   accuracy ${mean(A).toFixed(3)} +/- ${Math.sqrt(variance(A)).toFixed(3)}`
+        + `   confidence ${mean(C).toFixed(3)} +/- ${Math.sqrt(variance(C)).toFixed(3)}`
+        + `   utility ${su.length ? mean(su.map((p) => p.utility)).toExponential(2) : 'n/a'}`);
     }
+    // The direct test for "same evidence volume, different evidential state": how much of the
+    // total spread survives after removing between-quartile differences? If within-quartile sd is
+    // close to overall sd, n is not the control variable.
+    const wq = [];
+    for (let q = 0; q < 4; q++) {
+      const sl = sorted.slice(Math.floor(q * per.length / 4), Math.floor((q + 1) * per.length / 4));
+      wq.push({ acc: Math.sqrt(variance(sl.map((p) => p.accuracy))), conf: Math.sqrt(variance(sl.map((p) => p.confidence))) });
+    }
+    console.log('');
+    console.log(`  SPREAD AT COMPARABLE n  (mean within-quartile sd vs overall sd)`);
+    console.log(`     accuracy   within ${mean(wq.map((x) => x.acc)).toFixed(4)}  overall ${Math.sqrt(variance(acc)).toFixed(4)}  ratio ${(mean(wq.map((x) => x.acc)) / Math.sqrt(variance(acc))).toFixed(3)}`);
+    console.log(`     confidence within ${mean(wq.map((x) => x.conf)).toFixed(4)}  overall ${Math.sqrt(variance(conf)).toFixed(4)}  ratio ${(mean(wq.map((x) => x.conf)) / Math.sqrt(variance(conf))).toFixed(3)}`);
+    console.log(`     (ratio near 1 = n explains almost none of the spread; near 0 = n explains it)`);
     console.log('');
     out.volumes.push({ rounds, meanN: mean(ns), per });
   }
