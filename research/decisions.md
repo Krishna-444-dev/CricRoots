@@ -336,3 +336,78 @@ improved the second, not the first, and conflating them would overstate what was
 
 **Scope**: applies to any future estimator in this codebase that pools across levels, not only to
 `getMatchupPlan`. Not yet implemented anywhere — production is frozen under D8.
+
+---
+
+## D19 - Before concluding that a mechanism failed, establish that it was active
+
+**Date**: 2026-08-16 · **Origin**: Experiment 8's bilinear zero-collapse
+
+**Standing experimental invariant**, companion to the M1 rule (*before testing whether X predicts Y,
+establish that Y is measurable*).
+
+A model can fail for at least six reasons, and they are **six different scientific conclusions**:
+
+| # | Failure mode | How we detect it | Have it? |
+|---|---|---|---|
+| 1 | The idea is genuinely bad | only by elimination, after 2-6 are excluded | inferential only |
+| 2 | The representation is wrong for the structure | oracle comparison — give the method the true quantity and see if the architecture can use it (Experiment 4A) | partial |
+| 3 | The data is insufficient | measurability gate (M1); model-based information limits | **yes** |
+| 4 | Optimisation failed to converge | convergence criterion on the objective, `iterationsRun`, `hitIterationCap`, restart spread | **yes** |
+| 5 | Regularisation suppressed the mechanism | magnitude of the fitted component — `sd(fitted latent)` — reported alongside its accuracy | **yes** |
+| 6 | The implementation does not represent the intended method | verify on data generated *from* the intended structure before use (rank-2 recovery at r=0.9413 before Experiment 8) | **yes** |
+
+**Every one of these checks was retrofitted after being burned by its absence**, which is the honest
+reason this is a decision rather than a guideline:
+
+- #4 came from D13/D16 — Experiment 4's optimiser was never converged, and Experiment 6's first run
+  hit the iteration cap silently.
+- #5 came from Experiment 8 — `r_latent = -0.044` was read as "the model tried and failed to
+  recover the structure" when `sd(fitted latent) = 1e-9` meant it had produced no latent term at
+  all. Two entirely different conclusions.
+- #3 came from M1 — six proxies were about to be built against a target with negative reliability.
+- #6 came from writing the low-rank model and realising a null result would otherwise be
+  uninterpretable.
+
+**Rule going forward**: any experiment reporting that a mechanism did not help must report, in the
+same breath, evidence that the mechanism was *present and active* — magnitude of the fitted
+component, convergence status, and a prior verification that the implementation recovers the
+structure when it is unambiguously there.
+
+**Note on modes 1 and 2**: these remain inferential. We cannot directly detect "bad idea" or "wrong
+representation" — only conclude them once 3-6 are excluded. That is a real limitation and should be
+stated whenever such a conclusion is drawn.
+
+---
+
+## Research board (not hypotheses — open questions, deliberately unformalised)
+
+Recorded so they are not lost, and explicitly **not** registered in `hypotheses.md`, because
+promoting a question to a hypothesis before it has a falsification criterion is how the last four
+were formed.
+
+**RQ1 — Can a prediction system learn the appropriate *level of personalisation* per prediction from
+evidence, rather than fixing one model complexity globally?**
+
+The evidence ladder this programme has actually mapped:
+
+```
+Population -- Archetype -- Player -- Context -- Interaction
+                                ^
+                    CricRoots can currently justify
+                    up to roughly here (~81 balls/batter)
+```
+
+Everything measured feeds into this question: sample size matters, sample *quality* matters
+(within-quartile spread was 99% of overall spread), signal strength matters, complexity has a cost,
+richer representations become useful only above ~325-649 balls/batter, confidence and correctness
+are not the same thing, provenance matters (D18), and sometimes the correct output is *"I do not
+have enough evidence for this claim."*
+
+**Testability, given M1**: aggregate performance of an evidence-aware complexity policy against a
+global one IS testable at current scale. Per-entity attribution of *why* it helped is not.
+
+**RQ2 — Does similarity used as a constraint, rather than as a substitute, behave differently under
+sparsity?** H11 refuted substitution. A fused penalty retains the entity's own evidence and only
+limits drift. Untested. Requires a prior-art pass over graph/fused/network-lasso regularisation
+before any novelty claim.
