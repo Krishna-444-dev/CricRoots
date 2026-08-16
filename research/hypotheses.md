@@ -379,3 +379,52 @@ Something is being lost between "the signal exists" and "the sequential estimato
 next step is a **diagnostic, not a hypothesis** - see `diagnostics/archetype-estimation-diagnostic.js`.
 Naming a mechanism before measuring one is how the last four hypotheses were formed, and three of
 them were unsupported.
+
+---
+
+## H11 - Behavioural-neighbourhood transfer exploits latent similarity under sparsity
+
+> If entities share latent behavioural structure, pooling evidence from the most similar entities
+> should improve prediction for a sparsely-observed target.
+
+**Status: CLOSED - REFUTED** (World D gates, `diagnostics/world-d-validity-gates.js`)
+
+Refuted under conditions maximally favourable to it. World D+ contains real, strong shared latent
+structure (J1: residual surface correlation +0.4631 for the closest decile by z-distance, -0.4702
+for the farthest, against 0.0067 overall) and that structure is genuinely predictive (J2a: direct
+access to the true latent term improves oracle MAE from 0.036253 to 0.034058). The realised latent
+variance share was **19.40%**, above the 10-15% target - so the effect was, if anything, oversized.
+
+Yet **oracle** neighbourhoods - neighbours chosen with perfect knowledge of `z`, a strict upper
+bound on any learned similarity metric - lost to plain `global` at every pool size: 0.0971 (K=10),
+0.0730 (K=20), 0.0546 (K=40) against 0.0363.
+
+**The failure pattern is diagnostic, not incidental.** MAE improves monotonically with pool size
+while converging toward global *from below* - the signature of pure variance cost. Larger pools do
+less damage; none adds value. Pooling over a discrete neighbourhood is too variance-expensive at
+this sparsity regardless of how well the neighbourhood is chosen.
+
+**This is a finding about the mechanism, not the simulator** - the distinction that D17 required.
+J1 and J2a establish the world is sound; the mechanism still failed inside it. No learned
+similarity method can beat the oracle it approximates, so this closes the direction rather than
+inviting a better similarity metric.
+
+---
+
+## H12 - Low-rank joint estimation exploits latent structure that neighbourhood transfer cannot
+
+> A regularized factor model estimating latent coordinates *jointly* under shrinkage, rather than
+> pooling over a discrete neighbourhood, can extract the latent signal J2a showed to exist.
+
+**Status: OPEN.** The natural remaining candidate, and structurally different from H11: it never
+forms a neighbourhood, so it is not subject to the pooling variance cost that killed H11.
+
+The specific question, from review, is **not** whether it beats global overall:
+
+> **Does a low-rank model recover useful latent structure BEFORE there is enough data to estimate
+> individual effects directly?**
+
+That is what would make the latent structure worth having. If it only helps once individual effects
+are already estimable, it adds nothing at the sparsity CricRoots actually operates in.
+
+Design: `research/experiment-8-design.md`. Not yet implemented.
