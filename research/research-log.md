@@ -338,3 +338,40 @@ measurable in the regime being tested.
 That personalisation is impossible, that the joint model should be replaced, or that any algorithm
 should be built. The open question is a product one and is deliberately left open here: what should
 a system deliver when individual-level evidence supports a scalar claim but not a contextual one?
+
+---
+
+## Product finding, arising from the arc closure (not acted on)
+
+Checked while freezing the product wording. **The provenance the research says users need already
+exists in the system and is already sent to the client — it is simply never displayed.**
+
+`getMatchupPlan` returns per bucket (`tendencyAnalytics.js:173-184`):
+
+- `blendedDismissalRate` — the number
+- `confidence` — a coarse label
+- **`basedOn`** — *which evidence level actually produced this estimate* ("this exact matchup",
+  "this batter vs Right-arm Fast bowling", "Right-hand batters vs Right-arm Fast bowling",
+  "every tagged delivery")
+- `historicalSampleSize`, `rawBallsAtFinestLevel`
+
+Both consumers — `web-app/app/match/[id]/scouting/page.tsx` and
+`.../report/[playerId]/page.tsx` — **declare `basedOn` in their TypeScript types and never render
+it.** They render `blendedDismissalRate` and a `confidence` badge.
+
+**Why this matters given what the experiments found.** `confidence` is derived in
+`statUtils.js:19` from `individualN` — the sample size at *whichever level actually contributed*.
+When the exact matchup has zero balls in a bucket, `hierarchicalBlend` skips it and the finest
+contributing level becomes the archetype pool, which is large. So a bucket can display **"medium"
+or "high" confidence while being backed entirely by archetype-level data**, with the batter's own
+contribution being zero.
+
+That is precisely the distinction the arc identified: *"how vulnerable is this batter"* versus
+*"how do batters like them respond"*. The confidence badge does not separate them. `basedOn` does,
+and it is already on the wire.
+
+**Not acted on.** Production stays frozen while research is in flight (D8), and changing
+`getMatchupPlan`'s consumers now would not affect any experiment but does need its own review. The
+point of recording it here is narrower and worth stating plainly: **the honest framing is a display
+change, not an architecture project.** The backend already knows which evidence layer produced each
+recommendation.
