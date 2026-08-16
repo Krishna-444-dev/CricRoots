@@ -307,3 +307,28 @@ Recorded so the result does not select the procedure:
   `general-algorithm-landscape.md` §6.
 - **F2 fires** (joint model differentially fragile) → none of the above; that is a finding against
   the current direction and gets reported as one.
+
+---
+
+## H10 - Online adaptation becomes more valuable as distribution shift increases
+
+> If stale historical estimates decay in value under drift while online updating tracks the current
+> regime, the online advantage should grow with drift magnitude.
+
+**Status: NOT SUPPORTED** (Experiment 6, F3)
+
+A(m) = Brier(offline) - Brier(online) across m ∈ {0, 0.25, 0.50, 1.00}: **+1.974e-4, +1.494e-4,
++8.530e-5, +1.679e-4** - non-monotonic. A(1.00) - A(0) = **-2.95e-5**, negative where the
+preregistered criterion required > +8.7e-5.
+
+**Why this verdict survives the Brier contamination that compromised F1/F2/F4**: F3 compares two
+methods *within* the same run - same checkpoints, same realized outcomes, same base rate, same true
+probabilities - so the irreducible Brier component is shared and cancels. The cross-run base-rate
+artifact does not touch it.
+
+**Corroborating context, not part of the criterion**: the descriptive temporal-block analysis shows
+the online advantage growing early→late in C0b and C4-mild but *not* in C4-mod or C4-stress - i.e.
+not in the runs with the most drift.
+
+**Consequence**: adaptive forgetting, dynamic player state, and temporal evidence allocation
+(roadmap D-III, D-IV, temporal part of D-I) are **not evidence-motivated**. Do not build them.

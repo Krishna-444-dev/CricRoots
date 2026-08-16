@@ -203,3 +203,74 @@ jointRegularizedLogit 0.046380 / 0.553, 0.061102 / 0.683 · **jointRegularizedLo
 **Useful by-product**: comparing the gate-failed run against the clean run isolates optimizer noise
 exactly, since nothing else differs. Non-optimizer methods came back **bit-identical** across both
 runs, confirming the harness is fully deterministic.
+
+---
+
+## Experiment 6 - CLOSED. World C, temporal drift
+
+**Design**: `experiment-6-design.md` · **Criteria**: `diagnostics/experiment-6-criteria.js` ·
+**Diagnostic**: `diagnostics/experiment-6-drift-diagnostic.js` · **Results**: `results/6-*/`
+
+Eight preregistered runs, all passing the verification gate (identical checkpoints, exact
+per-match reset, updates occurring and accumulating, every joint fit converged at
+12,000-15,400 iterations).
+
+### Preregistered mechanical outcomes, preserved as recorded
+
+| Criterion | Verdict as computed |
+|---|---|
+| F1 | **met** (9/9 non-global methods over threshold; 7 still over excluding the weakly entity-dependent ones) |
+| F2 | **not met** (difference -9.29e-5; joint degrades slightly *less*) |
+| F3 | **NOT SUPPORTED** (A(m) non-monotonic; A(1.00)-A(0) = -2.95e-5, needed > +8.7e-5) |
+| F4 | **met, marginally** (9.29e-5 vs 8.70e-5 threshold - clears by 7%) |
+
+### Post-result diagnostic
+
+The C4 dose-response reversed (C4-mod degraded more than C4-stress). Diagnosed without re-running
+anything:
+
+- Drift *direction* is bit-identical across magnitudes (δ(0.5)/δ(1.0) = 0.5 exactly, deviation
+  0.0e+0), ruling out differential cancellation.
+- Ground-truth movement is monotone in both spaces: logit 0.127/0.255/0.510, probability
+  0.0067/0.0138/0.0300. Train→test distance monotone: 0.0271/0.0277/0.0323/0.0366.
+- Realized test-period wicket rate is **not** monotone: 0.0409/0.0440/**0.0504**/0.0448.
+- **Irreducible Brier** (mean `pTrue(1-pTrue)`, what a perfect predictor scores) is
+  0.0481/0.0490/**0.0509**/0.0505 - non-monotone in the same shape as observed Brier.
+- **Oracle MAE is cleanly monotone for every method** (joint online: 0.0204/0.0201/0.0252/0.0287).
+
+### Interpretive consequence
+
+Raw Brier degradation across runs contains a substantial realized-test-base-rate component. It is
+therefore **not** a clean measure of model degradation. The criteria are not *false*; they are
+**partially non-diagnostic for the mechanism they were meant to isolate.**
+
+- **F1** - numerical criterion met, and independently corroborated: both the generated drift and
+  oracle MAE increase monotonically, so entity-dependent prediction genuinely does get harder. But
+  the Brier-based *magnitude* should not be read as a clean degradation estimate.
+- **F2** - **contaminated / non-diagnostic.** Not "passed", not "failed". The -9.29e-5 margin sits
+  far inside a base-rate distortion of much larger scale. It does **not** establish that the joint
+  model is more robust.
+- **F4** - technically met, but on a 7% margin inside that same distortion. **Not usable as
+  evidence.**
+- **F3** - **unaffected, and stands.** It compares offline against online *within* each run, on the
+  same checkpoints, outcomes, base rate, and true probabilities, so the irreducible component is
+  shared and cancels. Its NOT SUPPORTED verdict is the experiment's load-bearing result.
+
+### What Experiment 6 establishes
+
+Temporal drift makes prediction measurably harder (oracle MAE, monotone). **Increasing drift does
+not increase the benefit of online adaptation.** The evidence therefore does **not** justify
+building adaptive forgetting, dynamic player state, or temporal evidence allocation - roadmap
+directions D-III, D-IV, and the temporal part of D-I lose their justification, exactly as the
+pre-fixed branch procedure specified.
+
+### Methodological findings, carried forward
+
+Two distinct evaluation hazards, both discovered rather than anticipated:
+
+1. **Information contamination** - nested evidence pools let an estimator partially see itself
+   through its own prior (H9).
+2. **Metric contamination** - absolute Brier degradation across changing test distributions carries
+   a base-rate component unrelated to model deterioration. **Consequence adopted for all future
+   experiments: oracle MAE, not Brier, is the primary instrument when the test distribution itself
+   changes between runs.**
