@@ -84,16 +84,30 @@ Phase 1 delivers most of the honesty benefit with zero backend risk. Phase 2 is 
 
 ## The principle worth carrying beyond this feature
 
-> **Do not hide the abstraction level at which an estimate was learned.**
+> **An estimate should carry its epistemic provenance, not merely its numerical value.**
 
-A generic confidence score answers "how sure are you?". Provenance answers "why should I trust
-this?" — which is a different and more useful question, and one most predictive products cannot
-answer at all.
+A generic confidence score answers "how sure are you?". Provenance answers "why are you entitled to
+think that?" — a different and more useful question, and one most predictive products cannot answer
+at all.
+
+The four lines of the Phase 1 output each carry a distinct piece of that:
+
+| Line | What it is |
+|---|---|
+| 8.4% dismissal | the estimate |
+| Right-hand batters vs Right-arm Fast | where the estimate came from |
+| 214 deliveries at that level | how much evidence supports it |
+| 0 for this exact matchup | **what the system does not know** |
+
+The fourth line is the one a confidence badge structurally cannot express.
 
 ---
 
 ## What this does not do
 
-It does not change the algorithm, does not improve accuracy, and does not resolve any open research
-question. It stops the product from implying a stronger claim than its own evidence supports —
-using information the system was already producing and discarding at the last step.
+It does not change the algorithm, does not improve **model accuracy**, and does not resolve any
+open research question.
+
+What it improves is **claim accuracy** — the product stops implying an estimate is batter-specific
+when its evidence is population-level. Those are different things, and only the second is being
+claimed here. It uses information the system was already producing and discarding at the last step.

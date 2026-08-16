@@ -309,3 +309,30 @@ global (0.0305).
 **Also standing**: the strongest existing baselines must be identified and implemented *before* any
 novel method is designed. For this problem the bar is a **low-rank/factorised joint model**, not the
 sequential hierarchy - that bar was cleared long ago by a simpler method.
+
+---
+
+## D18 - An estimate must carry its epistemic provenance, not merely its value
+
+**Date**: 2026-08-16 · **Doc**: `documentation/evidence-provenance-backlog.md`
+
+**Standing principle**, adopted from the Experiments 8-9 arc and intended to outlast it.
+
+A predictive output should make it possible to understand *why the system is entitled to think it* —
+not only how confident it claims to be. Concretely, for any pooled or backed-off estimate: report
+which level of abstraction produced it, and how much evidence exists at that level **and at the
+finest level**.
+
+**Why this became a decision rather than a note**: `getMatchupPlan` already computed exactly this
+(`basedOn`, `historicalSampleSize`, `rawBallsAtFinestLevel`), already sent it to the client, and the
+client already typed it — and then displayed only a confidence badge derived from whichever level
+happened to contribute. A bucket could therefore read "medium confidence" while the batter's own
+contribution was zero. The system was computing the honest answer and discarding it at the final
+step.
+
+**The distinction this protects**: **model accuracy** (does the estimate match reality) versus
+**claim accuracy** (does the presentation match what the evidence supports). The research programme
+improved the second, not the first, and conflating them would overstate what was achieved.
+
+**Scope**: applies to any future estimator in this codebase that pools across levels, not only to
+`getMatchupPlan`. Not yet implemented anywhere — production is frozen under D8.
