@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-08-16T17:21:07.164Z",
+  "lambdaLowRank": 5,
+  "volumes": [
+    {
+      "rounds": 2,
+      "perBatterTrain": 81.13636363636364,
+      "nBatters": 114,
+      "medianTestBalls": 16,
+      "splitHalf": -0.24870277918669992,
+      "spearmanBrown": -0.662062289855065,
+      "observedBetween": 0.000020339219498125523,
+      "meanMeasVar": 0.000022541201616880604,
+      "reliability": -0.108262862247886
+    },
+    {
+      "rounds": 8,
+      "perBatterTrain": 324.54545454545456,
+      "nBatters": 176,
+      "medianTestBalls": 49,
+      "splitHalf": 0.43258218402636184,
+      "spearmanBrown": 0.6039195361351801,
+      "observedBetween": 0.00004645148286552835,
+      "meanMeasVar": 0.000016637331221270978,
+      "reliability": 0.6418342279958184
+    },
+    {
+      "rounds": 32,
+      "perBatterTrain": 1298.1818181818182,
+      "nBatters": 176,
+      "medianTestBalls": 224,
+      "splitHalf": 0.9069671277166322,
+      "spearmanBrown": 0.951214223396308,
+      "observedBetween": 0.00004127016260328706,
+      "meanMeasVar": 0.000002208292705418797,
+      "reliability": 0.9464917856843406
+    }
+  ]
+}
