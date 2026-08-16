@@ -1,10 +1,10 @@
-// Experiment 3b - "World B" (research/synthetic/world-b-design.md): identical CONFIG to
-// Experiment 3a (research/harness/run-experiment.js) - same population/match/split seeds, same
-// evaluation pipeline, same 6 methods - with one difference: archetypeSignal: true, so
+// WORLD B entry point (research/synthetic/world-b-design.md) - identical CONFIG to the World A
+// runner (research/harness/run-experiment.js): same population/match/split seeds, same
+// evaluation pipeline, same methods - differing in exactly one flag: archetypeSignal: true, so
 // battingStyle/bowlingStyle genuinely predict the outcome (measured realized effect: 8.84% of
 // logit-space variance, see world-b-design.md), instead of carrying ~0% signal as in World A.
-// World A's comparison numbers are Experiment 3a's results, already collected - not re-run here,
-// since the two configs are identical apart from this one flag and the pipeline is deterministic.
+// Both runners are re-run together whenever the method set changes, so the two worlds are always
+// compared at the same code version - see research/research-log.md for the run history.
 // Metrics only, no interpretation written here - same discipline as every other run-experiment*.js.
 const fs = require('fs');
 const path = require('path');
@@ -30,7 +30,7 @@ const CONFIG = {
 
 async function main() {
   const startedAt = new Date().toISOString();
-  console.log('Starting Experiment 3b (World B - archetype carries genuine signal)...');
+  console.log('Starting controlled experiment - WORLD B (archetypeSignal: true)...');
   console.log('Config:', CONFIG);
 
   const mongod = await MongoMemoryServer.create();

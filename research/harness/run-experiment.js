@@ -9,11 +9,14 @@
 // roster, which produced an unrealistic sparsity distribution (94.7% of checkpoints at 50+
 // exact-matchup balls).
 //
-// Third experiment (this config): identical CONFIG to the second experiment (same population,
-// match, and split seeds - guarantees the exact same checkpoints), with one addition:
-// fullHierarchyNoArchetype (research/baselines.js), an ablation isolating whether the two
-// archetype-level rungs are specifically what drag fullHierarchy below singleLevelShrinkage
-// (research/diagnostics/experiment-2-diagnostic.md Finding 3).
+// Every experiment from the third onward reuses this same CONFIG (same population, match, and
+// split seeds - guaranteeing the exact same checkpoints every time) and differs only in which
+// methods research/harness/evaluate.js evaluates. That is deliberate: it makes results directly
+// comparable across runs without re-deriving the data. See research/research-log.md for which
+// run produced which results directory, and research/experiment-{4,5}-design.md for the designs.
+//
+// This runner is the WORLD A entry point (archetypeSignal defaults to false);
+// run-experiment-3b.js is the World B counterpart.
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -37,7 +40,7 @@ const CONFIG = {
 
 async function main() {
   const startedAt = new Date().toISOString();
-  console.log('Starting third controlled experiment (archetype-ablation, same league data)...');
+  console.log('Starting controlled experiment - WORLD A (archetypeSignal: false)...');
   console.log('Config:', CONFIG);
 
   const mongod = await MongoMemoryServer.create();
