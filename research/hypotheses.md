@@ -244,3 +244,66 @@ regularized model, not `k=15` sequential shrinkage - across the pre-declared spa
 a margin exceeding optimizer convergence error. Any weighting function it learns must be fit on
 training data only. If it wins only against the sequential hierarchy, or only after its weighting
 function has seen evaluation data, the hypothesis is unsupported.
+
+---
+
+## H9 - The hierarchy's failure is caused by nested-pool contamination, not (only) archetype noise
+
+> `hierarchicalBlend`'s shrinkage target at each rung contains the observations being shrunk
+> (`E_exact ⊂ E_bVsArch ⊂ E_archVsArch ⊂ E_global`, guaranteed by construction). Empirical-Bayes
+> shrinkage assumes prior and estimate are independent. Because the prior is pulled toward the
+> individual estimate by the individual's own data, the blend moves less than intended -
+> systematic **under-shrinkage of precisely the noisiest estimates**.
+
+**Status: UNTESTED, and currently INDISTINGUISHABLE from H2's surviving partial form.**
+
+See `research/nested-evidence-finding.md` for the measurement. Contamination at the finest rung is
+mean 15.6% / median 11.8% / p90 31.3% / max 100% on Experiment 6's training set, with typical pool
+sizes of 3 balls (exact) against 18 (batter-vs-bowler-archetype).
+
+**Why it is currently indistinguishable.** Two explanations survive every result to date:
+
+- **H-A (archetype noise)** - the archetype rungs pool on a variable carrying ~0% ground-truth
+  variance in World A, injecting noise as a confident prior.
+- **H-B (nested contamination)** - the archetype rungs' estimates are contaminated by the exact
+  matchup's own observations, producing under-shrinkage.
+
+`fullHierarchyNoArchetype` removed **both at once** - it deleted the archetype rungs *and* dropped
+contamination from 15.6% to 0.02% - and came out bit-identical to `singleLevelShrinkage`. So the
+Experiment 3a ablation cannot attribute the effect to either. Both remain live.
+
+**Falsification criterion** (fixed now, before any such experiment is designed): H9 is supported
+only if a rung that pools by archetype **excluding the target's own observations** (leave-one-out)
+measurably outperforms the current contaminated rung, by more than the measured optimizer-noise
+floor, on the same checkpoints. If leave-one-out pooling performs the same as the contaminated
+version, contamination is not the mechanism and H-A stands alone.
+
+**Additional preregistered measurement, not a pass/fail test**: compare *achieved* shrinkage
+`|p_exact - p_final|` against shrinkage toward an uncontaminated prior, stratified by overlap
+fraction (0-5%, 5-10%, 10-20%, 20-50%, 50%+). The mechanism predicts achieved shrinkage should fall
+progressively short as overlap rises. This is a direct test of the mechanism rather than an
+inference from Brier moving.
+
+**Novelty: none in the remedy.** Leave-one-out pooling targets are textbook empirical Bayes, and
+correctly specified hierarchical Bayes handles nesting generatively. The defensible claim is a
+*measured failure mode of a widely-used practical approximation* in a specific sparse regime - not
+a new method. Note this reading is also consistent with H4: the joint model may have won because it
+is a correctly specified hierarchical model, not because joint estimation is inherently superior.
+
+---
+
+## Branch procedure after Experiment 6 (fixed in advance)
+
+Recorded so the result does not select the procedure:
+
+- **Drift matters (F1 and F3 pass)** → Branch A: temporal adaptation. H3/H4-style directions from
+  the roadmap; sliding-window and fixed-decay baselines mandatory.
+- **Drift does not matter (F1 fails)** → Branch B: nested-evidence contamination (H9). Cheaper,
+  already has a measured effect size, and needs no new generator.
+- **Both matter** → Branch C: the combination - how to aggregate overlapping nested evidence when
+  both source reliability and the data-generating process move. This is the only branch whose
+  problem statement is specific enough to be plausibly unsolved, and it is also the one most likely
+  to be already covered by hierarchical state-space models. Prior-art review first, per
+  `general-algorithm-landscape.md` §6.
+- **F2 fires** (joint model differentially fragile) → none of the above; that is a finding against
+  the current direction and gets reported as one.
