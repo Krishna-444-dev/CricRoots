@@ -211,6 +211,41 @@ designing something new becomes justified rather than speculative.
 
 ---
 
+## 7b. Redundancy is structurally ruled out — established before results were visible
+
+Review raised two distinct readings of "high `r_latent`, no benefit at n=0/1":
+
+- **(A) Redundant** — arm A's per-player parameters already encode the same information.
+- **(B) Inaccessible** — the structure is recoverable but not with enough precision to improve
+  sparse predictions.
+
+**(A) is ruled out structurally.** Arm A's terms are `batter[b]` (a scalar per batter),
+`lineLength[l]` (shared across all batters), and `interaction[b,w]` (per batter-bowler pair). None
+is a batter x (line,length) term, so arm A cannot represent `z_b · φ_ll` except through those two
+marginals.
+
+Decomposing the true latent surface over all 176 batters x 42 cells (a property of the world,
+computed independently of any model or result):
+
+| Component of the latent surface | Share of its variance |
+|---|---:|
+| batter-marginal — absorbable by `batter[b]` | **0.63%** |
+| lineLength-marginal — absorbable by `ll[l]` | **1.19%** |
+| **irreducible batter x (line,length) interaction** | **98.18%** |
+
+Arm A can absorb at most ~1.8% of the latent surface. **If arm B recovers `z` well and still does
+not beat arm A at n=0/1, it cannot be because arm A already had the information — it structurally
+cannot have it.** That outcome would therefore be reading (B), not (A).
+
+Recorded now, before the arms are visible, so the distinction cannot be resolved after the fact in
+whichever direction the numbers happen to suggest.
+
+**Also worth carrying**: the generator's `R_{b,line,len}` term has the same shape and is likewise
+unrepresentable by arm A (the D11 known limitation). Arms B and C are the first models in this
+programme with any capacity to represent batter-specific context response at all.
+
+---
+
 ## 8. What each outcome licenses
 
 | L1 | L2 | L3 | Conclusion |
