@@ -89,12 +89,24 @@ amortized, Apple Developer fee amortized) - see the viability report for the ful
 
 ## Track C: getting it in front of real testers, with zero setup on their end
 
+> **Read this first (added 2026-08-18, after a repository audit).** The "zero setup, share
+> anywhere" promise below is **true only after Track B is done**. Until a publicly reachable
+> HTTPS backend exists at `api.cricroots.com`, this path is local-network testing, not an
+> internet-accessible pilot — see the limitation subsection at the end of this track. Do not
+> read the setup-is-done note as meaning the pilot is ready to share.
+>
+> There is, however, a clean path already in the code: `mobile-app/src/shared/api/apiClient.ts:23`
+> falls back to `https://api.cricroots.com/api` for any non-`__DEV__` build with
+> `EXPO_PUBLIC_API_URL` unset. So once Track B is live, publishing with that variable **unset**
+> should produce a genuinely portable bundle. See `documentation/pilot-deployment-plan.md`.
+
 For a pilot ("a few people, a few matches, one season"), skip app store distribution entirely at
 first - it's slower (developer account approval, app review) and not what it's for yet. The mobile
 app (Expo SDK 54) can be shared as a live link that opens instantly inside the free **Expo Go**
 app - no waitlist, no review, no account approval needed on the tester's side.
 
-**Setup: done.** The Expo project is linked (project ID `c42d8897-9374-4b2c-8ceb-7282f6180e2b`,
+**Setup: done — but see the warning above; setup being done is not the same as the pilot being
+shareable.** The Expo project is linked (project ID `c42d8897-9374-4b2c-8ceb-7282f6180e2b`,
 owner `krishnadev444`), and updates publish for real to the `preview` channel:
 
 ```bash
@@ -126,6 +138,19 @@ When you're ready for something that feels more like a "real app" (its own icon 
 no Expo Go wrapper) - or once you need push notifications or any native module Expo Go doesn't
 support - that's when to move to EAS Build + TestFlight/Play internal testing instead. Not needed
 for the first pilot.
+
+## Status of this document
+
+Audited against the repository on 2026-08-18. Two findings that were not in the original checklist:
+
+1. **The web app is not deployed by anything here.** No `web-app/Dockerfile`, no web-app service in
+   `docker-compose.yml`, and `nginx.conf` ends with `location / { return 404; }`. Following Track B
+   as written produces a working API at `api.cricroots.com` and **nothing at `cricroots.com`**.
+   Decided 2026-08-18: the first pilot is **mobile-only** and this is accepted, not fixed.
+2. **Track B item 3 (Atlas) conflicts with `docker-compose.yml`**, which hardcodes a local Mongo
+   connection string. Using Atlas requires a small compose change, not just an env var.
+
+The concrete, verified version of Track B now lives in `documentation/pilot-deployment-plan.md`.
 
 ## Sequencing recommendation
 
