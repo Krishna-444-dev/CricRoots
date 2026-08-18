@@ -121,6 +121,20 @@ docker-compose down -v
 
 ## Production Deployment
 
+> **Scope note (2026-08-18).** This section documents the Docker mechanics. A repository audit found
+> two things it does **not** cover, both of which block a real deployment:
+>
+> 1. **The web app is not deployed by anything here.** There is no `web-app/Dockerfile`, no web-app
+>    service in `docker-compose.yml`, and `nginx.conf` ends with `location / { return 404; }`.
+>    Following this guide produces a working API and **nothing at the site root**.
+> 2. **Step 3's MongoDB Atlas guidance conflicts with `docker-compose.yml`**, which hardcodes a
+>    local Mongo connection string (`MONGO_URI: mongodb://...@mongodb:27017/...`). Using Atlas needs
+>    a compose change, not just an environment variable — otherwise a stray local Mongo runs with
+>    `admin`/`password` defaults alongside it.
+>
+> For the audited, sequenced version of what actually remains before a pilot, see
+> [`documentation/pilot-deployment-plan.md`](documentation/pilot-deployment-plan.md).
+
 ### 1. Prepare Production Environment
 
 Create a production `.env` file with secure values:
@@ -141,6 +155,11 @@ AI_ENGINE_URL=https://ai.yourdomain.com
 ```
 
 ### 2. SSL/TLS Certificate Setup
+
+> The `ssl/cert.pem` checked into this repository is **self-signed and development-only**
+> (`CN=localhost`, `O=CricSync Dev`). A mobile device will refuse it. Production requires a real
+> certificate for the actual hostname — which for the mobile client must be `api.cricroots.com`,
+> since `mobile-app/src/shared/api/apiClient.ts` hardcodes that as its production fallback.
 
 Generate or obtain SSL certificates:
 

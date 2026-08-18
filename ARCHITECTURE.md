@@ -466,6 +466,43 @@ Prometheus Scraper
 Grafana Dashboards
 ```
 
+## Research and Evaluation Layer
+
+`research/` is a controlled synthetic benchmark used to evaluate the matchup engine
+(`backend/src/services/tendencyAnalytics.js`, `backend/src/utils/statUtils.js`) against
+alternatives. It is **not** part of the deployed system and ships no runtime code — it imports the
+real production functions and exercises them against generated data with known ground truth.
+
+Why it exists: the product's own match database cannot serve as evaluation data. `matchSimulator.js`
+draws dismissals at a flat 4.5% independent of batter, bowler, line and length, so it contains no
+matchup structure to recover.
+
+Key architectural properties:
+
+- **Reads production code, never reimplements it.** Baselines call the real exported
+  `getLineLengthBreakdown` / `getMatchupPlan` / `hierarchicalBlend`. Evaluating a reimplementation
+  would say nothing about the deployed system.
+- **Leakage control.** Held-out matches are evaluated one at a time against their own database
+  snapshot, torn down between matches; within a match, ball *i* is predicted strictly before ball
+  *i* is inserted.
+- **Runs against a real MongoDB** (`mongodb-memory-server`) using the real Mongoose models, so
+  schema and query behaviour are exercised, not mocked.
+- **Deterministic.** Seeded PRNG throughout; identical seeds produce byte-identical output.
+
+Findings are simulator-conditional and have not been validated against real cricket data. See
+`research/README.md`.
+
+## Testing and CI
+
+- **Backend**: Jest against a real in-memory MongoDB — shrinkage primitives, scoring invariants,
+  auth/authorization boundaries. `maxWorkers: 1` is pinned because parallel workers race to start
+  `mongodb-memory-server` instances.
+- **CI** (`.github/workflows/ci.yml`): backend tests on Node 18 (matching the production
+  `node:18-alpine` image), plus `web-app` and `mobile-app` typechecks on Node 20.
+- **Production boot guard**: `backend/src/config/assertSecrets.js` refuses to start when
+  `NODE_ENV=production` and `JWT_SECRET` is unset or still a placeholder — fail-closed, and
+  inert in development.
+
 ## Future Enhancements
 
 ### Real-time Features (Implemented)

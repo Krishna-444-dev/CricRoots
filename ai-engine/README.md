@@ -102,6 +102,12 @@ Lower-level endpoints used by the Tactical Advisor internally, also callable dir
 **Endpoint**: `GET /api/recommendations/health`
 **Response**: `{ "status": "healthy", "models_loaded": true, "service": "CricSync AI Recommendation Engine" }`
 
+> The `CricSync` in that string is accurate, not a documentation slip — `src/api/recommendations.py:95`
+> still returns the pre-rename name. It is a cosmetic leftover from the CricSync → CricRoots rename
+> (2026-08-12), unchanged so far only because production is frozen. Deliberately *not* corrected in
+> this document, since documenting a value the service does not actually return would be worse than
+> the inconsistency.
+
 ## Analytics Endpoints
 
 A separate blueprint at `/api/analytics`, mounted from `src/api/analytics.py`, provides rule-based (non-ML) statistical helpers:

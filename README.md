@@ -14,6 +14,7 @@ This repository contains the complete CricRoots ecosystem, including:
 - **AI Engine** (`ai-engine/`): Python/Flask service providing win-probability and tactical-advisor predictions during a live match.
 - **Statistical insights service** (`backend/src/services/tendencyAnalytics.js`): a complementary Node-side aggregation layer over real ball-by-ball data (line, length, shot zone, fielder) captured during scoring — powers shot advice, bowling plans, fielding placement, bowler scouting, wagon wheels, wicketkeeper stats, and career/tournament leaderboards, all computed live from match documents rather than a separately-maintained stats table.
 - **Real-time Updates**: Socket.io WebSocket support for instant match updates, team chat, and tournament announcements.
+- **Research programme** (`research/`): a controlled synthetic benchmark and preregistered experiment suite used to evaluate the matchup engine against alternatives. Nine experiments, a validity-gate protocol, and a documented record of what has been ruled out and at what evidence scale — including negative results and retracted conclusions. Findings are **simulator-conditional** and have not been validated on real cricket data. Start at `research/state-of-the-program.md`.
 - **Comprehensive Documentation**: Guides for architecture, deployment, development, and a running feature-progress log (`documentation/cricclubs-feature-roadmap.md`).
 
 ## Key Features
@@ -88,7 +89,8 @@ This repository contains the complete CricRoots ecosystem, including:
 ## Getting Started
 
 ### Prerequisites
-- Node.js 16+
+- Node.js 18 (the backend Docker image is `node:18-alpine` and CI pins the backend job to 18 — a
+  newer local Node can mask failures that only appear in the deployed container)
 - Python 3.11+
 - Docker & Docker Compose
 - MongoDB
@@ -151,6 +153,25 @@ physical device (your machine's LAN IP, not `localhost`). To share a build with 
 zero setup on their end, see the Expo Go / EAS Update workflow in
 `documentation/going-legal-and-live.md`.
 
+## Testing and CI
+
+```bash
+cd backend && npm test          # Jest + mongodb-memory-server, runs against a real in-memory MongoDB
+node research/synthetic/generator.test.js   # research generator checks (no test framework, no deps)
+```
+
+The backend suite covers the shrinkage primitives (`blendWithPrior`, `hierarchicalBlend`), scoring
+invariants, and auth/authorization boundaries. `jest.config.js` pins `maxWorkers: 1` deliberately —
+parallel workers race to start `mongodb-memory-server` instances and fail on startup timeouts, which
+was reproduced before the pin was added.
+
+`.github/workflows/ci.yml` runs three jobs on push: backend tests on **Node 18** (matching the
+production image), plus TypeScript typechecks for `web-app` and `mobile-app` on Node 20.
+
+Production boot is guarded: `backend/src/config/assertSecrets.js` refuses to start when
+`NODE_ENV=production` and `JWT_SECRET` is unset or still a placeholder. Local development is
+unaffected.
+
 ## Documentation
 
 - **[System Architecture](ARCHITECTURE.md)** - Detailed overview of the system design
@@ -163,6 +184,11 @@ zero setup on their end, see the Expo Go / EAS Update workflow in
 - **[Mobile Rebuild & Analytics Research](documentation/mobile-app-rebuild.md)** - the mobile app rebuild, ball commentary/voice input, Key Moments, and the prediction game
 - **[News & Learn Features](documentation/news-and-learn-features.md)** - auto-generated tournament news and personalized lesson recommendations
 - **[Going Legal and Going Live](documentation/going-legal-and-live.md)** - practical checklist for LLC formation, production deployment, and pilot distribution via Expo Go
+- **[Pilot Deployment Plan](documentation/pilot-deployment-plan.md)** - the verified, executable version of the above: what actually remains before a remote friend can score a match, audited against this repository
+- **[Evidence Provenance Backlog](documentation/evidence-provenance-backlog.md)** - data-capture priorities and the display change that would stop the app implying stronger claims than its evidence supports
+- **[Research: State of the Programme](research/state-of-the-program.md)** - what the experiments established, what was ruled out and at what scale, and what remains open
+- **[Research: Protocol](research/protocol.md)** - the governing research principle and the six validity gates a conclusion must clear
+- **[Research-Readiness Audit](documentation/research-readiness-audit.md)** - why the product's own match database cannot evaluate the matchup engine, and what had to be built instead
 
 ## API Endpoints
 
@@ -308,6 +334,22 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 *Developed with the assistance of Manus AI*
 
 ### Latest Updates
+- ✅ **Research programme (`research/`)**: nine preregistered experiments against a controlled
+  synthetic benchmark with known ground truth, testing whether the deployed hierarchical matchup
+  engine beats the alternatives. It does not — a jointly-estimated regularized model outperformed it
+  on every metric in both test worlds. Five hypotheses were refuted or unsupported, two of my own
+  conclusions were retracted mid-arc, and the retractions are in the git history rather than tidied
+  away. All findings are **simulator-conditional**: the product's own match database was found
+  unusable for this evaluation (`matchSimulator.js` draws dismissals at a flat 4.5% independent of
+  batter, bowler, line and length), so real-data validation remains open and is gated on pilot
+  adoption. See `research/state-of-the-program.md`.
+- ✅ **Validity-gate protocol** (`research/protocol.md`): six checks a conclusion must clear before
+  "method X does not work" is admissible — target measurable, method implemented, method *active*,
+  optimiser converged, representation adequate. Every gate was added after its absence produced a
+  wrong conclusion at least once; none was foresight.
+- ✅ **Test foundation and CI**: 38 backend tests against a real in-memory MongoDB covering the
+  shrinkage primitives, scoring invariants and auth boundaries; GitHub Actions running backend tests
+  on Node 18 plus web/mobile typechecks; fail-closed production secret checks; auth rate limiting.
 - ✅ Full web-vs-mobile feature parity audit and build-out: match creation, player profile
   completion, tournament creation, an event calendar, and lesson/news authoring were all missing
   from mobile (tournament creation was confirmed broken — dead code — on **both** web and mobile);
@@ -352,7 +394,9 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 - ✅ "Stadium Dark" UI redesign across web and mobile — a shared broadcast-graphics-style design system
 
 ### Coming Soon
-- 🔄 A real deployed production backend (currently pilot-testing over a local network) and full App Store/Play Store submission
+- 🔄 A real deployed production backend (currently pilot-testing over a local network) and full App Store/Play Store submission. The remaining work is audited and sequenced in `documentation/pilot-deployment-plan.md` — note that `api.cricroots.com` is a hard requirement rather than a free choice, since the mobile client hardcodes it as its production fallback, and that the web app is not currently deployed by anything in the Docker stack
+- 🔄 Per-ball match state capture (score, wickets, phase at the moment of the ball). Not a deployment dependency, but a hard prerequisite before the first real match is scored — it is the one thing that cannot be backfilled afterwards
+- 🔄 Real-data validation of the research findings, which is gated on pilot adoption rather than on analysis: the questions that remain open need substantially more observations per player than currently exist
 - 🔄 D/L Standard rain-revision rules, once the published resource-table values are verified against original sources
 - 🔄 Match/tournament notifications (push/email when a followed team's match goes live or a tournament posts an announcement)
 - 🔄 Global/international cricket news, once local tournament news is well established
