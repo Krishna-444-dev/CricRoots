@@ -101,11 +101,64 @@ set:
 | A1 | C3's basis **+** standardized margin `(n·μ̂ − R)/(σ̂·√n)` | Direct test of the §1 derivation |
 | A2 | C3's basis **+** the margin **+** `√n`, `R/√n`, `1/√n` | Tests whether the specific z-score matters or merely √n-scaled terms |
 | A3 | A1's basis, gradient boosted | Separates "wrong terms" from "wrong function class" |
-| A4 | Diffusion closed form: `Φ((n·μ̂ − R)/(σ̂·√n))` with μ̂, σ̂ estimated from **training data only**, no fitting | The analytic answer with zero learned parameters |
+| A4 | Gaussian closed form: `Φ((n·μ̂ − R)/(σ̂·√n))`, moments from **training only**, no fitting | The analytic answer with zero learned parameters |
+| **A5** | **Exact finite-horizon DP over the empirical outcome distribution, estimated from training only** | **Added by review.** See below — without it, A4's failure would be misread. |
+| A5₀ | A5 with the wicket dimension removed (never all out) | Decomposition aid, declared here so it is preregistered rather than added later |
 | — | Exact oracle | Floor |
 
-μ̂ and σ̂ are per-ball moments estimated from the training split's ball outcomes. They are **not**
-read from the generator — that would make A4 an oracle rather than a baseline.
+μ̂ and σ̂ are estimated from the training split. They are **not** read from the generator — that
+would make A4 an oracle rather than a baseline.
+
+### Why A5 is necessary — the amendment
+
+**A Gaussian approximation is itself unreliable in exactly the regime under investigation.** Six
+draws from a lumpy discrete distribution with mass on {0, 1, 2, 3, 4, 6} is not a regime where the
+CLT is trustworthy. So the inference "A4 did not close the gap, therefore H-form is insufficient"
+would be **unsound**: A4 might fail purely as an approximation, while the underlying missing idea —
+the finite-horizon discrete outcome distribution — is exactly right.
+
+A5 removes that ambiguity by computing the finite-horizon probability **exactly**, using only an
+empirical outcome distribution estimated from training data. No learned coefficients, no generator
+access, no test information. This yields a ladder where it is possible to see *where* the error
+disappears:
+
+```
+rate basis  →  analytic margin (A4)  →  exact empirical finite-horizon (A5)  →  true oracle
+```
+
+### Interpretation, fixed in advance
+
+| Case | Pattern | Conclusion |
+|---|---|---|
+| 1 | A4 **and** A5 close the endgame gap | **H-form**, strongly supported |
+| 2 | A4 fails, **A5 closes it** | **H-form still**, but the missing piece is *discrete finite-horizon structure*, not the standardized-margin approximation. A better finding than case 1. |
+| 3 | A1/A2 improve substantially, A4/A5 do not | The representation may need to be **learned** rather than derived from the marginal distribution |
+| 4 | None improve | **H-repr** becomes credible, and World E earns its place |
+
+### How A5 is estimated, and the one honest limitation
+
+`real_matches.csv` contains over-boundary checkpoints, not ball-by-ball outcomes. The empirical
+outcome distribution is therefore estimated at **over granularity**, as the joint distribution of
+(runs conceded, wickets lost) in a complete over, taken from differences between consecutive
+training checkpoints.
+
+Three points, each of which affects what A5 can claim:
+
+1. **Over granularity is the data's native granularity, not a compromise.** Every training row sits
+   at an integer `overs_remaining`; the model has never seen a fractional over. And at the headline
+   failing state — 1 over remaining — the DP is a *single* transition, `P(runs in one over ≥ R)`,
+   with no granularity loss whatsoever. A5 is therefore exact precisely where E6 found the 0.296
+   error.
+2. **Censoring must be handled or the distribution is biased.** Overs in which the target was
+   reached are truncated and never appear as complete overs. The estimate is therefore taken only
+   from overs that *cannot* terminate: those starting with `runs_needed > 36` (unreachable in one
+   over) and `wickets_down ≤ 6`. This is valid **because this world's ball process is i.i.d., so the
+   over distribution is homogeneous** — an assumption that is a property of the world under test and
+   that would **not** hold in World E. Recorded as a limitation of the method, not a defect of the
+   experiment.
+3. **A4 and A5 differ in two respects at once** — discreteness *and* wicket dynamics (A4 ignores
+   wickets entirely). A5₀ isolates them: A4 → A5₀ is the pure discreteness effect, A5₀ → A5 is the
+   wicket effect.
 
 ### Primary endpoint
 
@@ -129,11 +182,17 @@ why: C4 met a CI-includes-zero criterion with an oracle MAE four times the winne
 imprecision. Margin to be fixed in AE-1's own preregistration, by the same
 degrade-the-oracle-with-known-noise calibration E6 used.
 
-### Honest prior
+### Honest prior — and its exact epistemic status
 
-I expect **F or P**, not R. The §1 derivation is not speculative — it is the central limit theorem
-applied to a sum the generator defines exactly. Recording that expectation here so it is on the
-record before the run, as with E6's A′ prediction.
+I expect **F or P**, not R.
+
+Stated precisely, per review: **the analytic derivation motivates an expectation of F/P; it does not
+constitute evidence that any candidate will close the empirical gap.** The derivation says what kind
+of term is missing from the basis. Whether adding it closes a measured 0.296 error on held-out data
+is a separate question, and it is the one the experiment answers.
+
+Recorded here so the expectation is on the record before the run, as with E6's A′ prediction — and
+so that if the result is R, it is visible that it contradicted the prior rather than confirmed it.
 
 **If F, this is a good outcome, not a wasted experiment.** It converts a 30-point production error
 into a two-term fix and correctly stops us building a world.
