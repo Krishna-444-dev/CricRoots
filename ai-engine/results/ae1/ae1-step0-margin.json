@@ -1,0 +1,63 @@
+{
+  "purpose": "fix the AE-1 equivalence margin for the endgame regime, before fitting anything",
+  "regime": "overs_remaining <= 2",
+  "measured_on": "validation only - test labels unread",
+  "n_rows": 161,
+  "n_matches": 88,
+  "endgame_base_rate": 0.25466,
+  "oracle_mean_p": 0.25931,
+  "irreducible_brier": 0.05304,
+  "degradation_ladder": {
+    "sd_0.01": {
+      "mean_abs_deviation_from_oracle": 0.00621,
+      "paired_brier_diff_ci95": [
+        -0.000976,
+        0.000343
+      ],
+      "distinguishable": false
+    },
+    "sd_0.02": {
+      "mean_abs_deviation_from_oracle": 0.00922,
+      "paired_brier_diff_ci95": [
+        -0.000714,
+        0.000638
+      ],
+      "distinguishable": false
+    },
+    "sd_0.03": {
+      "mean_abs_deviation_from_oracle": 0.01553,
+      "paired_brier_diff_ci95": [
+        -0.000564,
+        0.002981
+      ],
+      "distinguishable": false
+    },
+    "sd_0.05": {
+      "mean_abs_deviation_from_oracle": 0.02674,
+      "paired_brier_diff_ci95": [
+        -0.001306,
+        0.00476
+      ],
+      "distinguishable": false
+    },
+    "sd_0.08": {
+      "mean_abs_deviation_from_oracle": 0.04425,
+      "paired_brier_diff_ci95": [
+        0.000694,
+        0.009892
+      ],
+      "distinguishable": true
+    },
+    "sd_0.12": {
+      "mean_abs_deviation_from_oracle": 0.06238,
+      "paired_brier_diff_ci95": [
+        0.005917,
+        0.021835
+      ],
+      "distinguishable": true
+    }
+  },
+  "smallest_detectable_oracle_mae": 0.04425,
+  "TOST_margin_oracle_mae": 0.04425,
+  "decision_rule": "A candidate is EQUIVALENT to the oracle in the endgame iff the upper bound of the paired bootstrap 95% CI for Brier(cand)-Brier(oracle), restricted to the endgame regime, lies BELOW the Brier-difference the margin corresponds to, AND its endgame oracle MAE is at or below the margin. Non-significance alone is not sufficient."
+}

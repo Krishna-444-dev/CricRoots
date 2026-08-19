@@ -160,14 +160,57 @@ Three points, each of which affects what A5 can claim:
    wickets entirely). A5₀ isolates them: A4 → A5₀ is the pure discreteness effect, A5₀ → A5 is the
    wicket effect.
 
-### Primary endpoint
+### Primary endpoint — AMENDED after step 0 failed validity gate 2
 
-**Oracle MAE restricted to the endgame regime** (`overs_remaining ≤ 2`, i.e. the regime E6 showed
-failing), reported alongside whole-test oracle MAE so a fix that helps the endgame while hurting
-elsewhere is visible.
+**The originally proposed endpoint does not work, and the reason is worth recording.**
 
-Secondary: the extrapolation probe table from E6 §9a, rerun for each candidate, so the headline
-0.296 error has a directly comparable successor.
+The design first specified *oracle MAE restricted to observed states with `overs_remaining ≤ 2`*.
+Step 0 measured whether that endpoint can resolve anything, before any candidate was fitted:
+
+| | Value |
+|---|---|
+| Observed endgame rows (validation) | **161**, across 88 matches |
+| C3's oracle MAE in that regime | **0.0377** |
+| Detection floor there (degrade-the-oracle calibration) | **0.0443** |
+
+**The error to be improved is smaller than the smallest difference the regime can detect.** Running
+AE-1 on that endpoint would have returned "no candidate is distinguishable from the oracle in the
+endgame" *regardless of the truth* — the exact M1 failure this programme has hit three times before.
+
+**Why the regime is so weak**: real endgame states are overwhelmingly already decided. Over those
+161 rows the oracle's median win probability is **0.009**, and only **28 rows (17%)** are genuinely
+competitive (`0.2 < p < 0.8`). E6's headline probe — 8 needed off 6 balls — lives in that thin
+slice. Averaging over observed endgame states therefore drowns the failure in states where every
+method is trivially right.
+
+### The amendment, and why it is sound
+
+**Oracle MAE requires no labels.** It compares a prediction against exact ground truth, so it carries
+**no label sampling noise at all** and is not bound by a holdout's size. It can be evaluated on any
+set of states we choose. Only the *Brier* comparison needs observed outcomes, and only it is limited
+by the 161 rows.
+
+| | Endpoint | Resolution |
+|---|---|---|
+| **Primary** | Oracle MAE over an **exhaustive endgame sweep**: balls ∈ 1–12 × wickets ∈ 0–9 × runs needed ∈ 1–40 = **4,800 states** | Deterministic. No label noise. |
+| **Primary-competitive** | The same sweep restricted to `0.2 < oracle_p < 0.8` — where the E6 finding lives and where a captain's decision actually turns | Deterministic |
+| **Secondary** | Observed-endgame Brier and oracle MAE, deployment-weighted | Coarse: floor 0.0443, stated whenever quoted |
+| **Tertiary** | Whole-test metrics from E6 | So a fix that helps the endgame and hurts elsewhere is visible |
+| — | Extrapolation probe table from E6 §9a, rerun per candidate | Direct successor to the 0.296 headline |
+
+TOST with the step-0 margin applies to the **secondary** endpoint, which is label-dependent.
+The primary needs no hypothesis test: on the sweep the oracle's MAE is 0 by construction, so a
+candidate's distance from optimal is read directly.
+
+### The one thing this amendment must not be allowed to hide
+
+**The sweep is not the deployment distribution.** Uniform coverage of the endgame state space
+deliberately over-weights competitive states relative to how often they occur.
+
+Both numbers are therefore reported side by side, and **the gap between them is itself a finding**:
+a model can look accurate on observed endgame data precisely because the states where it is badly
+wrong are rare. That is a statement about what average metrics conceal, not a licence to quote
+whichever number flatters a candidate.
 
 ### Preregistered outcomes
 
