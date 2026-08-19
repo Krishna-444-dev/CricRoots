@@ -1,0 +1,67 @@
+{
+  "purpose": "fix the E6 split and measure the resolution of excess Brier, before any estimator is fitted and without reading the test labels",
+  "seed": 20260819,
+  "split_fractions": {
+    "train": 0.6,
+    "val": 0.2,
+    "test": 0.2
+  },
+  "n_matches": {
+    "train": 346,
+    "val": 115,
+    "test": 116
+  },
+  "n_rows": {
+    "train": 6264,
+    "val": 2085,
+    "test": 2092
+  },
+  "base_rate": {
+    "train": 0.4834,
+    "val": 0.43118,
+    "test": "DELIBERATELY NOT COMPUTED - test stays unread until the final evaluation"
+  },
+  "irreducible_brier_val": 0.11302,
+  "oracle_excess_brier_val": 0.00312,
+  "one_sample_bootstrap": {
+    "n_resamples": 4000,
+    "unit": "match (NOT row - rows within a match share a label)",
+    "excess_brier_se": 0.01231,
+    "two_se": 0.02462,
+    "note": "context only - NOT the fork threshold. The fork is a paired comparison, where the irreducible term cancels and match difficulty cancels with it."
+  },
+  "paired_detectability": {
+    "oracle_plus_noise_sd_0.01": {
+      "mean_abs_deviation_from_oracle": 0.00728,
+      "paired_brier_diff_ci95": [
+        -0.000425,
+        0.000177
+      ],
+      "distinguishable_from_oracle": false
+    },
+    "oracle_plus_noise_sd_0.02": {
+      "mean_abs_deviation_from_oracle": 0.01409,
+      "paired_brier_diff_ci95": [
+        0.000338,
+        0.001557
+      ],
+      "distinguishable_from_oracle": true
+    },
+    "oracle_plus_noise_sd_0.05": {
+      "mean_abs_deviation_from_oracle": 0.03374,
+      "paired_brier_diff_ci95": [
+        0.00061,
+        0.003183
+      ],
+      "distinguishable_from_oracle": true
+    },
+    "oracle_plus_noise_sd_0.1": {
+      "mean_abs_deviation_from_oracle": 0.06493,
+      "paired_brier_diff_ci95": [
+        0.001632,
+        0.008303
+      ],
+      "distinguishable_from_oracle": true
+    }
+  }
+}
