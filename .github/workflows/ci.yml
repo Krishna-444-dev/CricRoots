@@ -28,6 +28,33 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  # The AI engine had no CI job at all until 2026-08-19, which is how a model trained on uniform
+  # random labels, a training/serving feature skew, and 792 duplicated training rows all survived.
+  # This job runs the three gates that would have caught them: the exact-oracle verification, the
+  # data/serving contract tests, and the out-of-sample evaluation with its Brier ceiling.
+  ai-engine-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: ai-engine/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: pip install -r requirements-dev.txt
+      # Validity gate 3: the oracle must recover known structure before it is used to judge
+      # anything. Pure Node, no dependencies.
+      - run: node diagnostics/oracle.test.js
+      - run: python -m pytest tests/ -q
+      # Fails the build if Brier regresses past the ceiling recorded in the script.
+      - run: python evaluate_win_probability.py
+
   web-app-typecheck:
     runs-on: ubuntu-latest
     defaults:

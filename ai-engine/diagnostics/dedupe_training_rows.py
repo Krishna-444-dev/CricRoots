@@ -61,8 +61,11 @@ def main():
         'correction': 'kept the first checkpoint per (match_id, overs_remaining)',
     }
 
+    # lineterminator='\n' matters: csv.writer defaults to '\r\n', which would silently convert the
+    # whole file to CRLF. That is a large gratuitous diff on a committed data file, and it broke
+    # emit-oracle-values.js, whose header lookup then produced a key of 'win_probability\r'.
     with open(CSV_PATH, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator='\n')
         writer.writeheader()
         writer.writerows(kept_rows)
 

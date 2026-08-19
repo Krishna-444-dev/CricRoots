@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-19T04:59:29.053218+00:00",
-  "git_sha": "a2187820e8171ccb475ba6bd2a0b35e7c056c6b6",
+  "generated_at": "2026-08-19T05:07:32.503799+00:00",
+  "git_sha": "e65665aa1cd86c53751aea3bf3352ef7b2c1a473",
   "seed": 42,
   "evaluates": "the training PROCEDURE via refit on the train split, not the deployed pickle (which is refit on 100% of data)",
   "provenance": "data/real_matches.csv is matchSimulator.js output - genuine outcome labels, simulated cricket. Not evidence about real cricket.",

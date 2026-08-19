@@ -1,0 +1,39 @@
+{
+  "what_this_is": "validity check of the estimator against the simulator ground truth. Not evidence about cricket.",
+  "n_holdout_rows": 2086,
+  "n_holdout_matches": 115,
+  "holdout_base_rate": 0.44679,
+  "oracle_mean_p": 0.45247,
+  "results": [
+    {
+      "name": "deployed RandomForest",
+      "oracle_mae": 0.12951,
+      "oracle_mae_p90": 0.35851,
+      "oracle_rmse": 0.19797,
+      "brier": 0.15638,
+      "brier_irreducible": 0.10988,
+      "brier_excess": 0.04649,
+      "corr_with_oracle": 0.87281
+    },
+    {
+      "name": "closed-form logistic baseline",
+      "oracle_mae": 0.04071,
+      "oracle_mae_p90": 0.09108,
+      "oracle_rmse": 0.05946,
+      "brier": 0.12197,
+      "brier_irreducible": 0.10988,
+      "brier_excess": 0.01209,
+      "corr_with_oracle": 0.98794
+    },
+    {
+      "name": "oracle itself (floor)",
+      "oracle_mae": 0.0,
+      "oracle_mae_p90": 0.0,
+      "oracle_rmse": 0.0,
+      "brier": 0.12184,
+      "brier_irreducible": 0.10988,
+      "brier_excess": 0.01195,
+      "corr_with_oracle": 1.0
+    }
+  ]
+}

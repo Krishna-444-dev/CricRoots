@@ -177,7 +177,13 @@ async function main() {
   await require('mongoose').disconnect();
 }
 
-main().catch((err) => {
-  console.error('Extraction failed:', err);
-  process.exit(1);
-});
+// Guarded so the pure functions can be imported by the end-to-end parity test without the module
+// trying to open a Mongo connection on require.
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('Extraction failed:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { extractRows, resolveChaseIndex, toCsv, isConsistentWithCap };
