@@ -103,3 +103,6 @@ ai-engine/src/models/trained_models/*.pkl
 # IDE settings
 .vscode/settings.json
 .idea/workspace.xml
+
+# ai-engine local venv (created for diagnostics; not part of the image)
+ai-engine/.venv/

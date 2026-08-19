@@ -1,0 +1,44 @@
+{
+  "seed": 20260819,
+  "n_chases": 4000,
+  "n_served_states": 483671,
+  "mid_over_states": 403865,
+  "mid_over_fraction": 0.835,
+  "current_run_rate_absolute_error": {
+    "label": "|Δ current_run_rate| (runs/over)",
+    "n": 483671,
+    "mean": 0.51501,
+    "p50": 0.1522,
+    "p90": 0.8,
+    "p99": 9,
+    "max": 76
+  },
+  "current_run_rate_relative_error": {
+    "label": "|Δ current_run_rate| / true",
+    "n": 481152,
+    "mean": 0.05382,
+    "p50": 0.0177,
+    "p90": 0.09524,
+    "p99": 0.66667,
+    "max": 0.66667
+  },
+  "current_run_rate_relative_error_mid_over_only": {
+    "label": "|Δ CRR|/true, mid-over only",
+    "n": 401672,
+    "mean": 0.06447,
+    "p50": 0.02151,
+    "p90": 0.11111,
+    "p99": 0.66667,
+    "max": 0.66667
+  },
+  "overs_remaining_absolute_error": {
+    "label": "|Δ overs_remaining| (overs)",
+    "n": 483671,
+    "mean": 0.16647,
+    "p50": 0.13333,
+    "p90": 0.33333,
+    "p99": 0.33333,
+    "max": 0.33333
+  },
+  "target_score_error": "exactly -1 on every served state (sites pass innings[0].runs, training used +1)"
+}

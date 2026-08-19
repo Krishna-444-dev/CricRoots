@@ -7,6 +7,7 @@ const User = require('../models/User');
 const Tournament = require('../models/Tournament');
 const { MATCH_PHOTO_DIR } = require('../middleware/upload');
 const AIService = require('../utils/aiService');
+const { currentChaseState } = require('../services/matchStateFeatures');
 const { getMatchCharts } = require('../services/matchCharts');
 const { computeMatchMVP, computeMatchMVPPoints } = require('../services/mvpCalculator');
 const { generateCommentary } = require('../services/commentaryGenerator');
@@ -487,17 +488,14 @@ exports.recordBall = async (req, res) => {
     await match.populate('team1');
     await match.populate('team2');
 
-    // Prepare match state for AI
-    const matchState = {
-      oversRemaining: 20 - (match.innings[inningsIndex].overs || 0),
-      wicketsDown: match.innings[inningsIndex].wickets,
-      currentRunRate: match.innings[inningsIndex].runs / (match.innings[inningsIndex].overs || 1),
-      targetScore: match.innings[0]?.runs || 150,
-      oppositionStrength: 7,
-      pitchType: 1
-    };
+    // Chase-state features for the win-probability model, or null during the first innings.
+    // See services/matchStateFeatures.js - this used to be constructed inline with `innings.overs`
+    // (cricket notation) as a run-rate divisor and `innings[0].runs` as the target regardless of
+    // which innings was in progress.
+    const matchState = currentChaseState(match);
 
-    // Emit ball recorded event via WebSocket
+    // Emit ball recorded event via WebSocket. emitBallRecorded skips the AI push when matchState
+    // is null rather than substituting defaults.
     req.socketManager.emitBallRecorded(match._id, ball, matchState);
 
     // Emit wicket event if applicable
@@ -621,21 +619,15 @@ exports.getScorecard = async (req, res) => {
       manOfTheMatch: match.manOfTheMatch
     };
 
-    // Get AI insights for current match state
-    const inningsIdx = currentInningsIndex(match);
-    const aiInsights = await AIService.getTacticalAdvice({
-      oversRemaining: 20 - (match.innings[inningsIdx]?.overs || 0),
-      wicketsDown: match.innings[inningsIdx]?.wickets || 0,
-      currentRunRate: match.innings[inningsIdx]?.runs / (match.innings[inningsIdx]?.overs || 1) || 0,
-      targetScore: match.innings[0]?.runs || 150,
-      oppositionStrength: 7,
-      pitchType: 1
-    });
+    // AI insights only exist during a chase - the model is trained exclusively on second-innings
+    // states (E2). No first-innings substitute is served.
+    const chaseState = currentChaseState(match);
+    const aiInsights = chaseState ? await AIService.getTacticalAdvice(chaseState) : null;
 
     res.status(200).json({
       success: true,
       scorecard,
-      aiInsights: aiInsights.success ? aiInsights : null
+      aiInsights: aiInsights && aiInsights.success ? aiInsights : null
     });
   } catch (error) {
     res.status(500).json({
@@ -817,17 +809,22 @@ exports.getAIInsights = async (req, res) => {
       });
     }
 
-    // Determine which innings is currently active
-    const innings = match.innings[currentInningsIndex(match)];
+    // The win-probability model is a CHASE model - extractWinProbabilityData.js emits second-
+    // innings rows only. Asking it about a first-innings state used to pass the batting side's own
+    // live score as `targetScore`, which is not a state a chase can be in, and the resulting
+    // number was rendered as a win probability. Return an explicit unavailability instead of a
+    // plausible-looking number (E2).
+    const chaseState = currentChaseState(match);
+    if (!chaseState) {
+      return res.status(200).json({
+        success: true,
+        available: false,
+        reason: 'first-innings-model-does-not-exist',
+        message: 'Win probability is only modelled for the second innings.'
+      });
+    }
 
-    const aiInsights = await AIService.getTacticalAdvice({
-      oversRemaining: 20 - (innings?.overs || 0),
-      wicketsDown: innings?.wickets || 0,
-      currentRunRate: innings?.runs / (innings?.overs || 1) || 0,
-      targetScore: match.innings[0]?.runs || 150,
-      oppositionStrength: 7,
-      pitchType: 1
-    });
+    const aiInsights = await AIService.getTacticalAdvice(chaseState);
 
     if (!aiInsights.success) {
       return res.status(500).json({
@@ -838,6 +835,7 @@ exports.getAIInsights = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      available: true,
       aiInsights
     });
   } catch (error) {

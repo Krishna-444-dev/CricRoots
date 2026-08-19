@@ -5,10 +5,6 @@ interface AIInsight {
   match_status: string;
   win_probability: number;
   tactical_advice: string;
-  key_recommendations: {
-    batsman: number;
-    bowler: number;
-  };
 }
 
 interface BallData {

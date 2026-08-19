@@ -1,166 +1,118 @@
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor
 import joblib
 import os
 
+
 class RecommendationModel:
+    """Win-probability model for a limited-overs run chase.
+
+    Scope note (E1, 2026-08-19). This class previously also held a batsman model, a bowler model
+    and a fielding model. All three were removed, for reasons established in
+    documentation/ai-engine-audit.md and not as a stylistic cleanup:
+
+      - `recommended_batsman` and `recommended_bowler` were `random.randint(0, 199)` in
+        data_generator.py, drawn independently of every feature. There was no target to learn.
+        Fifty unbounded trees memorising a random permutation is why those two .pkl files were
+        100 MB each.
+      - `optimal_position` was a deterministic two-variable if/else written three lines above it in
+        the same generator, fitted on five features of which three were never consulted by the
+        rule. The model was a lookup table for code already in the repository.
+
+    Removing them was gated on diagnostics/capture_client_visible_output.py, which proved across
+    1,944 match states that no field either client renders changed. Both clients had already
+    declined to render `key_recommendations` for a reason they state accurately
+    (AITacticalAdvisor.tsx). The engine now computes only what something actually consumes.
     """
-    Enhanced AI model for tactical cricket recommendations and match analysis.
-    """
-    
+
     def __init__(self):
-        self.batsman_model = None
-        self.bowler_model = None
-        self.fielding_model = None
         self.win_prob_model = None
-        self.scaler = StandardScaler()
         self.model_dir = os.path.join(os.path.dirname(__file__), 'trained_models')
         os.makedirs(self.model_dir, exist_ok=True)
-        
+
     def train_all_models(self, data_dir='data'):
-        """Trains batsman/bowler/fielding on synthetic data (no real label exists for those);
-        trains win_prob_model on real match outcomes when data/real_matches.csv is present."""
-        print("Training models...")
-        
-        # 1. Train Batsman & Bowler Models
-        matches_df = pd.read_csv(os.path.join(data_dir, 'matches.csv'))
-        
-        # Batsman Features
-        X_bat = matches_df[['current_run_rate', 'wickets_down', 'overs_remaining', 'opposition_strength']]
-        y_bat = matches_df['recommended_batsman']
-        self.batsman_model = RandomForestClassifier(n_estimators=50, random_state=42)
-        self.batsman_model.fit(X_bat, y_bat)
-        
-        # Bowler Features
-        X_bowl = matches_df[['current_run_rate', 'wickets_down', 'overs_remaining', 'pitch_type']]
-        y_bowl = matches_df['recommended_bowler']
-        self.bowler_model = RandomForestClassifier(n_estimators=50, random_state=42)
-        self.bowler_model.fit(X_bowl, y_bowl)
-        
-        # Win Probability (Regression) - trained on real match outcomes (win_probability = 1.0/0.0
-        # for whether the chasing team actually won) when available, instead of the synthetic
-        # matches.csv's hand-written heuristic formula label. real_matches.csv is produced by
-        # backend/src/scripts/extractWinProbabilityData.js from this app's own completed matches;
-        # falls back to the synthetic column if it hasn't been generated yet in this environment.
+        """Trains the win-probability model on real match outcomes.
+
+        No fallback to data/matches.csv. That file's `win_probability` column is a hand-written
+        heuristic formula, not an outcome, and falling back to it meant a missing training file
+        produced a service that served confident, plausible-looking percentages derived from
+        arithmetic nobody had validated. A dead service is the correct failure mode here; a
+        confident one is not.
+        """
         real_data_path = os.path.join(data_dir, 'real_matches.csv')
-        win_source_df = pd.read_csv(real_data_path) if os.path.exists(real_data_path) else matches_df
-        X_win = win_source_df[['overs_remaining', 'wickets_down', 'current_run_rate', 'target_score']]
-        y_win = win_source_df['win_probability']
+        if not os.path.exists(real_data_path):
+            raise FileNotFoundError(
+                f'Win-probability training data not found at {real_data_path}. '
+                'Generate it with backend/src/scripts/extractWinProbabilityData.js. '
+                'There is deliberately no synthetic fallback - see the docstring above.'
+            )
+
+        print('Training win-probability model...')
+        df = pd.read_csv(real_data_path)
+
+        # win_probability is the match OUTCOME (1.0/0.0 for whether the chasing team actually won),
+        # replicated across every state row of that match. Correct labelling for this target, and
+        # the reason evaluate_win_probability.py must split by match_id rather than by row.
+        X = df[['overs_remaining', 'wickets_down', 'current_run_rate', 'target_score']]
+        y = df['win_probability']
+
         self.win_prob_model = RandomForestRegressor(n_estimators=50, random_state=42)
-        self.win_prob_model.fit(X_win, y_win)
-        
-        # 2. Train Fielding Model
-        fielding_df = pd.read_csv(os.path.join(data_dir, 'fielding.csv'))
-        X_field = fielding_df[['fielding_ability', 'throwing_accuracy', 'speed_agility', 'catching_ability', 'batsman_shot_tendency']]
-        y_field = fielding_df['optimal_position']
-        self.fielding_model = RandomForestClassifier(n_estimators=50, random_state=42)
-        self.fielding_model.fit(X_field, y_field)
-        
+        self.win_prob_model.fit(X, y)
+
         self.save_models()
-        print("All models trained and saved successfully.")
+        print(f'Win-probability model trained on {len(df)} rows '
+              f'from {df["match_id"].nunique()} matches.')
 
     def predict_win_probability(self, match_data):
-        """Predicts the probability of winning the match."""
+        """Predicts the probability that the CHASING team wins.
+
+        Domain note: this model is trained exclusively on second-innings (chase) states - see
+        extractWinProbabilityData.js, which emits nothing else. It has no meaning applied to a
+        first-innings state, and the backend is responsible for not asking (E2).
+        """
         if self.win_prob_model is None:
             return {'success': False, 'message': 'Win probability model not trained'}
-        
-        features = [[
-            match_data.get('overs_remaining', 10),
-            match_data.get('wickets_down', 5),
-            match_data.get('current_run_rate', 8),
-            match_data.get('target_score', 150)
-        ]]
-        
-        prediction = self.win_prob_model.predict(features)[0]
+
+        features = pd.DataFrame([{
+            'overs_remaining': match_data.get('overs_remaining', 10),
+            'wickets_down': match_data.get('wickets_down', 5),
+            'current_run_rate': match_data.get('current_run_rate', 8),
+            'target_score': match_data.get('target_score', 150),
+        }])
+
+        prediction = float(np.clip(self.win_prob_model.predict(features)[0], 0.0, 1.0))
         return {
             'success': True,
-            'win_probability': float(prediction),
+            'win_probability': prediction,
             'status': 'Dominant' if prediction > 0.7 else 'Balanced' if prediction > 0.4 else 'Challenging'
         }
 
-    def recommend_batsman(self, match_data):
-        if self.batsman_model is None:
-            return {'success': False, 'message': 'Batsman model not trained'}
-        
-        features = [[
-            match_data.get('current_run_rate', 6),
-            match_data.get('wickets_down', 2),
-            match_data.get('overs_remaining', 15),
-            match_data.get('opposition_strength', 7)
-        ]]
-        
-        prediction = self.batsman_model.predict(features)[0]
-        probs = self.batsman_model.predict_proba(features)[0]
-        
-        return {
-            'success': True,
-            'recommended_batsman_id': int(prediction),
-            'confidence': float(np.max(probs))
-        }
-
-    def recommend_bowler(self, match_data):
-        if self.bowler_model is None:
-            return {'success': False, 'message': 'Bowler model not trained'}
-        
-        features = [[
-            match_data.get('current_run_rate', 6),
-            match_data.get('wickets_down', 2),
-            match_data.get('overs_remaining', 15),
-            match_data.get('pitch_type', 1)
-        ]]
-        
-        prediction = self.bowler_model.predict(features)[0]
-        probs = self.bowler_model.predict_proba(features)[0]
-        
-        return {
-            'success': True,
-            'recommended_bowler_id': int(prediction),
-            'confidence': float(np.max(probs))
-        }
-
-    def recommend_fielding(self, player_data, batsman_data):
-        if self.fielding_model is None:
-            return {'success': False, 'message': 'Fielding model not trained'}
-        
-        features = [[
-            player_data.get('fielding_ability', 8),
-            player_data.get('throwing_accuracy', 7),
-            player_data.get('speed_agility', 8),
-            player_data.get('catching_ability', 8),
-            batsman_data.get('shot_tendency', 5)
-        ]]
-        
-        prediction = self.fielding_model.predict(features)[0]
-        
-        # Map prediction to position name
-        positions = {1: 'Slips', 2: 'Boundary', 3: 'Inner Circle'}
-        
-        return {
-            'success': True,
-            'recommended_position_id': int(prediction),
-            'recommended_position_name': positions.get(int(prediction), 'Unknown')
-        }
-
     def get_tactical_summary(self, match_data):
-        """Combines all recommendations into a single tactical summary."""
+        """Win probability plus a status label and an advice string."""
         win_prob = self.predict_win_probability(match_data)
-        batsman = self.recommend_batsman(match_data)
-        bowler = self.recommend_bowler(match_data)
-        
+        if not win_prob.get('success'):
+            return win_prob
+
         return {
             'success': True,
             'match_status': win_prob.get('status'),
             'win_probability': win_prob.get('win_probability'),
-            'key_recommendations': {
-                'batsman': batsman.get('recommended_batsman_id'),
-                'bowler': bowler.get('recommended_bowler_id')
-            },
             'tactical_advice': self._generate_advice(win_prob.get('win_probability'), match_data)
         }
 
     def _generate_advice(self, win_prob, match_data):
+        # KNOWN DEFECTS, deliberately left unchanged by E1 and recorded in
+        # documentation/ai-engine-audit.md §6 (F8, F9):
+        #   1. These thresholds (0.8/0.5) disagree with predict_win_probability's status
+        #      thresholds (0.7/0.4). Both fields ship in the same payload and both clients render
+        #      them together, so p in [0.5, 0.8) shows "Dominant" beside "Aggressive approach".
+        #   2. The p < 0.5 branch advises defence. This is a CHASE model; a chasing side below 50%
+        #      is usually behind the required rate, where batting defensively is the losing line.
+        #   3. `match_data` is accepted and never read.
+        # Left alone on purpose: E1's gate (capture_client_visible_output.py) asserts that E1
+        # changes NOTHING a user sees, and any fix here is by definition a visible change. Fixing
+        # it is a separate, deliberate change with its own review.
         if win_prob > 0.8:
             return "Maintain current momentum. Focus on steady scoring and minimizing risks."
         elif win_prob > 0.5:
@@ -169,16 +121,10 @@ class RecommendationModel:
             return "Defensive strategy needed. Focus on building partnerships and preserving wickets."
 
     def save_models(self):
-        joblib.dump(self.batsman_model, os.path.join(self.model_dir, 'batsman_model.pkl'))
-        joblib.dump(self.bowler_model, os.path.join(self.model_dir, 'bowler_model.pkl'))
-        joblib.dump(self.fielding_model, os.path.join(self.model_dir, 'fielding_model.pkl'))
         joblib.dump(self.win_prob_model, os.path.join(self.model_dir, 'win_prob_model.pkl'))
 
     def load_models(self):
         try:
-            self.batsman_model = joblib.load(os.path.join(self.model_dir, 'batsman_model.pkl'))
-            self.bowler_model = joblib.load(os.path.join(self.model_dir, 'bowler_model.pkl'))
-            self.fielding_model = joblib.load(os.path.join(self.model_dir, 'fielding_model.pkl'))
             self.win_prob_model = joblib.load(os.path.join(self.model_dir, 'win_prob_model.pkl'))
             return True
         except Exception as e:

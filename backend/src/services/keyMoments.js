@@ -14,12 +14,7 @@
 // no single limited-overs run-chase) are explicitly out of scope.
 
 const AIService = require('../utils/aiService');
-
-const OVERS_BY_MATCH_TYPE = { T20: 20, ODI: 50, Friendly: 20 };
-
-function toDecimalOvers(legalBalls) {
-  return legalBalls / 6;
-}
+const { isInChase, replayChaseStates } = require('./matchStateFeatures');
 
 /**
  * Replays a chasing innings ball-by-ball, computing win probability at each ball boundary via
@@ -34,35 +29,14 @@ async function getKeyMoments(match, topN = 5) {
     return { success: false, message: 'Key moments are not available for Test matches.' };
   }
 
-  const totalOvers = OVERS_BY_MATCH_TYPE[match.matchType] || 20;
-  const targetScore = (match.innings[0]?.runs || 0) + 1;
   const balls = match.innings[1]?.balls || [];
-
-  if (balls.length === 0) {
+  if (!isInChase(match) || balls.length === 0) {
     return { success: false, message: 'No deliveries recorded in the chase yet.' };
   }
 
-  // Build all N+1 checkpoint states (before any ball, after each of the N balls) up front.
-  const checkpoints = [];
-  let legalBalls = 0;
-  let runs = 0;
-  let wickets = 0;
-  checkpoints.push({ oversRemaining: totalOvers, wicketsDown: 0, currentRunRate: 0, targetScore });
-
-  for (const ball of balls) {
-    runs += ball.runs || 0;
-    if (ball.isWicket) wickets += 1;
-    const isLegal = !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
-    if (isLegal) legalBalls += 1;
-
-    const oversUsed = toDecimalOvers(legalBalls);
-    checkpoints.push({
-      oversRemaining: Math.max(0, totalOvers - oversUsed),
-      wicketsDown: wickets,
-      currentRunRate: oversUsed > 0 ? runs / oversUsed : 0,
-      targetScore
-    });
-  }
+  // N+1 checkpoint states (before any ball, then after each of the N balls), built by the same
+  // module the training extraction uses - see services/matchStateFeatures.js.
+  const checkpoints = replayChaseStates(match, { at: 'every-ball' }).map((s) => s.features);
 
   // Query the AI engine in small concurrent batches rather than all-at-once - it's a single
   // Flask dev-server instance (see ai-engine/app.py), not a production WSGI pool, so firing

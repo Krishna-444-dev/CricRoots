@@ -1,0 +1,10 @@
+{
+  "rows_before": 11233,
+  "rows_after": 10441,
+  "rows_removed": 792,
+  "duplicate_checkpoints": 732,
+  "matches_affected": 414,
+  "matches_total": 577,
+  "cause": "pre-fix extraction re-emitted an over boundary once per trailing wide/no-ball; legalBalls %% 6 == 0 stayed true because extras do not increment legalBalls",
+  "correction": "kept the first checkpoint per (match_id, overs_remaining)"
+}

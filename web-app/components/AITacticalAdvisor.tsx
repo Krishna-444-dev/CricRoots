@@ -29,6 +29,11 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
   // snapshot once on mount via the REST endpoint; the socket then keeps it fresh as balls land.
   const [initialInsights, setInitialInsights] = useState<typeof liveInsights>(null);
   const [initialLoadFailed, setInitialLoadFailed] = useState(false);
+  // The backend reports `available: false` during the first innings. The win-probability model is
+  // trained exclusively on second-innings chases, so there is no first-innings model to ask - and
+  // the previous behaviour was to ask anyway, passing the batting side's own live score as the
+  // target, and render the result as a percentage. Showing nothing is the honest state.
+  const [unavailableReason, setUnavailableReason] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLive) return;
@@ -36,7 +41,12 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
     fetch(`/api/matches/${matchId}/ai-insights`)
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && data.success) setInitialInsights(data.aiInsights);
+        if (cancelled) return;
+        if (data.success && data.available === false) {
+          setUnavailableReason(data.message || 'Win probability is only modelled for the second innings.');
+        } else if (data.success) {
+          setInitialInsights(data.aiInsights);
+        }
       })
       .catch(() => {
         if (!cancelled) setInitialLoadFailed(true);
@@ -79,6 +89,13 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
   }
 
   if (!aiInsights) {
+    if (unavailableReason) {
+      return (
+        <div className={styles.loadingContainer}>
+          <p>{unavailableReason}</p>
+        </div>
+      );
+    }
     if (initialLoadFailed) {
       return (
         <div className={styles.errorContainer}>

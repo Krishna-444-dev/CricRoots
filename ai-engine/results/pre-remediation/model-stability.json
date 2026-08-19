@@ -1,0 +1,38 @@
+{
+  "note": "perturbations applied to the model's own training rows - in-distribution, no skew",
+  "n_rows": 11233,
+  "in_sample_mean_prediction": 0.47254,
+  "actual_base_rate": 0.4728,
+  "per_feature": {
+    "target_score +1": {
+      "mean_abs_delta_p": 0.11044,
+      "p50": 0.02,
+      "p90": 0.38,
+      "max": 1.0,
+      "frac_over_0.10": 0.29315
+    },
+    "wickets_down +1": {
+      "mean_abs_delta_p": 0.07963,
+      "p50": 0.02,
+      "p90": 0.26,
+      "max": 0.88,
+      "frac_over_0.10": 0.23458
+    },
+    "overs_remaining +0.166667": {
+      "mean_abs_delta_p": 0.00145,
+      "p50": 0.0,
+      "p90": 0.0,
+      "max": 0.12,
+      "frac_over_0.10": 9e-05
+    },
+    "current_run_rate +0.1": {
+      "mean_abs_delta_p": 0.05063,
+      "p50": 0.0,
+      "p90": 0.16,
+      "max": 0.84,
+      "frac_over_0.10": 0.15508
+    }
+  },
+  "in_sample_mean_abs_error": 0.06765,
+  "in_sample_fraction_within_0.01_of_label": 0.49693
+}

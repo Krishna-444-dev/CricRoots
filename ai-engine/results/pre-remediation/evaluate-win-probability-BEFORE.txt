@@ -1,0 +1,35 @@
+Real matches: 577 total -> 462 train / 115 holdout
+Real rows: 8982 train / 2251 holdout
+
+Brier score on real holdout (lower is better, 0=perfect, 0.25=coin-flip-blind):
+  Real-trained model:      0.1563
+  Synthetic-trained model: 0.4001
+
+Decile calibration - real-trained model on real holdout
+                  n  mean_predicted  actual_win_rate
+bucket                                              
+(-0.001, 0.04]  676           0.006            0.024
+(0.04, 0.213]   225           0.123            0.307
+(0.213, 0.42]   235           0.314            0.489
+(0.42, 0.66]    224           0.541            0.554
+(0.66, 0.84]    226           0.763            0.597
+(0.84, 0.96]    222           0.919            0.743
+(0.96, 1.0]     443           0.995            0.880
+
+Decile calibration - synthetic-trained model on real holdout (same situations)
+                                            n  mean_predicted  actual_win_rate
+bucket                                                                        
+(0.213790253991644, 0.5889769283475424]   226           0.461            0.097
+(0.5889769283475424, 0.722414551965419]   225           0.661            0.360
+(0.722414551965419, 0.8202864197641924]   225           0.774            0.431
+(0.8202864197641924, 0.8963121975141992]  225           0.860            0.440
+(0.8963121975141992, 0.9536805411744588]  225           0.926            0.462
+(0.9536805411744588, 0.9837747265456978]  225           0.973            0.413
+(0.9837747265456978, 0.9887666024386647]  229           0.987            0.393
+(0.9887666024386647, 0.9898900754094117]  226           0.990            0.606
+(0.9898900754094117, 0.99]                420           0.990            0.667
+(0.99, 0.9900000000000004]                 25           0.990            0.440
+
+Holdout actual win rate: 0.450
+Real-trained mean predicted:      0.464
+Synthetic-trained mean predicted: 0.861

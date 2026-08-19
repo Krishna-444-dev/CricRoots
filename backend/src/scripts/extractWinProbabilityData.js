@@ -14,16 +14,15 @@ const fs = require('fs');
 const path = require('path');
 const connectDB = require('../config/database');
 const Match = require('../models/Match');
+const { isLegalBall, chaseFeatures } = require('../services/matchStateFeatures');
 
 const OUT_PATH = path.join(__dirname, '..', '..', '..', 'ai-engine', 'data', 'real_matches.csv');
 
-// Same "6 legal balls = 1 over, wides/no-balls don't count" rule as matchController.recordBall
-// and matchSimulator.computeOvers - kept in true decimal form (legalBalls / 6), matching
-// services/keyMoments.js's toDecimalOvers rather than the DB's stored "3.4" cricket-notation
-// overs field, which isn't a valid divisor for a run rate.
-function isLegalBall(ball) {
-  return !(ball.isExtra && ['wide', 'no-ball'].includes(ball.extraType));
-}
+// Feature construction now comes from services/matchStateFeatures.js, shared with every serving
+// path. This file previously carried a comment warning that the DB's stored "3.4" cricket-notation
+// overs field "isn't a valid divisor for a run rate" - correct, and correctly applied here, while
+// three serving sites divided by it anyway. The warning was right and did nothing. Importing the
+// same function is what actually enforces it; matchStateFeatures.test.js asserts the parity.
 
 // A completed innings' balls array is only consistent with having been capped at `target` if
 // cumulative runs never reach it before the very last recorded ball (the simulator - and any
@@ -123,13 +122,13 @@ function extractRows(match) {
     // consecutive-ball states within the same over, and it's a natural checkpoint a real
     // tactical-advisor call would actually be made at (between overs).
     if (legalBalls > 0 && legalBalls % 6 === 0 && legalBalls < maxLegalBalls) {
-      const oversUsed = legalBalls / 6;
+      const f = chaseFeatures({ legalBalls, runs, wickets, target, totalOvers });
       rows.push({
         match_id: String(match._id),
-        overs_remaining: totalOvers - oversUsed,
-        wickets_down: wickets,
-        current_run_rate: runs / oversUsed,
-        target_score: target,
+        overs_remaining: f.oversRemaining,
+        wickets_down: f.wicketsDown,
+        current_run_rate: f.currentRunRate,
+        target_score: f.targetScore,
         win_probability: label
       });
     }

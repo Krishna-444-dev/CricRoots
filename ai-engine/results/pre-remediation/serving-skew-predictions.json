@@ -1,0 +1,53 @@
+{
+  "model": "RandomForestRegressor(n_estimators=50, random_state=42), fit on 100% of real_matches.csv",
+  "n_states": 483671,
+  "mid_over_fraction": 0.835,
+  "all_three_defects": {
+    "label": "|\u0394p| served vs training",
+    "n": 483671,
+    "mean": 0.12591,
+    "p50": 0.04,
+    "p90": 0.38,
+    "p99": 0.74,
+    "max": 1.0,
+    "frac_over_0.05": 0.4868,
+    "frac_over_0.10": 0.36395
+  },
+  "all_three_defects_mid_over_only": {
+    "label": "|\u0394p| mid-over only",
+    "n": 403865,
+    "mean": 0.13125,
+    "p50": 0.05333,
+    "p90": 0.4,
+    "p99": 0.74,
+    "max": 1.0,
+    "frac_over_0.05": 0.50275,
+    "frac_over_0.10": 0.37828
+  },
+  "overs_notation_defect_alone": {
+    "label": "|\u0394p| overs-notation only",
+    "n": 483671,
+    "mean": 0.06509,
+    "p50": 0.012,
+    "p90": 0.20567,
+    "p99": 0.54,
+    "max": 0.94,
+    "frac_over_0.05": 0.32174,
+    "frac_over_0.10": 0.20654
+  },
+  "target_off_by_one_alone": {
+    "label": "|\u0394p| target off-by-one only",
+    "n": 483671,
+    "mean": 0.09899,
+    "p50": 0.02,
+    "p90": 0.32,
+    "p99": 0.69,
+    "max": 1.0,
+    "frac_over_0.05": 0.40866,
+    "frac_over_0.10": 0.29346
+  },
+  "mean_predicted": {
+    "served": 0.51544,
+    "training_convention": 0.48177
+  }
+}

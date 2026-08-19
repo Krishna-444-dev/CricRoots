@@ -13,15 +13,14 @@ interface AITacticalAdvisorProps {
 }
 
 // Shape of the ai-insights payload, whether it arrives via the WebSocket push or the REST
-// fallback below - key_recommendations is present on the wire but deliberately never rendered
-// (see the note above the old "Key Recommendations" block that used to live here): it's a raw
-// numeric class label from a model trained purely on match-state numbers with zero roster
-// awareness, so it never corresponds to any real player.
+// fallback below. `key_recommendations` used to appear here, declared but deliberately never
+// rendered because it was a raw numeric class label with zero roster awareness. E1 (2026-08-19)
+// removed it from the wire entirely: the models behind it were trained on uniform random integers,
+// so the label was noise as well as unrenderable. See documentation/ai-engine-audit.md §1b.
 interface AIInsightData {
   match_status: string;
   win_probability: number;
   tactical_advice: string;
-  key_recommendations?: { batsman: number; bowler: number };
 }
 
 interface BowlerRecommendation {
@@ -47,6 +46,11 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
   // snapshot once on mount via the REST endpoint; the socket then keeps it fresh as balls land.
   const [initialInsights, setInitialInsights] = useState<AIInsightData | null>(null);
   const [initialLoadFailed, setInitialLoadFailed] = useState(false);
+  // The backend reports `available: false` during the first innings. The win-probability model is
+  // trained exclusively on second-innings chases, so there is no first-innings model to ask - and
+  // the previous behaviour was to ask anyway, passing the batting side's own live score as the
+  // target, and render the result as a percentage. Showing nothing is the honest state.
+  const [unavailableReason, setUnavailableReason] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLive) return;
@@ -54,7 +58,12 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
     api.matches
       .getAIInsights(matchId)
       .then((data: any) => {
-        if (!cancelled && data.success) setInitialInsights(data.aiInsights);
+        if (cancelled) return;
+        if (data.success && data.available === false) {
+          setUnavailableReason(data.message || 'Win probability is only modelled for the second innings.');
+        } else if (data.success) {
+          setInitialInsights(data.aiInsights);
+        }
       })
       .catch(() => {
         if (!cancelled) setInitialLoadFailed(true);
@@ -110,6 +119,16 @@ export const AITacticalAdvisor: React.FC<AITacticalAdvisorProps> = ({
   }
 
   if (!aiInsights) {
+    if (unavailableReason) {
+      return (
+        <Card style={styles.mainCard}>
+          <Card.Content>
+            <Text style={styles.title}>AI Tactical Advisor</Text>
+            <Text style={[styles.loadingText, { marginTop: 10 }]}>{unavailableReason}</Text>
+          </Card.Content>
+        </Card>
+      );
+    }
     if (initialLoadFailed) {
       return (
         <View style={styles.loadingContainer}>

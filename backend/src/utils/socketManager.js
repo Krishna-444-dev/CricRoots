@@ -108,16 +108,15 @@ class SocketManager {
   /**
    * Emit AI insights to all connected clients
    */
-  async emitAIInsights(matchId, matchData) {
+  async emitAIInsights(matchId, chaseState) {
+    // chaseState is null during the first innings (services/matchStateFeatures.js). Emitting
+    // nothing is deliberate: the `|| 20`, `|| 150` defaults this used to apply meant a first-
+    // innings ball produced a fully-formed win probability built from placeholder inputs, which
+    // is exactly the "silently display nonsense" failure E2 exists to remove.
+    if (!chaseState) return;
+
     try {
-      const aiInsights = await AIService.getTacticalAdvice({
-        oversRemaining: matchData.oversRemaining || 20,
-        wicketsDown: matchData.wicketsDown || 0,
-        currentRunRate: matchData.currentRunRate || 0,
-        targetScore: matchData.targetScore || 150,
-        oppositionStrength: matchData.oppositionStrength || 7,
-        pitchType: matchData.pitchType || 1
-      });
+      const aiInsights = await AIService.getTacticalAdvice(chaseState);
 
       this.io.to(`match-${matchId}`).emit('ai-insights', {
         matchId,
