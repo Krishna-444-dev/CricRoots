@@ -1,0 +1,245 @@
+{
+  "experiment": "AE-1 - functional form vs representation in the endgame",
+  "design": "ai-engine/experiments/endgame-research-design.md (preregistered + 2 amendments)",
+  "provenance": "matchSimulator.js output. Statements are about that simulator, not cricket.",
+  "environment": {
+    "git_sha": "0e76ebf224322b968c92e272f0abc729f274ebd6",
+    "python": "3.9.6",
+    "seed": 20260819
+  },
+  "frozen_grid": {
+    "balls": "1-12",
+    "wickets": "0-9",
+    "runs_needed": "1-40",
+    "n_states": 4800,
+    "n_competitive": 886,
+    "note": "frozen in the design; not to be changed after results exist"
+  },
+  "empirical_per_ball_model": {
+    "n_uncensored_overs_used": 5175,
+    "p_wicket_per_ball": 0.04184,
+    "p_runs": {
+      "0": 0.3314,
+      "1": 0.33813,
+      "2": 0.1327,
+      "3": 0.01098,
+      "4": 0.11078,
+      "6": 0.076
+    },
+    "mean_runs_per_ball": 1.47137,
+    "sd_runs_per_ball": 1.75564,
+    "optimiser_converged": true,
+    "note": "estimated from training checkpoints only - no generator access, no test data"
+  },
+  "step0_margin_reference": "results/ae1/ae1-step0-margin.json (endgame TOST margin 0.04425)",
+  "results": [
+    {
+      "candidate": "A0 C3 incumbent",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.05142,
+      "PRIMARY_grid_oracle_mae_competitive": 0.18475,
+      "grid_oracle_mae_p90": 0.17929,
+      "SECONDARY_observed_endgame_oracle_mae": 0.03001,
+      "SECONDARY_observed_endgame_brier": 0.09089,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        -0.003691,
+        0.019288
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.01856,
+      "TERTIARY_whole_test_brier": 0.11227
+    },
+    {
+      "candidate": "A1 + standardized margin",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.0504,
+      "PRIMARY_grid_oracle_mae_competitive": 0.18167,
+      "grid_oracle_mae_p90": 0.17284,
+      "SECONDARY_observed_endgame_oracle_mae": 0.02893,
+      "SECONDARY_observed_endgame_brier": 0.09015,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        -0.003982,
+        0.017865
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.01807,
+      "TERTIARY_whole_test_brier": 0.11215
+    },
+    {
+      "candidate": "A2 + margin + sqrt(n) terms",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.05026,
+      "PRIMARY_grid_oracle_mae_competitive": 0.17725,
+      "grid_oracle_mae_p90": 0.16332,
+      "SECONDARY_observed_endgame_oracle_mae": 0.02629,
+      "SECONDARY_observed_endgame_brier": 0.0877,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        -0.004822,
+        0.013097
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.01678,
+      "TERTIARY_whole_test_brier": 0.1117
+    },
+    {
+      "candidate": "A3 A1 basis, boosted",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.04091,
+      "PRIMARY_grid_oracle_mae_competitive": 0.11983,
+      "grid_oracle_mae_p90": 0.1077,
+      "SECONDARY_observed_endgame_oracle_mae": 0.03168,
+      "SECONDARY_observed_endgame_brier": 0.08154,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        -0.009627,
+        0.005287
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.02846,
+      "TERTIARY_whole_test_brier": 0.11287
+    },
+    {
+      "candidate": "A4 Gaussian closed form",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.01423,
+      "PRIMARY_grid_oracle_mae_competitive": 0.02767,
+      "grid_oracle_mae_p90": 0.03241,
+      "SECONDARY_observed_endgame_oracle_mae": 0.00951,
+      "SECONDARY_observed_endgame_brier": 0.08779,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        0.001338,
+        0.006817
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.01424,
+      "TERTIARY_whole_test_brier": 0.11317
+    },
+    {
+      "candidate": "A5 empirical finite-horizon DP",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.002,
+      "PRIMARY_grid_oracle_mae_competitive": 0.00681,
+      "grid_oracle_mae_p90": 0.00715,
+      "SECONDARY_observed_endgame_oracle_mae": 0.00162,
+      "SECONDARY_observed_endgame_brier": 0.08428,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        -8.7e-05,
+        0.001114
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.00895,
+      "TERTIARY_whole_test_brier": 0.1126
+    },
+    {
+      "candidate": "A5o same DP, wickets ignored",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.01242,
+      "PRIMARY_grid_oracle_mae_competitive": 0.04122,
+      "grid_oracle_mae_p90": 0.03274,
+      "SECONDARY_observed_endgame_oracle_mae": 0.00847,
+      "SECONDARY_observed_endgame_brier": 0.08254,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        -0.004944,
+        0.00314
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.04748,
+      "TERTIARY_whole_test_brier": 0.11357
+    },
+    {
+      "candidate": "ORACLE (floor)",
+      "PRIMARY_grid_oracle_mae_all_4800": 0.0,
+      "PRIMARY_grid_oracle_mae_competitive": 0.0,
+      "grid_oracle_mae_p90": 0.0,
+      "SECONDARY_observed_endgame_oracle_mae": 0.0,
+      "SECONDARY_observed_endgame_brier": 0.08378,
+      "SECONDARY_paired_brier_ci95_vs_oracle": [
+        0.0,
+        0.0
+      ],
+      "TERTIARY_whole_test_oracle_mae": 0.0,
+      "TERTIARY_whole_test_brier": 0.11196
+    }
+  ],
+  "extrapolation_probe": {
+    "states": [
+      {
+        "overs_remaining": 1.0,
+        "wickets_down": 2,
+        "runs_needed": 8,
+        "oracle_p": 0.5911
+      },
+      {
+        "overs_remaining": 1.0,
+        "wickets_down": 5,
+        "runs_needed": 20,
+        "oracle_p": 0.015
+      },
+      {
+        "overs_remaining": 0.5,
+        "wickets_down": 2,
+        "runs_needed": 4,
+        "oracle_p": 0.5542
+      },
+      {
+        "overs_remaining": 0.5,
+        "wickets_down": 5,
+        "runs_needed": 15,
+        "oracle_p": 0.0031
+      },
+      {
+        "overs_remaining": 0.1,
+        "wickets_down": 2,
+        "runs_needed": 1,
+        "oracle_p": 0.641
+      },
+      {
+        "overs_remaining": 0.1,
+        "wickets_down": 5,
+        "runs_needed": 11,
+        "oracle_p": 0.0002
+      }
+    ],
+    "A0 C3 incumbent": [
+      0.887,
+      0.0,
+      0.8956,
+      0.0,
+      0.9667,
+      0.0
+    ],
+    "A1 + standardized margin": [
+      0.8825,
+      0.0,
+      0.8905,
+      0.0,
+      0.9616,
+      0.0
+    ],
+    "A2 + margin + sqrt(n) terms": [
+      0.8734,
+      0.0,
+      0.8814,
+      0.0,
+      0.9449,
+      0.0
+    ],
+    "A3 A1 basis, boosted": [
+      0.8376,
+      0.0254,
+      0.8232,
+      0.0254,
+      0.9443,
+      0.0254
+    ],
+    "A4 Gaussian closed form": [
+      0.5764,
+      0.0047,
+      0.5542,
+      0.0002,
+      0.6058,
+      0.0
+    ],
+    "A5 empirical finite-horizon DP": [
+      0.5849,
+      0.0146,
+      0.5387,
+      0.0022,
+      0.6406,
+      0.0
+    ],
+    "A5o same DP, wickets ignored": [
+      0.6205,
+      0.0175,
+      0.5633,
+      0.0025,
+      0.6686,
+      0.0
+    ]
+  }
+}
