@@ -1,0 +1,2321 @@
+{
+  "experiment": "E6 - conventional baseline under valid selection discipline",
+  "design": "ai-engine/experiments/e6-design.md (preregistered, committed before this file)",
+  "provenance": "matchSimulator.js output. Statements are about that simulator, not cricket.",
+  "environment": {
+    "git_sha": "533742c63c914111651ba03772a182f48873eb94",
+    "sklearn": "1.3.0",
+    "numpy": "1.24.3",
+    "python": "3.9.6",
+    "split_file_sha256_16": "1568396bfbd1b9bc",
+    "seed": 20260819
+  },
+  "gates": {
+    "oracle_specification": {
+      "oracle_excess_brier_val": 0.003118,
+      "oracle_excess_brier_test": 0.010535,
+      "preregistered_val_reference": 0.00312,
+      "passed": true
+    },
+    "beats_constant_baseline": {
+      "c0_brier": 0.24875,
+      "best_candidate": "C3 regularized logistic (rich)",
+      "best_brier": 0.11227,
+      "passed": true
+    }
+  },
+  "split": {
+    "train_matches": 346,
+    "val_matches": 115,
+    "test_matches": 116,
+    "test_rows": 2092,
+    "test_base_rate": 0.46415
+  },
+  "selection_on_validation": {
+    "C1": {
+      "config": "logistic on 4 raw features",
+      "val_brier": 0.14542
+    },
+    "C2": {
+      "config": "logistic on 5 derived chase terms",
+      "val_brier": 0.11617
+    },
+    "C3": {
+      "grid": [
+        {
+          "C": 0.001,
+          "val_brier": 0.11621,
+          "n_nonzero_coef": 11
+        },
+        {
+          "C": 0.01,
+          "val_brier": 0.11569,
+          "n_nonzero_coef": 11
+        },
+        {
+          "C": 0.1,
+          "val_brier": 0.11569,
+          "n_nonzero_coef": 11
+        },
+        {
+          "C": 1.0,
+          "val_brier": 0.11575,
+          "n_nonzero_coef": 11
+        },
+        {
+          "C": 10.0,
+          "val_brier": 0.1157,
+          "n_nonzero_coef": 11
+        },
+        {
+          "C": 100.0,
+          "val_brier": 0.11569,
+          "n_nonzero_coef": 11
+        }
+      ],
+      "selected": {
+        "C": 0.01,
+        "val_brier": 0.11569,
+        "n_nonzero_coef": 11
+      }
+    },
+    "C4": {
+      "grid": [
+        {
+          "min_samples_leaf": "1",
+          "max_depth": "None",
+          "val_brier": 0.1576
+        },
+        {
+          "min_samples_leaf": "1",
+          "max_depth": "6",
+          "val_brier": 0.13195
+        },
+        {
+          "min_samples_leaf": "1",
+          "max_depth": "10",
+          "val_brier": 0.14594
+        },
+        {
+          "min_samples_leaf": "5",
+          "max_depth": "None",
+          "val_brier": 0.14579
+        },
+        {
+          "min_samples_leaf": "5",
+          "max_depth": "6",
+          "val_brier": 0.13255
+        },
+        {
+          "min_samples_leaf": "5",
+          "max_depth": "10",
+          "val_brier": 0.14338
+        },
+        {
+          "min_samples_leaf": "20",
+          "max_depth": "None",
+          "val_brier": 0.13385
+        },
+        {
+          "min_samples_leaf": "20",
+          "max_depth": "6",
+          "val_brier": 0.13146
+        },
+        {
+          "min_samples_leaf": "20",
+          "max_depth": "10",
+          "val_brier": 0.13391
+        },
+        {
+          "min_samples_leaf": "50",
+          "max_depth": "None",
+          "val_brier": 0.12858
+        },
+        {
+          "min_samples_leaf": "50",
+          "max_depth": "6",
+          "val_brier": 0.12881
+        },
+        {
+          "min_samples_leaf": "50",
+          "max_depth": "10",
+          "val_brier": 0.12858
+        },
+        {
+          "min_samples_leaf": "100",
+          "max_depth": "None",
+          "val_brier": 0.12889
+        },
+        {
+          "min_samples_leaf": "100",
+          "max_depth": "6",
+          "val_brier": 0.12886
+        },
+        {
+          "min_samples_leaf": "100",
+          "max_depth": "10",
+          "val_brier": 0.12889
+        },
+        {
+          "min_samples_leaf": "200",
+          "max_depth": "None",
+          "val_brier": 0.12909
+        },
+        {
+          "min_samples_leaf": "200",
+          "max_depth": "6",
+          "val_brier": 0.12909
+        },
+        {
+          "min_samples_leaf": "200",
+          "max_depth": "10",
+          "val_brier": 0.12909
+        }
+      ],
+      "selected": {
+        "min_samples_leaf": "50",
+        "max_depth": "None",
+        "val_brier": 0.12858
+      },
+      "deployed_config_for_reference": {
+        "min_samples_leaf": "1",
+        "max_depth": "None",
+        "n_estimators": 50
+      }
+    },
+    "C5": {
+      "grid": [
+        {
+          "n_estimators": "100",
+          "max_depth": "2",
+          "learning_rate": "0.05",
+          "val_brier": 0.1166
+        },
+        {
+          "n_estimators": "100",
+          "max_depth": "2",
+          "learning_rate": "0.1",
+          "val_brier": 0.11701
+        },
+        {
+          "n_estimators": "100",
+          "max_depth": "3",
+          "learning_rate": "0.05",
+          "val_brier": 0.11763
+        },
+        {
+          "n_estimators": "100",
+          "max_depth": "3",
+          "learning_rate": "0.1",
+          "val_brier": 0.11848
+        },
+        {
+          "n_estimators": "100",
+          "max_depth": "4",
+          "learning_rate": "0.05",
+          "val_brier": 0.11904
+        },
+        {
+          "n_estimators": "100",
+          "max_depth": "4",
+          "learning_rate": "0.1",
+          "val_brier": 0.1219
+        },
+        {
+          "n_estimators": "300",
+          "max_depth": "2",
+          "learning_rate": "0.05",
+          "val_brier": 0.11759
+        },
+        {
+          "n_estimators": "300",
+          "max_depth": "2",
+          "learning_rate": "0.1",
+          "val_brier": 0.11932
+        },
+        {
+          "n_estimators": "300",
+          "max_depth": "3",
+          "learning_rate": "0.05",
+          "val_brier": 0.12
+        },
+        {
+          "n_estimators": "300",
+          "max_depth": "3",
+          "learning_rate": "0.1",
+          "val_brier": 0.1246
+        },
+        {
+          "n_estimators": "300",
+          "max_depth": "4",
+          "learning_rate": "0.05",
+          "val_brier": 0.12328
+        },
+        {
+          "n_estimators": "300",
+          "max_depth": "4",
+          "learning_rate": "0.1",
+          "val_brier": 0.12915
+        }
+      ],
+      "selected": {
+        "n_estimators": "100",
+        "max_depth": "2",
+        "learning_rate": "0.05",
+        "val_brier": 0.1166
+      }
+    },
+    "C6": {
+      "base_selected_on_validation": "C3",
+      "validation_brier_ranking": {
+        "C1": 0.14542,
+        "C2": 0.11617,
+        "C3": 0.11569,
+        "C4": 0.12858,
+        "C5": 0.1166
+      },
+      "base_fit_on": "train only (see protocol note in source)",
+      "calibrator_changed_predictions": true,
+      "mean_abs_calibration_shift_on_val": 0.04618
+    }
+  },
+  "test_results": [
+    {
+      "candidate": "C0 constant base rate",
+      "axis1_predictive": {
+        "brier": 0.24875,
+        "log_loss": 0.69065,
+        "brier_skill_vs_constant": 0.0,
+        "expected_calibration_error": 0.0,
+        "oracle_mae": 0.35087,
+        "oracle_mae_p90": 0.51971,
+        "oracle_rmse": 0.38202,
+        "corr_with_oracle": 0.0,
+        "decile_calibration": []
+      },
+      "paired_vs_oracle": {
+        "point": 0.136796,
+        "ci95": [
+          0.101924,
+          0.168105
+        ]
+      },
+      "classification": {
+        "statistical_criterion_met": false,
+        "practical_criterion_met": false,
+        "outcome": "B"
+      },
+      "axis2_operational": {
+        "perturbation_sensitivity": {
+          "target_score +1 run": {
+            "mean_abs_delta_p": 0.0,
+            "p90": 0.0,
+            "frac_over_0.10": 0.0
+          },
+          "wickets_down +1": {
+            "mean_abs_delta_p": 0.0,
+            "p90": 0.0,
+            "frac_over_0.10": 0.0
+          },
+          "overs_remaining +1 ball": {
+            "mean_abs_delta_p": 0.0,
+            "p90": 0.0,
+            "frac_over_0.10": 0.0
+          },
+          "current_run_rate +0.1": {
+            "mean_abs_delta_p": 0.0,
+            "p90": 0.0,
+            "frac_over_0.10": 0.0
+          }
+        },
+        "calibration_by_regime": {
+          "phase: overs_remaining 15-19": {
+            "n": 580,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.49138
+          },
+          "phase: overs_remaining 6-14": {
+            "n": 1037,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.48795
+          },
+          "phase: overs_remaining 1-5": {
+            "n": 475,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.37895
+          },
+          "wickets in hand 0-3": {
+            "n": 98,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.17347
+          },
+          "wickets in hand 4-6": {
+            "n": 543,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.38122
+          },
+          "wickets in hand 7-10": {
+            "n": 1451,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.51482
+          },
+          "required rate < 6": {
+            "n": 263,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.97719
+          },
+          "required rate 6-10": {
+            "n": 1012,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.63538
+          },
+          "required rate > 10": {
+            "n": 817,
+            "ece": 0.0,
+            "mean_predicted": 0.47036,
+            "actual_win_rate": 0.0869
+          }
+        },
+        "extrapolation": [
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 160.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.76663,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 200.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.07577,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 152.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.77469,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 190.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.0856,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 8.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.59107,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 20.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.01504,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 4.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.55418,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 15.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.00309,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 1.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.64105,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 11.0,
+            "model_p": 0.47036,
+            "oracle_p": 0.00019,
+            "in_training_range": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "candidate": "C1 logistic (raw features)",
+      "axis1_predictive": {
+        "brier": 0.12856,
+        "log_loss": 0.4127,
+        "brier_skill_vs_constant": 0.48316,
+        "expected_calibration_error": 0.0546,
+        "oracle_mae": 0.09258,
+        "oracle_mae_p90": 0.22835,
+        "oracle_rmse": 0.13902,
+        "corr_with_oracle": 0.93287,
+        "decile_calibration": [
+          {
+            "bucket": "(0.00165, 0.0442]",
+            "n": 210,
+            "mean_predicted": 0.0243,
+            "actual_win_rate": 0.0
+          },
+          {
+            "bucket": "(0.0442, 0.0903]",
+            "n": 209,
+            "mean_predicted": 0.0651,
+            "actual_win_rate": 0.0144
+          },
+          {
+            "bucket": "(0.0903, 0.162]",
+            "n": 209,
+            "mean_predicted": 0.123,
+            "actual_win_rate": 0.1148
+          },
+          {
+            "bucket": "(0.162, 0.272]",
+            "n": 209,
+            "mean_predicted": 0.2116,
+            "actual_win_rate": 0.2967
+          },
+          {
+            "bucket": "(0.272, 0.404]",
+            "n": 209,
+            "mean_predicted": 0.3283,
+            "actual_win_rate": 0.3301
+          },
+          {
+            "bucket": "(0.404, 0.569]",
+            "n": 209,
+            "mean_predicted": 0.4925,
+            "actual_win_rate": 0.4545
+          },
+          {
+            "bucket": "(0.569, 0.707]",
+            "n": 209,
+            "mean_predicted": 0.6407,
+            "actual_win_rate": 0.7129
+          },
+          {
+            "bucket": "(0.707, 0.835]",
+            "n": 209,
+            "mean_predicted": 0.7726,
+            "actual_win_rate": 0.8852
+          },
+          {
+            "bucket": "(0.835, 0.942]",
+            "n": 209,
+            "mean_predicted": 0.8911,
+            "actual_win_rate": 0.9522
+          },
+          {
+            "bucket": "(0.942, 1.0]",
+            "n": 210,
+            "mean_predicted": 0.973,
+            "actual_win_rate": 0.881
+          }
+        ]
+      },
+      "paired_vs_oracle": {
+        "point": 0.016607,
+        "ci95": [
+          0.006892,
+          0.02675
+        ]
+      },
+      "classification": {
+        "statistical_criterion_met": false,
+        "practical_criterion_met": false,
+        "outcome": "B"
+      },
+      "axis2_operational": {
+        "perturbation_sensitivity": {
+          "target_score +1 run": {
+            "mean_abs_delta_p": 0.01243,
+            "p90": 0.02252,
+            "frac_over_0.10": 0.0
+          },
+          "wickets_down +1": {
+            "mean_abs_delta_p": 0.01141,
+            "p90": 0.02068,
+            "frac_over_0.10": 0.0
+          },
+          "overs_remaining +1 ball": {
+            "mean_abs_delta_p": 0.00019,
+            "p90": 0.00034,
+            "frac_over_0.10": 0.0
+          },
+          "current_run_rate +0.1": {
+            "mean_abs_delta_p": 0.00731,
+            "p90": 0.01317,
+            "frac_over_0.10": 0.0
+          }
+        },
+        "calibration_by_regime": {
+          "phase: overs_remaining 15-19": {
+            "n": 580,
+            "ece": 0.06589,
+            "mean_predicted": 0.48422,
+            "actual_win_rate": 0.49138
+          },
+          "phase: overs_remaining 6-14": {
+            "n": 1037,
+            "ece": 0.07084,
+            "mean_predicted": 0.47201,
+            "actual_win_rate": 0.48795
+          },
+          "phase: overs_remaining 1-5": {
+            "n": 475,
+            "ece": 0.07198,
+            "mean_predicted": 0.37017,
+            "actual_win_rate": 0.37895
+          },
+          "wickets in hand 0-3": {
+            "n": 98,
+            "ece": 0.11596,
+            "mean_predicted": 0.28847,
+            "actual_win_rate": 0.17347
+          },
+          "wickets in hand 4-6": {
+            "n": 543,
+            "ece": 0.06869,
+            "mean_predicted": 0.3707,
+            "actual_win_rate": 0.38122
+          },
+          "wickets in hand 7-10": {
+            "n": 1451,
+            "ece": 0.04907,
+            "mean_predicted": 0.49386,
+            "actual_win_rate": 0.51482
+          },
+          "required rate < 6": {
+            "n": 263,
+            "ece": 0.11714,
+            "mean_predicted": 0.88647,
+            "actual_win_rate": 0.97719
+          },
+          "required rate 6-10": {
+            "n": 1012,
+            "ece": 0.07523,
+            "mean_predicted": 0.5969,
+            "actual_win_rate": 0.63538
+          },
+          "required rate > 10": {
+            "n": 817,
+            "ece": 0.06273,
+            "mean_predicted": 0.13335,
+            "actual_win_rate": 0.0869
+          }
+        },
+        "extrapolation": [
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 160.0,
+            "model_p": 0.75151,
+            "oracle_p": 0.76663,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 200.0,
+            "model_p": 0.11588,
+            "oracle_p": 0.07577,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 152.0,
+            "model_p": 0.75307,
+            "oracle_p": 0.77469,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 190.0,
+            "model_p": 0.11674,
+            "oracle_p": 0.0856,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 8.0,
+            "model_p": 0.78004,
+            "oracle_p": 0.59107,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 20.0,
+            "model_p": 0.13322,
+            "oracle_p": 0.01504,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 4.0,
+            "model_p": 0.78076,
+            "oracle_p": 0.55418,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 15.0,
+            "model_p": 0.1337,
+            "oracle_p": 0.00309,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 1.0,
+            "model_p": 0.78133,
+            "oracle_p": 0.64105,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 11.0,
+            "model_p": 0.13409,
+            "oracle_p": 0.00019,
+            "in_training_range": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "candidate": "C2 logistic (chase terms)",
+      "axis1_predictive": {
+        "brier": 0.11494,
+        "log_loss": 0.38155,
+        "brier_skill_vs_constant": 0.53795,
+        "expected_calibration_error": 0.04365,
+        "oracle_mae": 0.03261,
+        "oracle_mae_p90": 0.07578,
+        "oracle_rmse": 0.04742,
+        "corr_with_oracle": 0.99239,
+        "decile_calibration": [
+          {
+            "bucket": "(-0.001, 0.00134]",
+            "n": 210,
+            "mean_predicted": 0.0002,
+            "actual_win_rate": 0.0048
+          },
+          {
+            "bucket": "(0.00134, 0.0306]",
+            "n": 209,
+            "mean_predicted": 0.0108,
+            "actual_win_rate": 0.0526
+          },
+          {
+            "bucket": "(0.0306, 0.107]",
+            "n": 210,
+            "mean_predicted": 0.0649,
+            "actual_win_rate": 0.1238
+          },
+          {
+            "bucket": "(0.107, 0.218]",
+            "n": 208,
+            "mean_predicted": 0.1589,
+            "actual_win_rate": 0.1683
+          },
+          {
+            "bucket": "(0.218, 0.395]",
+            "n": 210,
+            "mean_predicted": 0.301,
+            "actual_win_rate": 0.3238
+          },
+          {
+            "bucket": "(0.395, 0.583]",
+            "n": 209,
+            "mean_predicted": 0.4938,
+            "actual_win_rate": 0.4163
+          },
+          {
+            "bucket": "(0.583, 0.737]",
+            "n": 208,
+            "mean_predicted": 0.6699,
+            "actual_win_rate": 0.7404
+          },
+          {
+            "bucket": "(0.737, 0.896]",
+            "n": 209,
+            "mean_predicted": 0.8172,
+            "actual_win_rate": 0.9187
+          },
+          {
+            "bucket": "(0.896, 0.982]",
+            "n": 209,
+            "mean_predicted": 0.9496,
+            "actual_win_rate": 0.9187
+          },
+          {
+            "bucket": "(0.982, 1.0]",
+            "n": 210,
+            "mean_predicted": 0.9952,
+            "actual_win_rate": 0.9762
+          }
+        ]
+      },
+      "paired_vs_oracle": {
+        "point": 0.002978,
+        "ci95": [
+          -0.000387,
+          0.006199
+        ]
+      },
+      "classification": {
+        "statistical_criterion_met": true,
+        "practical_criterion_met": false,
+        "outcome": "A'"
+      },
+      "axis2_operational": {
+        "perturbation_sensitivity": {
+          "target_score +1 run": {
+            "mean_abs_delta_p": 0.01257,
+            "p90": 0.02633,
+            "frac_over_0.10": 0.00382
+          },
+          "wickets_down +1": {
+            "mean_abs_delta_p": 0.01872,
+            "p90": 0.0406,
+            "frac_over_0.10": 0.00478
+          },
+          "overs_remaining +1 ball": {
+            "mean_abs_delta_p": 0.00686,
+            "p90": 0.01489,
+            "frac_over_0.10": 0.00191
+          },
+          "current_run_rate +0.1": {
+            "mean_abs_delta_p": 0.01334,
+            "p90": 0.02759,
+            "frac_over_0.10": 0.02581
+          }
+        },
+        "calibration_by_regime": {
+          "phase: overs_remaining 15-19": {
+            "n": 580,
+            "ece": 0.0662,
+            "mean_predicted": 0.4814,
+            "actual_win_rate": 0.49138
+          },
+          "phase: overs_remaining 6-14": {
+            "n": 1037,
+            "ece": 0.04371,
+            "mean_predicted": 0.47489,
+            "actual_win_rate": 0.48795
+          },
+          "phase: overs_remaining 1-5": {
+            "n": 475,
+            "ece": 0.06994,
+            "mean_predicted": 0.33963,
+            "actual_win_rate": 0.37895
+          },
+          "wickets in hand 0-3": {
+            "n": 98,
+            "ece": 0.06703,
+            "mean_predicted": 0.21585,
+            "actual_win_rate": 0.17347
+          },
+          "wickets in hand 4-6": {
+            "n": 543,
+            "ece": 0.05415,
+            "mean_predicted": 0.3568,
+            "actual_win_rate": 0.38122
+          },
+          "wickets in hand 7-10": {
+            "n": 1451,
+            "ece": 0.04985,
+            "mean_predicted": 0.49491,
+            "actual_win_rate": 0.51482
+          },
+          "required rate < 6": {
+            "n": 263,
+            "ece": 0.02058,
+            "mean_predicted": 0.99112,
+            "actual_win_rate": 0.97719
+          },
+          "required rate 6-10": {
+            "n": 1012,
+            "ece": 0.0657,
+            "mean_predicted": 0.61956,
+            "actual_win_rate": 0.63538
+          },
+          "required rate > 10": {
+            "n": 817,
+            "ece": 0.04663,
+            "mean_predicted": 0.05551,
+            "actual_win_rate": 0.0869
+          }
+        },
+        "extrapolation": [
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 160.0,
+            "model_p": 0.64373,
+            "oracle_p": 0.76663,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 200.0,
+            "model_p": 0.10811,
+            "oracle_p": 0.07577,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 152.0,
+            "model_p": 0.65792,
+            "oracle_p": 0.77469,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 190.0,
+            "model_p": 0.11428,
+            "oracle_p": 0.0856,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 8.0,
+            "model_p": 0.85543,
+            "oracle_p": 0.59107,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 20.0,
+            "model_p": 0.0,
+            "oracle_p": 0.01504,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 4.0,
+            "model_p": 0.85924,
+            "oracle_p": 0.55418,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 15.0,
+            "model_p": 0.0,
+            "oracle_p": 0.00309,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 1.0,
+            "model_p": 0.98457,
+            "oracle_p": 0.64105,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 11.0,
+            "model_p": 0.0,
+            "oracle_p": 0.00019,
+            "in_training_range": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "candidate": "C3 regularized logistic (rich)",
+      "axis1_predictive": {
+        "brier": 0.11227,
+        "log_loss": 0.36216,
+        "brier_skill_vs_constant": 0.54868,
+        "expected_calibration_error": 0.03743,
+        "oracle_mae": 0.01856,
+        "oracle_mae_p90": 0.0377,
+        "oracle_rmse": 0.0337,
+        "corr_with_oracle": 0.99617,
+        "decile_calibration": [
+          {
+            "bucket": "(-0.001, 0.00131]",
+            "n": 210,
+            "mean_predicted": 0.0002,
+            "actual_win_rate": 0.0048
+          },
+          {
+            "bucket": "(0.00131, 0.0228]",
+            "n": 209,
+            "mean_predicted": 0.0089,
+            "actual_win_rate": 0.0383
+          },
+          {
+            "bucket": "(0.0228, 0.0804]",
+            "n": 209,
+            "mean_predicted": 0.0503,
+            "actual_win_rate": 0.0957
+          },
+          {
+            "bucket": "(0.0804, 0.207]",
+            "n": 209,
+            "mean_predicted": 0.1378,
+            "actual_win_rate": 0.2057
+          },
+          {
+            "bucket": "(0.207, 0.392]",
+            "n": 210,
+            "mean_predicted": 0.2908,
+            "actual_win_rate": 0.319
+          },
+          {
+            "bucket": "(0.392, 0.613]",
+            "n": 208,
+            "mean_predicted": 0.505,
+            "actual_win_rate": 0.4327
+          },
+          {
+            "bucket": "(0.613, 0.775]",
+            "n": 210,
+            "mean_predicted": 0.6965,
+            "actual_win_rate": 0.7238
+          },
+          {
+            "bucket": "(0.775, 0.903]",
+            "n": 208,
+            "mean_predicted": 0.8375,
+            "actual_win_rate": 0.9135
+          },
+          {
+            "bucket": "(0.903, 0.975]",
+            "n": 209,
+            "mean_predicted": 0.9452,
+            "actual_win_rate": 0.9378
+          },
+          {
+            "bucket": "(0.975, 0.999]",
+            "n": 210,
+            "mean_predicted": 0.988,
+            "actual_win_rate": 0.9714
+          }
+        ]
+      },
+      "paired_vs_oracle": {
+        "point": 0.000309,
+        "ci95": [
+          -0.002406,
+          0.00301
+        ]
+      },
+      "classification": {
+        "statistical_criterion_met": true,
+        "practical_criterion_met": false,
+        "outcome": "A'"
+      },
+      "axis2_operational": {
+        "perturbation_sensitivity": {
+          "target_score +1 run": {
+            "mean_abs_delta_p": 0.01307,
+            "p90": 0.02694,
+            "frac_over_0.10": 0.00621
+          },
+          "wickets_down +1": {
+            "mean_abs_delta_p": 0.01021,
+            "p90": 0.02387,
+            "frac_over_0.10": 0.0043
+          },
+          "overs_remaining +1 ball": {
+            "mean_abs_delta_p": 0.00698,
+            "p90": 0.01426,
+            "frac_over_0.10": 0.00143
+          },
+          "current_run_rate +0.1": {
+            "mean_abs_delta_p": 0.01324,
+            "p90": 0.02818,
+            "frac_over_0.10": 0.02247
+          }
+        },
+        "calibration_by_regime": {
+          "phase: overs_remaining 15-19": {
+            "n": 580,
+            "ece": 0.0542,
+            "mean_predicted": 0.48828,
+            "actual_win_rate": 0.49138
+          },
+          "phase: overs_remaining 6-14": {
+            "n": 1037,
+            "ece": 0.04853,
+            "mean_predicted": 0.46531,
+            "actual_win_rate": 0.48795
+          },
+          "phase: overs_remaining 1-5": {
+            "n": 475,
+            "ece": 0.053,
+            "mean_predicted": 0.35182,
+            "actual_win_rate": 0.37895
+          },
+          "wickets in hand 0-3": {
+            "n": 98,
+            "ece": 0.05965,
+            "mean_predicted": 0.21466,
+            "actual_win_rate": 0.17347
+          },
+          "wickets in hand 4-6": {
+            "n": 543,
+            "ece": 0.04337,
+            "mean_predicted": 0.36258,
+            "actual_win_rate": 0.38122
+          },
+          "wickets in hand 7-10": {
+            "n": 1451,
+            "ece": 0.04088,
+            "mean_predicted": 0.49271,
+            "actual_win_rate": 0.51482
+          },
+          "required rate < 6": {
+            "n": 263,
+            "ece": 0.01629,
+            "mean_predicted": 0.98288,
+            "actual_win_rate": 0.97719
+          },
+          "required rate 6-10": {
+            "n": 1012,
+            "ece": 0.05325,
+            "mean_predicted": 0.62662,
+            "actual_win_rate": 0.63538
+          },
+          "required rate > 10": {
+            "n": 817,
+            "ece": 0.0377,
+            "mean_predicted": 0.04921,
+            "actual_win_rate": 0.0869
+          }
+        },
+        "extrapolation": [
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 160.0,
+            "model_p": 0.82317,
+            "oracle_p": 0.76663,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 200.0,
+            "model_p": 0.14764,
+            "oracle_p": 0.07577,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 152.0,
+            "model_p": 0.80625,
+            "oracle_p": 0.77469,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 190.0,
+            "model_p": 0.1419,
+            "oracle_p": 0.0856,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 8.0,
+            "model_p": 0.88698,
+            "oracle_p": 0.59107,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 20.0,
+            "model_p": 1e-05,
+            "oracle_p": 0.01504,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 4.0,
+            "model_p": 0.89563,
+            "oracle_p": 0.55418,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 15.0,
+            "model_p": 0.0,
+            "oracle_p": 0.00309,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 1.0,
+            "model_p": 0.96674,
+            "oracle_p": 0.64105,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 11.0,
+            "model_p": 0.0,
+            "oracle_p": 0.00019,
+            "in_training_range": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "candidate": "C4 random forest (tuned)",
+      "axis1_predictive": {
+        "brier": 0.12155,
+        "log_loss": 0.3894,
+        "brier_skill_vs_constant": 0.51137,
+        "expected_calibration_error": 0.03087,
+        "oracle_mae": 0.07638,
+        "oracle_mae_p90": 0.19478,
+        "oracle_rmse": 0.11908,
+        "corr_with_oracle": 0.95008,
+        "decile_calibration": [
+          {
+            "bucket": "(-0.001, 0.00144]",
+            "n": 210,
+            "mean_predicted": 0.0003,
+            "actual_win_rate": 0.0238
+          },
+          {
+            "bucket": "(0.00144, 0.0131]",
+            "n": 209,
+            "mean_predicted": 0.0064,
+            "actual_win_rate": 0.0144
+          },
+          {
+            "bucket": "(0.0131, 0.0799]",
+            "n": 209,
+            "mean_predicted": 0.0389,
+            "actual_win_rate": 0.11
+          },
+          {
+            "bucket": "(0.0799, 0.268]",
+            "n": 209,
+            "mean_predicted": 0.1961,
+            "actual_win_rate": 0.2153
+          },
+          {
+            "bucket": "(0.268, 0.455]",
+            "n": 209,
+            "mean_predicted": 0.3568,
+            "actual_win_rate": 0.3493
+          },
+          {
+            "bucket": "(0.455, 0.595]",
+            "n": 209,
+            "mean_predicted": 0.5311,
+            "actual_win_rate": 0.4641
+          },
+          {
+            "bucket": "(0.595, 0.731]",
+            "n": 209,
+            "mean_predicted": 0.668,
+            "actual_win_rate": 0.7321
+          },
+          {
+            "bucket": "(0.731, 0.842]",
+            "n": 209,
+            "mean_predicted": 0.7912,
+            "actual_win_rate": 0.823
+          },
+          {
+            "bucket": "(0.842, 0.962]",
+            "n": 209,
+            "mean_predicted": 0.9029,
+            "actual_win_rate": 0.9091
+          },
+          {
+            "bucket": "(0.962, 1.0]",
+            "n": 210,
+            "mean_predicted": 0.9894,
+            "actual_win_rate": 1.0
+          }
+        ]
+      },
+      "paired_vs_oracle": {
+        "point": 0.00959,
+        "ci95": [
+          -0.002699,
+          0.021302
+        ]
+      },
+      "classification": {
+        "statistical_criterion_met": true,
+        "practical_criterion_met": false,
+        "outcome": "A'"
+      },
+      "axis2_operational": {
+        "perturbation_sensitivity": {
+          "target_score +1 run": {
+            "mean_abs_delta_p": 0.028,
+            "p90": 0.09616,
+            "frac_over_0.10": 0.09512
+          },
+          "wickets_down +1": {
+            "mean_abs_delta_p": 0.00427,
+            "p90": 0.01083,
+            "frac_over_0.10": 0.0
+          },
+          "overs_remaining +1 ball": {
+            "mean_abs_delta_p": 0.0,
+            "p90": 0.0,
+            "frac_over_0.10": 0.0
+          },
+          "current_run_rate +0.1": {
+            "mean_abs_delta_p": 0.01394,
+            "p90": 0.0349,
+            "frac_over_0.10": 0.03203
+          }
+        },
+        "calibration_by_regime": {
+          "phase: overs_remaining 15-19": {
+            "n": 580,
+            "ece": 0.04638,
+            "mean_predicted": 0.48737,
+            "actual_win_rate": 0.49138
+          },
+          "phase: overs_remaining 6-14": {
+            "n": 1037,
+            "ece": 0.04507,
+            "mean_predicted": 0.46656,
+            "actual_win_rate": 0.48795
+          },
+          "phase: overs_remaining 1-5": {
+            "n": 475,
+            "ece": 0.03267,
+            "mean_predicted": 0.36014,
+            "actual_win_rate": 0.37895
+          },
+          "wickets in hand 0-3": {
+            "n": 98,
+            "ece": 0.12573,
+            "mean_predicted": 0.28496,
+            "actual_win_rate": 0.17347
+          },
+          "wickets in hand 4-6": {
+            "n": 543,
+            "ece": 0.02711,
+            "mean_predicted": 0.35924,
+            "actual_win_rate": 0.38122
+          },
+          "wickets in hand 7-10": {
+            "n": 1451,
+            "ece": 0.05018,
+            "mean_predicted": 0.49247,
+            "actual_win_rate": 0.51482
+          },
+          "required rate < 6": {
+            "n": 263,
+            "ece": 0.06266,
+            "mean_predicted": 0.91453,
+            "actual_win_rate": 0.97719
+          },
+          "required rate 6-10": {
+            "n": 1012,
+            "ece": 0.05103,
+            "mean_predicted": 0.62558,
+            "actual_win_rate": 0.63538
+          },
+          "required rate > 10": {
+            "n": 817,
+            "ece": 0.06145,
+            "mean_predicted": 0.07828,
+            "actual_win_rate": 0.0869
+          }
+        },
+        "extrapolation": [
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 160.0,
+            "model_p": 0.83914,
+            "oracle_p": 0.76663,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 200.0,
+            "model_p": 0.23211,
+            "oracle_p": 0.07577,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 152.0,
+            "model_p": 0.83914,
+            "oracle_p": 0.77469,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 190.0,
+            "model_p": 0.23211,
+            "oracle_p": 0.0856,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 8.0,
+            "model_p": 0.83729,
+            "oracle_p": 0.59107,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 20.0,
+            "model_p": 0.37123,
+            "oracle_p": 0.01504,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 4.0,
+            "model_p": 0.83729,
+            "oracle_p": 0.55418,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 15.0,
+            "model_p": 0.37123,
+            "oracle_p": 0.00309,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 1.0,
+            "model_p": 0.83729,
+            "oracle_p": 0.64105,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 11.0,
+            "model_p": 0.37123,
+            "oracle_p": 0.00019,
+            "in_training_range": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "candidate": "C5 gradient boosting (tuned)",
+      "axis1_predictive": {
+        "brier": 0.11571,
+        "log_loss": 0.37575,
+        "brier_skill_vs_constant": 0.53483,
+        "expected_calibration_error": 0.03111,
+        "oracle_mae": 0.03477,
+        "oracle_mae_p90": 0.07188,
+        "oracle_rmse": 0.0456,
+        "corr_with_oracle": 0.99315,
+        "decile_calibration": [
+          {
+            "bucket": "(0.0201, 0.0273]",
+            "n": 210,
+            "mean_predicted": 0.0234,
+            "actual_win_rate": 0.019
+          },
+          {
+            "bucket": "(0.0273, 0.0312]",
+            "n": 210,
+            "mean_predicted": 0.0299,
+            "actual_win_rate": 0.0524
+          },
+          {
+            "bucket": "(0.0312, 0.0736]",
+            "n": 212,
+            "mean_predicted": 0.0451,
+            "actual_win_rate": 0.0943
+          },
+          {
+            "bucket": "(0.0736, 0.216]",
+            "n": 206,
+            "mean_predicted": 0.124,
+            "actual_win_rate": 0.199
+          },
+          {
+            "bucket": "(0.216, 0.403]",
+            "n": 208,
+            "mean_predicted": 0.3163,
+            "actual_win_rate": 0.3029
+          },
+          {
+            "bucket": "(0.403, 0.606]",
+            "n": 212,
+            "mean_predicted": 0.5077,
+            "actual_win_rate": 0.4623
+          },
+          {
+            "bucket": "(0.606, 0.781]",
+            "n": 206,
+            "mean_predicted": 0.6978,
+            "actual_win_rate": 0.699
+          },
+          {
+            "bucket": "(0.781, 0.896]",
+            "n": 211,
+            "mean_predicted": 0.8388,
+            "actual_win_rate": 0.9147
+          },
+          {
+            "bucket": "(0.896, 0.963]",
+            "n": 209,
+            "mean_predicted": 0.9364,
+            "actual_win_rate": 0.9234
+          },
+          {
+            "bucket": "(0.963, 0.975]",
+            "n": 208,
+            "mean_predicted": 0.9704,
+            "actual_win_rate": 0.9808
+          }
+        ]
+      },
+      "paired_vs_oracle": {
+        "point": 0.003754,
+        "ci95": [
+          0.000767,
+          0.006679
+        ]
+      },
+      "classification": {
+        "statistical_criterion_met": false,
+        "practical_criterion_met": false,
+        "outcome": "B"
+      },
+      "axis2_operational": {
+        "perturbation_sensitivity": {
+          "target_score +1 run": {
+            "mean_abs_delta_p": 0.0134,
+            "p90": 0.05544,
+            "frac_over_0.10": 0.00908
+          },
+          "wickets_down +1": {
+            "mean_abs_delta_p": 0.01106,
+            "p90": 0.04442,
+            "frac_over_0.10": 0.0
+          },
+          "overs_remaining +1 ball": {
+            "mean_abs_delta_p": 0.00706,
+            "p90": 0.02817,
+            "frac_over_0.10": 0.00287
+          },
+          "current_run_rate +0.1": {
+            "mean_abs_delta_p": 0.01298,
+            "p90": 0.0429,
+            "frac_over_0.10": 0.02486
+          }
+        },
+        "calibration_by_regime": {
+          "phase: overs_remaining 15-19": {
+            "n": 580,
+            "ece": 0.06243,
+            "mean_predicted": 0.49691,
+            "actual_win_rate": 0.49138
+          },
+          "phase: overs_remaining 6-14": {
+            "n": 1037,
+            "ece": 0.04266,
+            "mean_predicted": 0.47044,
+            "actual_win_rate": 0.48795
+          },
+          "phase: overs_remaining 1-5": {
+            "n": 475,
+            "ece": 0.06636,
+            "mean_predicted": 0.34091,
+            "actual_win_rate": 0.37895
+          },
+          "wickets in hand 0-3": {
+            "n": 98,
+            "ece": 0.06832,
+            "mean_predicted": 0.21348,
+            "actual_win_rate": 0.17347
+          },
+          "wickets in hand 4-6": {
+            "n": 543,
+            "ece": 0.05756,
+            "mean_predicted": 0.36604,
+            "actual_win_rate": 0.38122
+          },
+          "wickets in hand 7-10": {
+            "n": 1451,
+            "ece": 0.03465,
+            "mean_predicted": 0.49504,
+            "actual_win_rate": 0.51482
+          },
+          "required rate < 6": {
+            "n": 263,
+            "ece": 0.02269,
+            "mean_predicted": 0.9635,
+            "actual_win_rate": 0.97719
+          },
+          "required rate 6-10": {
+            "n": 1012,
+            "ece": 0.05121,
+            "mean_predicted": 0.63501,
+            "actual_win_rate": 0.63538
+          },
+          "required rate > 10": {
+            "n": 817,
+            "ece": 0.04613,
+            "mean_predicted": 0.05135,
+            "actual_win_rate": 0.0869
+          }
+        },
+        "extrapolation": [
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 160.0,
+            "model_p": 0.77676,
+            "oracle_p": 0.76663,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 200.0,
+            "model_p": 0.21238,
+            "oracle_p": 0.07577,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 152.0,
+            "model_p": 0.77676,
+            "oracle_p": 0.77469,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 190.0,
+            "model_p": 0.21238,
+            "oracle_p": 0.0856,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 8.0,
+            "model_p": 0.83121,
+            "oracle_p": 0.59107,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 20.0,
+            "model_p": 0.0313,
+            "oracle_p": 0.01504,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 4.0,
+            "model_p": 0.83121,
+            "oracle_p": 0.55418,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 15.0,
+            "model_p": 0.0313,
+            "oracle_p": 0.00309,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 1.0,
+            "model_p": 0.96646,
+            "oracle_p": 0.64105,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 11.0,
+            "model_p": 0.0313,
+            "oracle_p": 0.00019,
+            "in_training_range": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "candidate": "C6 C3 + isotonic",
+      "axis1_predictive": {
+        "brier": 0.11791,
+        "log_loss": 0.51963,
+        "brier_skill_vs_constant": 0.52599,
+        "expected_calibration_error": 0.06269,
+        "oracle_mae": 0.04602,
+        "oracle_mae_p90": 0.0904,
+        "oracle_rmse": 0.05878,
+        "corr_with_oracle": 0.99091,
+        "decile_calibration": [
+          {
+            "bucket": "(-0.001, 0.15]",
+            "n": 893,
+            "mean_predicted": 0.023,
+            "actual_win_rate": 0.1019
+          },
+          {
+            "bucket": "(0.15, 0.324]",
+            "n": 186,
+            "mean_predicted": 0.2832,
+            "actual_win_rate": 0.3172
+          },
+          {
+            "bucket": "(0.324, 0.574]",
+            "n": 200,
+            "mean_predicted": 0.5393,
+            "actual_win_rate": 0.485
+          },
+          {
+            "bucket": "(0.574, 0.736]",
+            "n": 264,
+            "mean_predicted": 0.7184,
+            "actual_win_rate": 0.7879
+          },
+          {
+            "bucket": "(0.736, 0.86]",
+            "n": 242,
+            "mean_predicted": 0.8423,
+            "actual_win_rate": 0.9174
+          },
+          {
+            "bucket": "(0.86, 0.92]",
+            "n": 217,
+            "mean_predicted": 0.9201,
+            "actual_win_rate": 0.9401
+          },
+          {
+            "bucket": "(0.92, 1.0]",
+            "n": 90,
+            "mean_predicted": 0.9701,
+            "actual_win_rate": 1.0
+          }
+        ]
+      },
+      "paired_vs_oracle": {
+        "point": 0.005953,
+        "ci95": [
+          0.000964,
+          0.011338
+        ]
+      },
+      "classification": {
+        "statistical_criterion_met": false,
+        "practical_criterion_met": false,
+        "outcome": "B"
+      },
+      "axis2_operational": {
+        "perturbation_sensitivity": {
+          "target_score +1 run": {
+            "mean_abs_delta_p": 0.01308,
+            "p90": 0.05686,
+            "frac_over_0.10": 0.02055
+          },
+          "wickets_down +1": {
+            "mean_abs_delta_p": 0.00462,
+            "p90": 0.0,
+            "frac_over_0.10": 0.00526
+          },
+          "overs_remaining +1 ball": {
+            "mean_abs_delta_p": 0.00728,
+            "p90": 0.02887,
+            "frac_over_0.10": 0.01052
+          },
+          "current_run_rate +0.1": {
+            "mean_abs_delta_p": 0.01284,
+            "p90": 0.05323,
+            "frac_over_0.10": 0.02772
+          }
+        },
+        "calibration_by_regime": {
+          "phase: overs_remaining 15-19": {
+            "n": 580,
+            "ece": 0.08635,
+            "mean_predicted": 0.44856,
+            "actual_win_rate": 0.49138
+          },
+          "phase: overs_remaining 6-14": {
+            "n": 1037,
+            "ece": 0.07394,
+            "mean_predicted": 0.42812,
+            "actual_win_rate": 0.48795
+          },
+          "phase: overs_remaining 1-5": {
+            "n": 475,
+            "ece": 0.05704,
+            "mean_predicted": 0.33147,
+            "actual_win_rate": 0.37895
+          },
+          "wickets in hand 0-3": {
+            "n": 98,
+            "ece": 0.04505,
+            "mean_predicted": 0.20025,
+            "actual_win_rate": 0.17347
+          },
+          "wickets in hand 4-6": {
+            "n": 543,
+            "ece": 0.04809,
+            "mean_predicted": 0.34168,
+            "actual_win_rate": 0.38122
+          },
+          "wickets in hand 7-10": {
+            "n": 1451,
+            "ece": 0.06667,
+            "mean_predicted": 0.45239,
+            "actual_win_rate": 0.51482
+          },
+          "required rate < 6": {
+            "n": 263,
+            "ece": 0.04083,
+            "mean_predicted": 0.93635,
+            "actual_win_rate": 0.97719
+          },
+          "required rate 6-10": {
+            "n": 1012,
+            "ece": 0.07681,
+            "mean_predicted": 0.59439,
+            "actual_win_rate": 0.63538
+          },
+          "required rate > 10": {
+            "n": 817,
+            "ece": 0.07003,
+            "mean_predicted": 0.01687,
+            "actual_win_rate": 0.0869
+          }
+        },
+        "extrapolation": [
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 160.0,
+            "model_p": 0.8125,
+            "oracle_p": 0.76663,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 20.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 120.0,
+            "runs_needed": 200.0,
+            "model_p": 0.15,
+            "oracle_p": 0.07577,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 152.0,
+            "model_p": 0.8125,
+            "oracle_p": 0.77469,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 19.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 114.0,
+            "runs_needed": 190.0,
+            "model_p": 0.15,
+            "oracle_p": 0.0856,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 8.0,
+            "model_p": 0.8125,
+            "oracle_p": 0.59107,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 1.0,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 6.0,
+            "runs_needed": 20.0,
+            "model_p": 0.0,
+            "oracle_p": 0.01504,
+            "in_training_range": 1.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 4.0,
+            "model_p": 0.86,
+            "oracle_p": 0.55418,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.5,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 3.0,
+            "runs_needed": 15.0,
+            "model_p": 0.0,
+            "oracle_p": 0.00309,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 2.0,
+            "current_run_rate": 8.0,
+            "target_score": 160.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 1.0,
+            "model_p": 0.92021,
+            "oracle_p": 0.64105,
+            "in_training_range": 0.0
+          },
+          {
+            "overs_remaining": 0.1,
+            "wickets_down": 5.0,
+            "current_run_rate": 9.5,
+            "target_score": 200.0,
+            "balls_remaining": 1.0,
+            "runs_needed": 11.0,
+            "model_p": 0.0,
+            "oracle_p": 0.00019,
+            "in_training_range": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "candidate": "ORACLE (floor, not a candidate)",
+      "axis1_predictive": {
+        "brier": 0.11196,
+        "log_loss": 0.36226,
+        "brier_skill_vs_constant": 0.54993,
+        "expected_calibration_error": 0.04212,
+        "oracle_mae": 0.0,
+        "oracle_mae_p90": 0.0,
+        "oracle_rmse": 0.0,
+        "corr_with_oracle": 1.0,
+        "decile_calibration": [
+          {
+            "bucket": "(-0.0009999999999999998, 0.00196]",
+            "n": 210,
+            "mean_predicted": 0.0003,
+            "actual_win_rate": 0.0
+          },
+          {
+            "bucket": "(0.00196, 0.0245]",
+            "n": 209,
+            "mean_predicted": 0.0099,
+            "actual_win_rate": 0.0287
+          },
+          {
+            "bucket": "(0.0245, 0.077]",
+            "n": 209,
+            "mean_predicted": 0.0485,
+            "actual_win_rate": 0.0622
+          },
+          {
+            "bucket": "(0.077, 0.203]",
+            "n": 209,
+            "mean_predicted": 0.1364,
+            "actual_win_rate": 0.2488
+          },
+          {
+            "bucket": "(0.203, 0.369]",
+            "n": 209,
+            "mean_predicted": 0.2785,
+            "actual_win_rate": 0.3301
+          },
+          {
+            "bucket": "(0.369, 0.575]",
+            "n": 209,
+            "mean_predicted": 0.4737,
+            "actual_win_rate": 0.4306
+          },
+          {
+            "bucket": "(0.575, 0.757]",
+            "n": 209,
+            "mean_predicted": 0.6718,
+            "actual_win_rate": 0.7177
+          },
+          {
+            "bucket": "(0.757, 0.909]",
+            "n": 209,
+            "mean_predicted": 0.8314,
+            "actual_win_rate": 0.9043
+          },
+          {
+            "bucket": "(0.909, 0.99]",
+            "n": 209,
+            "mean_predicted": 0.9585,
+            "actual_win_rate": 0.9713
+          },
+          {
+            "bucket": "(0.99, 1.0]",
+            "n": 210,
+            "mean_predicted": 0.9972,
+            "actual_win_rate": 0.9476
+          }
+        ]
+      },
+      "paired_vs_oracle": {
+        "point": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ]
+      },
+      "classification": {
+        "outcome": "n/a"
+      }
+    }
+  ],
+  "feature_distribution_train_vs_test": {
+    "overs_remaining": {
+      "train": {
+        "mean": 10.3829,
+        "min": 1.0,
+        "max": 19.0
+      },
+      "test": {
+        "mean": 10.4015,
+        "min": 1.0,
+        "max": 19.0
+      }
+    },
+    "wickets_down": {
+      "train": {
+        "mean": 2.4629,
+        "min": 0.0,
+        "max": 9.0
+      },
+      "test": {
+        "mean": 2.512,
+        "min": 0.0,
+        "max": 9.0
+      }
+    },
+    "current_run_rate": {
+      "train": {
+        "mean": 8.823,
+        "min": 1.0,
+        "max": 26.0
+      },
+      "test": {
+        "mean": 8.7026,
+        "min": 1.0,
+        "max": 24.0
+      }
+    },
+    "target_score": {
+      "train": {
+        "mean": 179.1191,
+        "min": 90.0,
+        "max": 232.0
+      },
+      "test": {
+        "mean": 179.4594,
+        "min": 124.0,
+        "max": 243.0
+      }
+    },
+    "runs_needed": {
+      "train": {
+        "mean": 94.8526,
+        "min": -3.0,
+        "max": 228.0
+      },
+      "test": {
+        "mean": 96.1458,
+        "min": -3.0,
+        "max": 234.0
+      }
+    },
+    "balls_remaining": {
+      "train": {
+        "mean": 62.2975,
+        "min": 6.0,
+        "max": 114.0
+      },
+      "test": {
+        "mean": 62.4092,
+        "min": 6.0,
+        "max": 114.0
+      }
+    }
+  },
+  "preregistered_thresholds": {
+    "practical_oracle_mae": 0.01,
+    "statistical": "paired bootstrap 95% CI for Brier(cand)-Brier(oracle) includes 0"
+  }
+}
