@@ -9,7 +9,7 @@ The product direction: a world-class, one-stop app for cricket, starting with lo
 This repository contains the complete CricRoots ecosystem, including:
 
 - **Web Application** (`web-app/`): Next.js 14 (App Router) + TypeScript + Tailwind frontend. Covers auth, live scoring, tournament management, a player network, edtech, news, and a marketplace with cart/checkout, all under a shared "Stadium Dark" design system.
-- **Mobile Application** (`mobile-app/`): React Native (Expo SDK 54) with full feature parity to the web app across 37 screens — live scoring (with resume-mid-innings support), match/tournament/team creation, player profile completion, a calendar, tournaments, teams, marketplace, news + lesson authoring, learn, the prediction game, the matchup-shrinkage Scouting Report + live tactical panel, post-match performance reports, SVG Manhattan/Worm charts, and the in-app assistant chatbot. Distributed for pilot testing via EAS Update over Expo Go — no App Store review needed yet, published on the `preview` channel (see `documentation/going-legal-and-live.md`).
+- **Mobile Application** (`mobile-app/`): React Native (Expo SDK 54) with full feature parity to the web app across 43 screens — live scoring (with resume-mid-innings support), match/tournament/team creation, player profile completion, a calendar, tournaments, teams, marketplace, news + lesson authoring, learn, the prediction game, the matchup-shrinkage Scouting Report + live tactical panel, post-match performance reports, SVG Manhattan/Worm charts, and the in-app assistant chatbot. Distributed for pilot testing via EAS Update over Expo Go — no App Store review needed yet, published on the `preview` channel (see `documentation/going-legal-and-live.md`).
 - **Backend API** (`backend/`): Node.js/Express server with MongoDB, JWT auth, and Socket.io for real-time match/chat events.
 - **AI Engine** (`ai-engine/`): Python/Flask service providing win-probability and tactical-advisor predictions during a live match.
 - **Statistical insights service** (`backend/src/services/tendencyAnalytics.js`): a complementary Node-side aggregation layer over real ball-by-ball data (line, length, shot zone, fielder) captured during scoring — powers shot advice, bowling plans, fielding placement, bowler scouting, wagon wheels, wicketkeeper stats, and career/tournament leaderboards, all computed live from match documents rather than a separately-maintained stats table.
@@ -64,7 +64,7 @@ This repository contains the complete CricRoots ecosystem, including:
 
 ### 📱 Cross-platform Support
 - **Web app**: responsive, real-time, actively developed.
-- **Mobile app**: React Native/Expo, full feature parity with web across 37 screens — including match/tournament creation and player profile completion, not just live scoring — distributed to pilot testers via Expo Go (EAS Update) ahead of an eventual App Store/Play Store release. A live-scoring session dropped mid-innings resumes correctly by validating the saved snapshot before trusting it, rather than silently rendering a blank/zeroed-out scoring view.
+- **Mobile app**: React Native/Expo, full feature parity with web across 43 screens — including match/tournament creation and player profile completion, not just live scoring — distributed to pilot testers via Expo Go (EAS Update) ahead of an eventual App Store/Play Store release. A live-scoring session dropped mid-innings resumes correctly by validating the saved snapshot before trusting it, rather than silently rendering a blank/zeroed-out scoring view.
 - **Seamless sync**: same backend API and MongoDB data store across all clients.
 
 ### 🔐 Secure & Scalable
@@ -85,6 +85,8 @@ This repository contains the complete CricRoots ecosystem, including:
 | **AI Engine** | Python, Flask, scikit-learn, Pandas |
 | **Real-time** | Socket.io, WebSocket |
 | **Infrastructure** | Docker, Docker Compose, Nginx |
+| **Testing / CI** | Jest, `mongodb-memory-server`, GitHub Actions |
+| **Research** | Node (dependency-free), synthetic generators with known ground truth |
 
 ## Getting Started
 
@@ -270,6 +272,23 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 - `GET /status` - whether `ANTHROPIC_API_KEY` is configured; the frontend widget only renders when true
 - `POST /ask` - app-help and cricket-rules Q&A, grounded in `backend/src/data/*.md` reference content (cached via prompt caching, not re-billed per query) plus a tournament's own `houseRules` when scoped to one. Answers "I don't know" rather than guessing when the question isn't covered by the reference material.
 
+### Leagues (`/api/leagues`)
+- `GET /` · `GET /mine` (protected) · `GET /:id` · `POST /` (protected) · `PUT /:id` (protected) · `DELETE /:id` (protected)
+
+### Notifications (`/api/notifications`) — all protected, the in-app feed behind push/email delivery
+- `GET /` - your notification feed · `GET /unread-count` - for the badge
+- `PATCH /:id/read` - mark one read · `PATCH /read-all` - mark everything read
+
+### Community Feed: Polls (`/api/polls`)
+- `GET /` - active polls, team/tournament-scoped · `POST /` (protected) - create
+- `POST /:id/vote` (protected) - vote
+
+*(Distinct from group-chat polls under `/api/groups/:id/polls`, which live inside a specific
+conversation.)*
+
+### Community Feed: Trivia (`/api/trivia`)
+- `GET /current` - the current global trivia question · `POST /:id/answer` (protected) - submit an answer
+
 ### Marketplace (`/api/products`, `/api/orders`)
 - Standard `GET /` / `GET /:id` / `POST /` (protected) / `DELETE /:id` (protected) CRUD, plus `GET /api/orders/my` and `GET /api/orders/selling` for buyer/seller order views and `PUT /api/orders/:id/status` for fulfillment tracking.
 
@@ -291,49 +310,40 @@ All routes are mounted under `/api` by `backend/src/index.js`. `success`/`messag
 
 ## Project Statistics
 
+Counted from the repository, not estimated.
+
 | Metric | Value |
 | :--- | :--- |
-| **Total Commits** | 140+ |
-| **Backend Route Files** | 16 (auth, users, players, player-stats, teams, matches, tournaments, insights, lessons, news, predictions, messages, groups, products, orders, assistant) |
-| **Mongoose Models** | 16 |
-| **WebSocket Events** | 15+ |
-| **Web App Pages** | 42 (matches, tournaments, teams, players, network, edtech, news, predictions leaderboard, marketplace/cart/checkout/orders, calendar, terms/privacy, auth) |
-| **Mobile App Screens** | 37 (full parity with web, plus the matchup-shrinkage Scouting Report) |
-| **Documentation Pages** | 30+ |
+| **Commits** | 289 |
+| **Backend route groups** | 20 — auth, users, players, player-stats, teams, matches, tournaments, leagues, lessons, news, products, orders, insights, predictions, messages, groups, assistant, notifications, polls, trivia |
+| **Mongoose models** | 20 |
+| **WebSocket events** | 15+ |
+| **Web app pages** | 46 |
+| **Mobile app screens** | 43 |
+| **Markdown documents** | 58 (including the `research/` programme) |
+| **Backend test suites** | 3 files / 38 tests, against a real in-memory MongoDB |
+| **Research experiments** | 9, preregistered, with raw results committed |
 
-## Performance Metrics
+## Why WebSockets
 
-### WebSocket Benefits
-- **Latency**: <100ms (vs ~15s with polling)
-- **Bandwidth**: 70% reduction compared to polling
-- **Server Load**: Significantly reduced
-- **Scalability**: Support for thousands of concurrent connections
+Live scoring pushes ball-by-ball updates to every viewer of a match, plus team chat and tournament
+announcements, over a persistent Socket.io connection instead of client polling. The practical
+effect is that a spectator sees a delivery as it is recorded rather than on the next poll interval,
+and the server is not fielding repeated requests from every idle viewer.
 
-## Contributing
+*No load testing has been run.* Earlier revisions of this file quoted specific latency, bandwidth
+and concurrency figures; those were never measured and have been removed rather than carried
+forward.
 
-We welcome contributions! Please follow these steps:
+## Project Status
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the ISC License - see the LICENSE file for details.
-
-## Support
-
-For issues, questions, or suggestions, please open an issue on GitHub or contact the development team.
-
----
-
-**CricRoots** - *Bringing the world of cricket together, one match at a time.*
-
-*Developed with the assistance of Manus AI*
-
-### Latest Updates
+### Recently shipped
+- ✅ In-app notifications end to end: bell icon + feed on web and mobile, backed by real push
+  (`pushNotificationService.js`) and email (`emailNotificationService.js`) delivery, with per-user
+  preferences — `GET /api/notifications`, unread-count badge, and mark-one / mark-all-read
+- ✅ Community Feed: team/tournament-scoped polls and a global daily trivia question, separate from
+  the in-conversation polls that live inside group chat
+- ✅ Leagues (`/api/leagues`) as a layer above individual tournaments
 - ✅ **Research programme (`research/`)**: nine preregistered experiments against a controlled
   synthetic benchmark with known ground truth, testing whether the deployed hierarchical matchup
   engine beats the alternatives. It does not — a jointly-estimated regularized model outperformed it
@@ -353,7 +363,7 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 - ✅ Full web-vs-mobile feature parity audit and build-out: match creation, player profile
   completion, tournament creation, an event calendar, and lesson/news authoring were all missing
   from mobile (tournament creation was confirmed broken — dead code — on **both** web and mobile);
-  all six built and shipped, bringing mobile to 37 screens
+  all six built and shipped, bringing mobile to 37 screens (43 today)
 - ✅ Live pilot-testing bug-fix arc, found via real on-device testing over several rounds of
   screenshots: a systemic crash class (a populated Mongoose ref resolving to `null` when the
   referenced document was deleted, mishandled by `typeof null === 'object'` checks) swept and
@@ -393,11 +403,35 @@ For issues, questions, or suggestions, please open an issue on GitHub or contact
 - ✅ Player network, community edtech lesson library, news posts, and a full marketplace (listings/cart/checkout/orders)
 - ✅ "Stadium Dark" UI redesign across web and mobile — a shared broadcast-graphics-style design system
 
-### Coming Soon
+### In progress / next
 - 🔄 A real deployed production backend (currently pilot-testing over a local network) and full App Store/Play Store submission. The remaining work is audited and sequenced in `documentation/pilot-deployment-plan.md` — note that `api.cricroots.com` is a hard requirement rather than a free choice, since the mobile client hardcodes it as its production fallback, and that the web app is not currently deployed by anything in the Docker stack
 - 🔄 Per-ball match state capture (score, wickets, phase at the moment of the ball). Not a deployment dependency, but a hard prerequisite before the first real match is scored — it is the one thing that cannot be backfilled afterwards
 - 🔄 Real-data validation of the research findings, which is gated on pilot adoption rather than on analysis: the questions that remain open need substantially more observations per player than currently exist
 - 🔄 D/L Standard rain-revision rules, once the published resource-table values are verified against original sources
-- 🔄 Match/tournament notifications (push/email when a followed team's match goes live or a tournament posts an announcement)
 - 🔄 Global/international cricket news, once local tournament news is well established
-- 🔄 Advanced/chronological "recent form" trend tracking per player
+
+## Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the ISC License - see the LICENSE file for details.
+
+## Support
+
+For issues, questions, or suggestions, please open an issue on GitHub or contact the development team.
+
+---
+
+**CricRoots** - *Bringing the world of cricket together, one match at a time.*
+
+Built with [Claude Code](https://claude.com/claude-code) — 243 of the 289 commits in this
+repository are co-authored, and the research programme under `research/` was carried out the same
+way, including the negative results and the retracted conclusions.
