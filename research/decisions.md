@@ -117,16 +117,65 @@ experiment with its own design document.
 
 ---
 
-## D8 - Production code is never modified by the research work
+## D8 - Research-module freeze, not a global production freeze
 
-**Date**: standing, all experiments
+**Date**: standing since experiment 1 · **Amended 2026-08-25**
 
-**Decision**: `backend/src/utils/statUtils.js` and `backend/src/services/tendencyAnalytics.js`
-are untouched. Every baseline calls the real exported functions.
+**Original decision (unchanged in substance)**: `backend/src/utils/statUtils.js` and
+`backend/src/services/tendencyAnalytics.js` are untouched by the research work. Every baseline
+calls the real exported functions.
 
-**Why**: Evaluating a reimplementation would prove nothing about the deployed code. The ablation
-in D10 is built by passing a different `levels` array to the *real* `hierarchicalBlend`, not by
-writing a second blending function.
+**Why**: evaluating a reimplementation would prove nothing about the deployed code. The ablation in
+D10 is built by passing a different `levels` array to the *real* `hierarchicalBlend`, not by writing
+a second blending function.
+
+### The amendment
+
+This was recorded as "production frozen" and quoted that way for months. That statement has been
+outgrown by reality, and a decision record that no longer describes what is true is worse than none.
+The accurate scope:
+
+> **During active research, research-relevant algorithms, datasets, generators, evaluation harnesses
+> and their dependencies remain frozen to preserve reproducibility. Unbackfillable production
+> instrumentation required to support future real-world validation may be implemented on isolated
+> branches, provided it does not alter existing research behaviour and is independently verified
+> before merge.**
+
+**Occasion**: the three unbackfillable capture changes on `instrumentation/unbackfillable-capture`
+(per-ball match state, MOTM provenance, prediction revisions). Each preserves information that
+becomes impossible to recover after the first real match is scored, so deferring them until the
+research formally ends would have cost data permanently. See
+`documentation/evidence-provenance-backlog.md`.
+
+### The merge gate, and why file hashes are not sufficient
+
+The reproducibility surface is **not** just the two files above. `research/harness/evaluate.js`
+seeds real `Player` and `Match` documents and calls the real `getLineLengthBreakdown`, so
+`backend/src/models/Match.js` is inside the surface — and the instrumentation branch changes it.
+
+| File | Test |
+|---|---|
+| `services/tendencyAnalytics.js` | byte-identical |
+| `utils/statUtils.js` | byte-identical |
+| `services/mvpCalculator.js` | byte-identical |
+| **`models/Match.js`** | **behavioural equivalence, measured** |
+
+`research/harness/reproducibility-fingerprint.js` produces a deterministic hash of the
+research-relevant behaviour — the shrinkage arithmetic plus the real database-backed breakdown query
+over a seeded corpus. Run on both refs; the hashes must match.
+
+**The gate caught a defect in itself before it caught anything else.** Its first version preserved
+array order, but `getLineLengthBreakdown` is a Mongo aggregation whose row order is not guaranteed,
+so it produced a different hash on every run of the *same* ref — and reported a spurious failure
+against the branch. Fixed by canonicalising arrays; determinism verified across three runs on one
+ref *before* the two refs were compared. A gate that has not been shown to be deterministic cannot
+distinguish "the change broke something" from "the gate is broken".
+
+**Result for `instrumentation/unbackfillable-capture`**: three files byte-identical,
+fingerprint `ae8a1f35…` identical on both refs, 70 backend tests pass, generator verification
+passes. The `Match.js` change is behaviourally inert for the research surface.
+
+**Still unmerged**, pending the launch/deployment audit.
 
 ---
 
