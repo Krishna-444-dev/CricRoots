@@ -211,3 +211,43 @@ process being homogeneous, which real cricket's is not. Whether a finite-horizon
 real matches is Track B, unblocked only by pilot data.
 
 **Nothing deployed. E4, E7 and the tactical-advisor thresholds remain untouched. World E unbuilt.**
+
+---
+
+## 9. Closing statement — AE-1 closed 2026-08-19
+
+> **E6's endgame error was not evidence that a new learned state representation was required. In the
+> current simulator, an exact finite-horizon estimator using empirical scoring and wicket dynamics
+> nearly eliminates the endgame error. The dominant missing structure was wicket-dependent terminal
+> dynamics; the simpler discreteness/CLT explanation was insufficient.**
+>
+> **All conclusions are simulator-conditional.**
+
+**The arc, complete:**
+
+```
+E6      found a large endgame error (0.296 on the motivating state)
+AE-1    established it was missing wicket/finite-horizon structure, not a missing algorithm
+A5      nearly resolves it with zero learned parameters
+World E NOT justified by this evidence - archived as contingent
+```
+
+**Deliberately not done**: no player-specific parameters, no neural network, no online adaptation,
+no further features added to A5. The branch answered its question; improving A5 would be answering a
+question nobody asked.
+
+**A5 is not deployed.** It is a research result about a simulator, and its central assumption —
+a homogeneous ball process — is one real cricket violates. Deploying it would require Track B
+evidence that does not exist.
+
+### The two branches now have distinct, complementary lessons
+
+| Branch | Lesson |
+|---|---|
+| Matchup | **Don't confuse unanswerable questions with failed methods.** |
+| AI engine | **Don't confuse poor parameterisation with a missing algorithm.** |
+
+The AI-engine ladder — random forest → regularized logistic → analytic margin → exact
+finite-horizon with wicket dynamics — is a case where **better understanding of the known
+stochastic process beat more model complexity**, and every rung was measured against an exact
+oracle rather than against the previous rung.

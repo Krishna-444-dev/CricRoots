@@ -356,6 +356,7 @@ A model can fail for at least six reasons, and they are **six different scientif
 | 4 | Optimisation failed to converge | convergence criterion on the objective, `iterationsRun`, `hitIterationCap`, restart spread | **yes** |
 | 5 | Regularisation suppressed the mechanism | magnitude of the fitted component — `sd(fitted latent)` — reported alongside its accuracy | **yes** |
 | 6 | The implementation does not represent the intended method | verify on data generated *from* the intended structure before use (rank-2 recovery at r=0.9413 before Experiment 8) | **yes** |
+| 7 | The mechanism is active **globally** but inert **in the regime of interest** | regime-restricted evaluation — measure the mechanism's effect inside the subpopulation it was added for, not only on average | **yes** |
 
 **Every one of these checks was retrofitted after being burned by its absence**, which is the honest
 reason this is a decision rather than a guideline:
@@ -368,11 +369,26 @@ reason this is a decision rather than a guideline:
 - #3 came from M1 — six proxies were about to be built against a target with negative reliability.
 - #6 came from writing the low-rank model and realising a null result would otherwise be
   uninterpretable.
+- **#7 came from AE-1** (2026-08-19). The standardized-margin term was added to the endgame model's
+  basis and the fitted coefficient was non-zero — mode 5 cleared. It still bought only **1.7%** of
+  the available error reduction, while the *same quantity* used in closed form bought **85%**. The
+  term was present, fitted, and inert precisely where it mattered, because endgame states were 161
+  of 2,085 training rows and the coefficient was therefore set by mid-innings data. Modes 1-6 would
+  all have read this as "the idea does not help".
 
 **Rule going forward**: any experiment reporting that a mechanism did not help must report, in the
 same breath, evidence that the mechanism was *present and active* — magnitude of the fitted
 component, convergence status, and a prior verification that the implementation recovers the
 structure when it is unambiguously there.
+
+**Operational rule added 2026-08-19 — non-significance is not equivalence.** A claim that two
+methods perform *equivalently* requires an equivalence test against a **predefined margin** (TOST or
+similar). "The confidence interval includes zero" is a failure to detect a difference, and any
+sufficiently imprecise estimate satisfies it. Two worked cases, both from this programme: E6's C4
+met a CI-includes-zero criterion while its oracle MAE was four times the winner's; and in AE-1 every
+candidate — *including* an incumbent wrong by 0.296 on the motivating state — passed the
+observed-endgame equivalence margin, because that regime held 161 rows and could not resolve a 27x
+difference.
 
 **Note on modes 1 and 2**: these remain inferential. We cannot directly detect "bad idea" or "wrong
 representation" — only conclude them once 3-6 are excluded. That is a real limitation and should be

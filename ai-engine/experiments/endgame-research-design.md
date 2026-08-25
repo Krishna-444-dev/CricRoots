@@ -1,5 +1,19 @@
 # Research design: endgame state representation
 
+> **STATUS AS OF 2026-08-19: ARCHIVED — CONTINGENT, NOT ACTIVE.**
+>
+> **AE-1 ran and returned H-form.** The endgame error was a missing functional form, not a missing
+> learned representation. Per this document's own §8 conditional, **World E (§3) and AE-2 (§4) are
+> not justified by that finding and are not being built.** See
+> [`documentation/ai-engine-ae1-results.md`](../../documentation/ai-engine-ae1-results.md).
+>
+> The World E design is kept intact rather than deleted because its *method* — the E-N control that
+> preserves the confound, the O1/O2 oracle decomposition, the anti-rigging spec — is reusable and was
+> reviewed. If a future finding motivates a richer world, **that motivation must be argued fresh**;
+> this document's §1 motivation no longer stands.
+>
+> §2 (AE-1) is complete. Everything below §2 is contingent and dormant.
+
 **Status: DESIGN ONLY. No code, no world, no model.** Written 2026-08-19 in response to E6's
 endgame finding.
 
