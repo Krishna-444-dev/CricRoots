@@ -77,16 +77,25 @@ reconcile before the web app is deployed.
 
 1. Provision VPS + Atlas cluster.
 2. Point `api.cricroots.com` at the VPS.
-3. Apply the §2 repo changes on a branch; do **not** merge to master until step 6 passes.
+3. Apply the §2 repo changes on a branch; do **not** merge to master until step 7 passes.
 4. Issue the Let's Encrypt cert for `api.cricroots.com`.
 5. Deploy; confirm the backend actually booted (see the `JWT_SECRET` note above).
-6. **Acceptance test — the whole point of this plan:** publish an EAS update with
+6. **Merge `instrumentation/unbackfillable-capture` — before the acceptance test, not after.**
+   Its research-safety gate is green (D8, amended). It must land here rather than later for two
+   reasons: the acceptance test in step 7 is the *only* end-to-end scoring run before real users
+   arrive, so it is the one chance to verify the capture works through the real mobile UI rather
+   than only through unit tests; and every match scored without it loses per-ball state and MOTM
+   provenance permanently.
+7. **Acceptance test — the whole point of this plan:** publish an EAS update with
    `EXPO_PUBLIC_API_URL` **unset**, so `resolveBaseUrl()` uses the production fallback. Then, on a
    phone **on cellular data with Wi-Fi off**, open the published link in Expo Go, register an
    account, create a team, and score a full match end to end.
-7. Only after step 6: share the link with one remote friend.
+   **Then check the stored match**: every ball has `runsBefore`/`wicketsBefore`/`legalBallsBefore`,
+   and completing it sets `manOfTheMatchComputed` and `manOfTheMatchSource`. Unit tests cover the
+   controller; this covers the client actually reaching it.
+8. Only after step 7: share the link with one remote friend.
 
-**Step 6 is the gate.** Publishing with `EXPO_PUBLIC_API_URL` still set to a LAN IP produces a
+**Step 7 is the gate.** Publishing with `EXPO_PUBLIC_API_URL` still set to a LAN IP produces a
 bundle that works on your Wi-Fi and silently blank-screens everywhere else — the exact failure
 already recorded in `going-legal-and-live.md`. Turning Wi-Fi off is the cheapest way to prove the
 bundle is genuinely portable, and it must be done before anyone else is invited.

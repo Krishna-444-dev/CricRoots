@@ -439,6 +439,18 @@ candidate — *including* an incumbent wrong by 0.296 on the motivating state �
 observed-endgame equivalence margin, because that regime held 161 rows and could not resolve a 27x
 difference.
 
+**Operational rule added 2026-08-25 — a reproducibility gate must first prove it can reproduce
+itself.** Before a gate is used to judge a change, it must be shown deterministic on a *single*
+unchanged ref. Otherwise it cannot distinguish "the change broke something" from "the gate is
+broken", and the first reading is the believable one.
+
+Worked case: `research/harness/reproducibility-fingerprint.js` reported a failure against
+`instrumentation/unbackfillable-capture`. The branch was fine. The gate preserved array order while
+the underlying `getLineLengthBreakdown` is a Mongo aggregation whose row order is not guaranteed, so
+it produced a different hash on every run of the same ref. The spurious failure was caught only
+because the *baseline* hash had also moved between two runs. Determinism is now verified across
+three runs on one ref before any two refs are compared.
+
 **Note on modes 1 and 2**: these remain inferential. We cannot directly detect "bad idea" or "wrong
 representation" — only conclude them once 3-6 are excluded. That is a real limitation and should be
 stated whenever such a conclusion is drawn.
