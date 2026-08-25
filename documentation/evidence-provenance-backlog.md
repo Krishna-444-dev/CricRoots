@@ -117,9 +117,23 @@ claimed here. It uses information the system was already producing and discardin
 
 # Priority order when production unfreezes
 
+> **STATUS 2026-08-25: items 1, 1b and the `Prediction` note are IMPLEMENTED** on branch
+> `instrumentation/unbackfillable-capture`, ahead of the first real match. Items 2 (tagging
+> completeness) and 3 (evidence provenance display) remain open. See the per-item notes below.
+
+
 Derived from the research programme, ordered by *what cannot be fixed later*.
 
 ## 1. Capture per-ball match state — unbackfillable
+
+> **DONE.** `Match.js` ball subdocument gains `runsBefore`, `wicketsBefore`,
+> `legalBallsBefore`, captured in `matchController.recordBall` *before* the innings totals are
+> mutated. No defaults, so a pre-change ball reads `undefined` ("not observed") rather than 0.
+> Phase, over number, run rate and required rate are all derivable from these plus the target
+> and `totalOvers` — per D20, the observation is stored and the derivation happens at analysis
+> time. Asserted in `backend/test/unbackfillableCapture.test.js`, including that the last ball's
+> captured state plus its own outcome reconstructs the innings totals exactly.
+
 
 `Match.js` stores `line`, `length`, `shotType`, `shotZone`, `fielderId`, `fielderPosition` per ball.
 It does **not** store score, wickets, or phase at the moment of the ball — only innings totals.
@@ -131,6 +145,12 @@ future question of the form "does this batter respond differently under pressure
 every match played without it is permanently lost to that question.
 
 ## 1b. Record WHO chose Man of the Match — unbackfillable, and newly urgent
+
+> **DONE.** `manOfTheMatchComputed` is written on **every** completion, including when a human
+> agrees; plus `manOfTheMatchSource`, `manOfTheMatchSelectedBy` and `manOfTheMatchSelectedAt`.
+> Both the agreement and the disagreement case are now recoverable. `Prediction.revisions`
+> preserves each superseded forecast (a re-submission of the *same* pick is not counted).
+
 
 **Added 2026-08-25, after D21 identified this field as a research asset.**
 

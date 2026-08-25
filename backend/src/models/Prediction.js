@@ -42,7 +42,24 @@ const predictionSchema = new mongoose.Schema({
   wonOnMotm: {
     type: Boolean,
     default: false
-  }
+  },
+  // FORECAST HISTORY - unbackfillable.
+  //
+  // The unique (user, match) index below means re-predicting before lock UPDATES this document.
+  // That is the right storage shape for the game, but it destroys the fact that the user changed
+  // their mind, which is the interesting part: whether someone revises, in which direction, and how
+  // close to lock is a signal about human confidence that no model has access to.
+  //
+  // Per D20, keep the observations. The current values stay in the top-level fields so nothing that
+  // reads a Prediction has to change; each superseded forecast is appended here before being
+  // overwritten. `revision` is the 1-based index of the forecast being superseded, so the live
+  // top-level values are revision `revisions.length + 1`.
+  revisions: [{
+    predictedWinner: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
+    predictedMotm: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+    revision: Number,
+    supersededAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 // One prediction per user per match - re-predicting before lock updates the existing doc

@@ -275,7 +275,12 @@ exports.updateMatch = async (req, res) => {
     if (status) match.status = status;
     if (toss) match.toss = toss;
     if (result) match.result = result;
-    if (manOfTheMatch) match.manOfTheMatch = manOfTheMatch;
+    if (manOfTheMatch) {
+      match.manOfTheMatch = manOfTheMatch;
+      match.manOfTheMatchSource = 'human';
+      match.manOfTheMatchSelectedBy = req.user?.id || null;
+      match.manOfTheMatchSelectedAt = new Date();
+    }
 
     // Auto-derive the result from the innings totals when a match is marked
     // Completed without an explicit result being supplied.
@@ -291,12 +296,19 @@ exports.updateMatch = async (req, res) => {
       }
     }
 
-    // Auto-compute Man of the Match from ball-by-ball data when a match is
-    // marked Completed without an explicit manOfTheMatch being supplied -
-    // same pattern as the auto-derived result above. Organizers can still
-    // override by passing manOfTheMatch explicitly in the request body.
-    if (status === 'Completed' && !manOfTheMatch) {
-      match.manOfTheMatch = computeMatchMVP(match);
+    // Man of the Match, with provenance.
+    //
+    // computeMatchMVP runs on EVERY completion, including when an organizer has supplied their own
+    // pick - the algorithm's recommendation is recorded whether or not anyone disagreed with it.
+    // Storing it only on disagreement would leave the agreement case unobservable, and agreement is
+    // the denominator of any human-vs-model comparison. Once the match is saved neither case can be
+    // reconstructed. See models/Match.js and documentation/evidence-provenance-backlog.md §1b.
+    if (status === 'Completed') {
+      match.manOfTheMatchComputed = computeMatchMVP(match);
+      if (!manOfTheMatch) {
+        match.manOfTheMatch = match.manOfTheMatchComputed;
+        match.manOfTheMatchSource = 'algorithm';
+      }
     }
 
     match = await match.save();
@@ -435,11 +447,23 @@ exports.recordBall = async (req, res) => {
       });
     }
 
+    // Match state BEFORE this delivery, read before any of the mutations below. This is the
+    // state the delivery was actually bowled in, and it is unbackfillable - see the field
+    // comments in models/Match.js. Captured here rather than derived later because replaying an
+    // innings only works for complete, uninterrupted innings.
+    const inningsBefore = match.innings[inningsIndex];
+    const legalBallsBefore = inningsBefore.balls.filter(
+      (b) => !(b.isExtra && ['wide', 'no-ball'].includes(b.extraType))
+    ).length;
+
     // Add ball to innings
     const ball = {
       ballNumber,
       batsmanId,
       bowlerId,
+      runsBefore: inningsBefore.runs,
+      wicketsBefore: inningsBefore.wickets,
+      legalBallsBefore,
       runs: runs || 0,
       isWicket: isWicket || false,
       wicketType: wicketType || null,

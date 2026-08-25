@@ -43,18 +43,42 @@ exports.submitPrediction = async (req, res) => {
       });
     }
 
+    // Preserve the superseded forecast before overwriting it. A user changing their mind - and how
+    // late, and in which direction - is an observation about human confidence that cannot be
+    // reconstructed once the document is updated in place. See the `revisions` comment in
+    // models/Prediction.js. Only a genuine CHANGE is recorded: re-submitting the same pick is not a
+    // revision and would otherwise inflate the count with noise.
+    const existing = await Prediction.findOne({ user: req.user.id, match: matchId });
+    const changed =
+      existing &&
+      (String(existing.predictedWinner) !== String(predictedWinnerId) ||
+        String(existing.predictedMotm || '') !== String(predictedMotmId || ''));
+
+    const update = {
+      user: req.user.id,
+      match: matchId,
+      predictedWinner: predictedWinnerId,
+      predictedMotm: predictedMotmId || null,
+      status: 'pending',
+      points: 0,
+      wonOnWinner: false,
+      wonOnMotm: false
+    };
+    if (changed) {
+      update.$push = {
+        revisions: {
+          predictedWinner: existing.predictedWinner,
+          predictedMotm: existing.predictedMotm || null,
+          revision: (existing.revisions?.length || 0) + 1,
+          supersededAt: new Date()
+        }
+      };
+    }
+
+    const { $push, ...fields } = update;
     const prediction = await Prediction.findOneAndUpdate(
       { user: req.user.id, match: matchId },
-      {
-        user: req.user.id,
-        match: matchId,
-        predictedWinner: predictedWinnerId,
-        predictedMotm: predictedMotmId || null,
-        status: 'pending',
-        points: 0,
-        wonOnWinner: false,
-        wonOnMotm: false
-      },
+      $push ? { $set: fields, $push } : { $set: fields },
       { upsert: true, new: true, runValidators: true }
     );
 

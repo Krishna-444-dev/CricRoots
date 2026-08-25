@@ -113,6 +113,26 @@ const matchSchema = new mongoose.Schema({
       isWicket: Boolean,
       wicketType: String, // bowled, caught, lbw, run out, etc.
 
+      // MATCH STATE AT THE MOMENT THIS DELIVERY WAS BOWLED - unbackfillable.
+      //
+      // The innings stores only its running totals, so once a ball is saved there is no reliable
+      // way to recover the state it was bowled in. Replaying the innings works only for complete,
+      // uninterrupted innings and breaks on any gap. Any future question of the form "does this
+      // batter play differently under pressure", or any win-probability/WPA analysis, needs this.
+      //
+      // These three primitives fully determine the state: phase, over number, current run rate,
+      // required rate and balls remaining are all derivable from them plus the innings' target
+      // and the match's totalOvers. Per D20 we store the observations and derive the rest at
+      // analysis time, so a later change to (say) phase boundaries cannot silently invalidate
+      // historical rows.
+      //
+      // No `default` on purpose. A ball recorded before this field existed reads as `undefined`,
+      // which correctly says "not observed" - a default of 0 would assert a score of nought and
+      // be indistinguishable from a genuine 0.
+      runsBefore: Number,
+      wicketsBefore: Number,
+      legalBallsBefore: Number,
+
       // Auto-generated natural-language commentary for this ball - see
       // backend/src/services/commentaryGenerator.js
       commentary: { type: String, default: '' },
@@ -208,6 +228,41 @@ const matchSchema = new mongoose.Schema({
   manOfTheMatch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Player'
+  },
+  // MAN-OF-THE-MATCH PROVENANCE - unbackfillable, and the reason is easy to miss.
+  //
+  // matchController accepts a human-supplied manOfTheMatch and falls back to computeMatchMVP only
+  // when none is given. Storing just the winning Player ref makes those two cases identical after
+  // the fact: in the AGREEMENT case both picked the same player, and in the OVERRIDE case the
+  // algorithm's pick was never written down. So without these fields you can observe neither
+  // agreement nor disagreement - only the final name.
+  //
+  // manOfTheMatchComputed is therefore written UNCONDITIONALLY at completion, including when a
+  // human agrees with it. Recording the model's recommendation only when someone disagrees would
+  // give a numerator with no denominator.
+  manOfTheMatchComputed: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Player',
+    default: null
+  },
+  manOfTheMatchSource: {
+    // null = not yet decided (match not completed). Explicitly in the enum because Mongoose
+    // validates the defaulted value, not only what the caller sent.
+    type: String,
+    enum: ['algorithm', 'human', null],
+    default: null
+  },
+  // Who made the human call, and when. Not needed for the first research question, but a captain's
+  // judgment, an umpire's and a scorer's are different signals, and after the match that
+  // distinction cannot be reconstructed from anything else.
+  manOfTheMatchSelectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  manOfTheMatchSelectedAt: {
+    type: Date,
+    default: null
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
