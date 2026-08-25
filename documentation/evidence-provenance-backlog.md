@@ -130,6 +130,45 @@ uninterrupted innings, and fragilely.
 future question of the form "does this batter respond differently under pressure" needs it, and
 every match played without it is permanently lost to that question.
 
+## 1b. Record WHO chose Man of the Match — unbackfillable, and newly urgent
+
+**Added 2026-08-25, after D21 identified this field as a research asset.**
+
+`matchController.js:271-300` accepts a human-supplied `manOfTheMatch` and falls back to
+`computeMatchMVP(match)` only when none is supplied. So an organiser overriding the algorithm is
+already possible today.
+
+**`Match.js:208-211` stores only a `Player` ref.** Nothing records whether that player was chosen by
+a human or computed. Once saved, the two are indistinguishable.
+
+This is D20 applied to a new case, and the consequence is specific: the moment real matches are
+scored, **every human override is recorded as if the algorithm had produced it**, and every human
+*agreement* — which is the denominator any disagreement rate needs — is lost the same way. The asset
+D21 names as the most promising future research opening would be destroyed at the point of capture.
+
+**It cannot be reconstructed.** There is no derivable signal distinguishing "the organiser picked
+this player" from "`computeMatchMVP` picked this player", because in the agreement case they are the
+same player and in the override case the algorithmic pick was never stored.
+
+**The change is small and belongs with item 1**, before the first real match:
+
+```
+manOfTheMatch          Player ref   (unchanged)
+manOfTheMatchSource    'human' | 'computed'
+manOfTheMatchComputed  Player ref   — what the algorithm would have said, ALWAYS stored
+```
+
+Storing the algorithmic pick unconditionally is the part that matters. Without it, an override tells
+you a human disagreed but not *with what*, and agreement is unrecoverable.
+
+**Lower priority, same family**: `Prediction` has a unique index on `(user, match)` and re-predicting
+before lock **updates the existing document** (`predictionSchema.index`, and
+`predictionController.submitPrediction`). A user changing their mind overwrites the earlier forecast,
+so prediction revision — a genuine signal about human confidence — is not observable. Worth fixing
+if the human-forecast asset is ever used, not worth blocking the pilot for.
+
+---
+
 ## 2. Instrument tagging completeness — including per-player distribution
 
 `line` and `length` both `default: 'unknown'`, so a ball saves cleanly with no tag. Completeness is
