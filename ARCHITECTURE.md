@@ -494,6 +494,44 @@ Findings are simulator-conditional and have not been validated against real cric
 
 ## Testing and CI
 
+### The governing principle
+
+> **Every critical invariant should have a verifier that can fail for the exact way the invariant
+> can be violated.**
+
+Adopted 2026-08-25, after three separate cases where a plausible-looking check would have passed a
+real defect. It is stronger than "write tests", and the difference is specific: a presence check
+asks *does the field exist*, while a verifier asks *is the value true*, and only the second catches
+a value that is present, plausible, and wrong.
+
+Each of these was arrived at by being burned, not by foresight:
+
+| Invariant | Verifier | The failure a weaker check would have missed |
+|---|---|---|
+| Training and serving construct features identically | `backend/src/services/__tests__/matchStateFeatures.test.js` | A **correct written warning** about the cricket-notation overs field existed in the extraction script and did not prevent the serving side dividing by it. The assertion found a second, unrelated defect (792 duplicated training rows) on its first run. |
+| Production changes don't alter research behaviour | `research/harness/reproducibility-fingerprint.js` | File-hash equality would have passed the instrumentation branch **for the wrong reason** — `models/Match.js` is inside the research surface and *did* change. Behavioural equivalence had to be measured. |
+| Per-ball capture means the state *before* the delivery | `backend/src/scripts/verifyCaptureIntegrity.js` | Fields present, values plausible, but captured *after* the ball. Only comparing each ball against the state accumulated from every ball before it distinguishes those. |
+
+Two corollaries, both learned the hard way:
+
+- **A verifier that cannot fail is worse than none** — it emits a green check that means nothing. Roughly half the tests for the capture gate deliberately break the capture and assert it is caught.
+- **A gate must first be shown to reproduce itself.** The reproducibility fingerprint reported a failure against a branch that was fine, because its own output was non-deterministic. Determinism on a single unchanged ref is now verified before any two refs are compared. (`research/decisions.md`, D19.)
+
+### Invariants that do NOT yet have a verifier
+
+Recorded so the list above is not mistaken for full coverage:
+
+- **Delivery-tagging completeness** — `line` and `length` both default to `'unknown'`, so a ball
+  saves cleanly untagged and nothing measures the rate. See
+  `documentation/evidence-provenance-backlog.md` §2.
+- **CORS behaviour** — `resolveCorsOrigin()` returns `false` when `FRONTEND_URL` is unset in
+  production while Socket.IO falls back to `'*'`. The mismatch is documented and untested.
+- **The rain-rule approximation** — labelled as an estimate, never measured against published DLS
+  output.
+
+### Mechanics
+
+
 - **Backend**: Jest against a real in-memory MongoDB — shrinkage primitives, scoring invariants,
   auth/authorization boundaries. `maxWorkers: 1` is pinned because parallel workers race to start
   `mongodb-memory-server` instances.
