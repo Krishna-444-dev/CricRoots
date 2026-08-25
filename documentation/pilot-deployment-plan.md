@@ -90,9 +90,22 @@ reconcile before the web app is deployed.
    `EXPO_PUBLIC_API_URL` **unset**, so `resolveBaseUrl()` uses the production fallback. Then, on a
    phone **on cellular data with Wi-Fi off**, open the published link in Expo Go, register an
    account, create a team, and score a full match end to end.
-   **Then check the stored match**: every ball has `runsBefore`/`wicketsBefore`/`legalBallsBefore`,
-   and completing it sets `manOfTheMatchComputed` and `manOfTheMatchSource`. Unit tests cover the
-   controller; this covers the client actually reaching it.
+   **Then run the capture gate against the persisted match:**
+
+   ```
+   MONGO_URI='<atlas uri>' node backend/src/scripts/verifyCaptureIntegrity.js
+   ```
+
+   Read-only, exits non-zero on failure. It checks that every ball carries
+   `runsBefore`/`wicketsBefore`/`legalBallsBefore`, that the recorded pre-delivery state is
+   consistent ball-to-ball and reconstructs the innings totals, that completion set
+   `manOfTheMatchComputed` and `manOfTheMatchSource` (plus `SelectedBy`/`SelectedAt` on an
+   override), and that any prediction revisions are well-formed.
+
+   Unit tests prove the controller writes these. This proves the whole chain does —
+   **mobile UI → API → controller → MongoDB → persisted document**. A passing mobile test over a
+   broken persistence path would produce exactly the silent data loss the instrumentation exists to
+   prevent, and nothing else in the stack would notice.
 8. Only after step 7: share the link with one remote friend.
 
 **Step 7 is the gate.** Publishing with `EXPO_PUBLIC_API_URL` still set to a LAN IP produces a
