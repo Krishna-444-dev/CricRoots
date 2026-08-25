@@ -92,6 +92,22 @@ algorithmic pick, and it is unbackfillable. See
 
 ---
 
+## Current state (2026-08-25)
+
+| | Status |
+|---|---|
+| **Research** | Safely paused (D21). No experiment will start without real product data. |
+| **Instrumentation** | Ready, isolated, verified — `instrumentation/unbackfillable-capture`, research-safety gate green (D8 amended) |
+| **Production** | Not live. Blocked on hosting, Atlas, `api.cricroots.com` DNS, LLC |
+| **Next real-world value** | Deployment and the first user data |
+
+Because `Match.js` is proven behaviourally equivalent on the research corpus
+(`research/harness/reproducibility-fingerprint.js`, hash `ae8a1f35…` identical on both refs),
+**merging the instrumentation branch does not invalidate Experiments 1–9.** That was the property
+the gate existed to establish.
+
+---
+
 ## Standing constraints
 
 Production frozen for research reproducibility (D8) · `k` never tuned (D7) · Track B blocked (D2/D3)
