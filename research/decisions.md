@@ -567,6 +567,33 @@ decision-support question, not a leaderboard question, and it generalises well b
 not itself generate, this decision is wrong and Track A resumes. The survey is recorded so that
 claim can be checked rather than re-asserted.
 
+### The unpause is not automatic — the first season calibrates the instrument
+
+**Recorded 2026-08-25, before any real data exists, because it will be much harder to hold once a
+handful of interesting-looking matches are sitting in the database.**
+
+The first real match is two things at once: a product event, and the start of Track B collection.
+The temptation will be to treat the first few matches as an experiment. That would repeat the
+error this programme has already made three times — asking a question in a regime that cannot
+answer it — and it would do so with the smallest sample the project will ever have.
+
+**The order is: verify the instrument, then read the distribution, then decide what is justified.**
+
+1. **Instrument check.** `verifyCaptureIntegrity.js` passes on real matches. Tagging completeness is
+   measured — including per player, since a platform can show 95% overall while a specific batter
+   sits at 20% (`documentation/evidence-provenance-backlog.md` §2). Until this holds, no analysis of
+   any kind.
+2. **Read the distribution.** Matches per week, balls per batter, MOTM override rate, prediction
+   revision rate. These determine which questions are *measurable*, which is gate 2 and is not
+   optional.
+3. **Only then** decide whether a question is justified — and by the same filter D21 states, applied
+   to real numbers rather than hoped-for ones.
+
+**A useful early signal that costs nothing**: the MOTM override rate is a single number that says
+whether the human-vs-model asset will exist at all. If organisers never override, there is no
+disagreement to study and that branch closes before it opens. That is worth knowing early, and it is
+a descriptive statistic, not an experiment.
+
 **What is explicitly NOT concluded**: that the synthetic benchmark was a detour. It produced the
 protocol, the gates, the oracle method, and two branches' worth of closed mechanisms. It is
 preserved, not retired - see `research/README.md`.
