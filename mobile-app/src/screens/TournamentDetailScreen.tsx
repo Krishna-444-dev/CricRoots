@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput, Linking, Image } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { colors } from '../theme';
-import { TeamLink } from '../components/IdentityLink';
+import { TeamLink, PlayerLink } from '../components/IdentityLink';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { Tournament, Match, TournamentStanding, RosterTeam, Player } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
@@ -27,6 +27,11 @@ function teamName(ref: any): string {
 function awardTeamName(ref: any): string | null {
   if (!ref) return null;
   return typeof ref === 'string' ? 'Team' : ref.name || 'Team';
+}
+
+function awardPlayerId(ref: any): string | null {
+  if (!ref) return null;
+  return typeof ref === 'string' ? ref : (ref._id ?? null);
 }
 
 function awardPlayerName(ref: any): string | null {
@@ -642,7 +647,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                     <PlayerAvatar player={team.captain} />
                     <View>
                       <Text style={styles.rosterBadge}>CAPTAIN</Text>
-                      <Text style={styles.rosterName}>{playerName(team.captain)}</Text>
+                      <PlayerLink id={typeof team.captain === 'string' ? team.captain : (team.captain as any)?._id} name={playerName(team.captain)} style={styles.rosterName} numberOfLines={1} />
                     </View>
                   </View>
                   {!!team.viceCaptain && (
@@ -650,7 +655,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                       <PlayerAvatar player={team.viceCaptain} />
                       <View>
                         <Text style={styles.rosterBadge}>VICE-CAPTAIN</Text>
-                        <Text style={styles.rosterName}>{playerName(team.viceCaptain)}</Text>
+                        <PlayerLink id={typeof team.viceCaptain === 'string' ? team.viceCaptain : (team.viceCaptain as any)?._id} name={playerName(team.viceCaptain)} style={styles.rosterName} numberOfLines={1} />
                       </View>
                     </View>
                   )}
@@ -885,9 +890,9 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                 <AwardBox label="Winner" value={awardTeamName(awards?.winner)} />
                 <AwardBox label="Runner-up" value={awardTeamName(awards?.runnerUp)} />
                 {!!awards?.thirdPlace && <AwardBox label="Third Place" value={awardTeamName(awards?.thirdPlace)} />}
-                <AwardBox label="Man of the Tournament" value={awardPlayerName(awards?.manOfTheTournament)} />
-                <AwardBox label="Best Batsman" value={awardPlayerName(awards?.bestBatsman)} />
-                <AwardBox label="Best Bowler" value={awardPlayerName(awards?.bestBowler)} />
+                <AwardBox label="Man of the Tournament" value={awardPlayerName(awards?.manOfTheTournament)} playerId={awardPlayerId(awards?.manOfTheTournament)} />
+                <AwardBox label="Best Batsman" value={awardPlayerName(awards?.bestBatsman)} playerId={awardPlayerId(awards?.bestBatsman)} />
+                <AwardBox label="Best Bowler" value={awardPlayerName(awards?.bestBowler)} playerId={awardPlayerId(awards?.bestBowler)} />
               </View>
             )}
 
@@ -1204,11 +1209,16 @@ function StandingsTable({ standings }: { standings: TournamentStanding[] }) {
   );
 }
 
-function AwardBox({ label, value }: { label: string; value: string | null }) {
+// `playerId` is optional: team awards (Best Team etc.) have no player to open, and an award that
+// has not been decided yet has no value at all, so both degrade to plain text rather than
+// offering a tap that goes nowhere.
+function AwardBox({ label, value, playerId }: { label: string; value: string | null; playerId?: string | null }) {
   return (
     <View style={styles.awardBox}>
       <Text style={styles.awardLabel}>{label}</Text>
-      <Text style={styles.awardValue}>{value || '-'}</Text>
+      {value && playerId
+        ? <PlayerLink id={playerId} name={value} style={styles.awardValue} numberOfLines={1} />
+        : <Text style={styles.awardValue}>{value || '-'}</Text>}
     </View>
   );
 }

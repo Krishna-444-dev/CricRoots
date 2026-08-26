@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, FlatList } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
+import { PlayerLink } from '../components/IdentityLink';
 import { api } from '../shared/api/apiClient';
 import { Match } from '../shared/types';
 import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
@@ -291,10 +292,10 @@ function BowlerCard({ bowler, rank }: { bowler: BowlerReport; rank: number }) {
     <View style={styles.bowlerCard}>
       <View style={styles.bowlerCardHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.bowlerName}>
+          <View style={styles.bowlerNameRow}>
             <Text style={styles.bowlerRank}>#{rank} </Text>
-            {bowler.name}
-          </Text>
+            <PlayerLink id={bowler.playerId} name={bowler.name} style={styles.bowlerName} numberOfLines={1} />
+          </View>
           <Text style={styles.bowlerMeta}>
             {bowler.specialization} · {bowler.bowlingStyle}
           </Text>
@@ -429,6 +430,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   bowlerCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  bowlerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   bowlerName: { color: colors.ink, fontSize: 14, fontWeight: '700' },
   bowlerRank: { color: colors.inkMuted, fontWeight: '400' },
   bowlerMeta: { color: colors.inkSecondary, fontSize: 12, marginTop: 2 },

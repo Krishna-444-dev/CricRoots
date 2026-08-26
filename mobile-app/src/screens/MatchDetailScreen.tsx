@@ -1549,7 +1549,15 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                 })}
                 {showYetToBat && (
                   <Text style={styles.scorecardYetToBat}>
-                    Yet to bat: {yetToBat.map((p) => playerDirectory.get(p._id) ?? resolveRefName(p.user, 'Player')).join(' | ')}
+                    Yet to bat:{' '}
+                    {yetToBat.map((p, i) => (
+                      <Text key={p._id}>
+                        {i > 0 ? '  ·  ' : ''}
+                        <Text onPress={() => navigation.push('PlayerStats', { playerId: p._id })} style={styles.inlinePlayerLink}>
+                          {playerDirectory.get(p._id) ?? resolveRefName(p.user, 'Player')}
+                        </Text>
+                      </Text>
+                    ))}
                   </Text>
                 )}
 
@@ -1808,9 +1816,12 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             <>
               {(showAllMvp ? mvpRanking : mvpRanking.slice(0, 5)).map((p, i) => (
                 <View key={p.playerId} style={styles.leaderRow}>
-                  <Text style={styles.leaderName} numberOfLines={1}>
-                    {p.playerId === resolveRefId(match.manOfTheMatch) ? '🏆 ' : ''}{i + 1}. {playerDirectory.get(p.playerId) ?? 'Player'}
-                  </Text>
+                  <View style={styles.leaderNameWrap}>
+                    <Text style={styles.leaderName}>
+                      {p.playerId === resolveRefId(match.manOfTheMatch) ? '🏆 ' : ''}{i + 1}.{' '}
+                    </Text>
+                    <PlayerLink id={p.playerId} name={playerDirectory.get(p.playerId)} style={styles.leaderName} numberOfLines={1} />
+                  </View>
                   <Text style={styles.mvpPoints}>{p.points} pts</Text>
                 </View>
               ))}
@@ -2030,10 +2041,19 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.scorecardTeamName}>{teamName(match.innings[idx]?.team)}</Text>
                 {inn.partnerships.map((p, i) => {
                   const names = p.batsmen.map((id) => playerDirectory.get(id) ?? 'Unknown');
-                  const label = names.length === 2 ? `${names[0]} & ${names[1]}` : (names[0] ?? 'Unknown');
+                  // ids kept alongside the names so each partner stays individually tappable
+                  const partnerIds = p.batsmen;
                   return (
                     <View key={i} style={styles.partnershipRow}>
-                      <Text style={styles.partnershipNames} numberOfLines={1}>{i + 1}. {label}</Text>
+                      <View style={styles.partnershipNamesRow}>
+                        <Text style={styles.partnershipNames}>{i + 1}. </Text>
+                        {partnerIds.map((pid, n) => (
+                          <React.Fragment key={pid}>
+                            {n > 0 && <Text style={styles.partnershipNames}> & </Text>}
+                            <PlayerLink id={pid} name={names[n]} style={styles.partnershipNames} numberOfLines={1} />
+                          </React.Fragment>
+                        ))}
+                      </View>
                       <Text style={styles.partnershipFigures}>{p.runs} ({p.balls})</Text>
                     </View>
                   );
@@ -2457,6 +2477,15 @@ const styles = StyleSheet.create({
 
   // MVP tab - mirrors TournamentDetailScreen's leaderRow/showAllLink Top Performers styling.
   leaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
+  leaderNameWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  inlinePlayerLink: {
+    color: colors.ink,
+    fontWeight: '600',
+  },
   leaderName: { color: colors.ink, fontSize: 13, flexShrink: 1 },
   mvpPoints: { color: colors.gold500, fontSize: 12, fontWeight: '700' },
   showAllLink: { color: colors.pitch400, fontSize: 12, fontWeight: '600', marginTop: 6 },
@@ -2527,6 +2556,11 @@ const styles = StyleSheet.create({
   scorecardYetToBat: { color: colors.inkMuted, fontSize: 11, marginTop: 8, lineHeight: 16 },
 
   partnershipRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  partnershipNamesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
   partnershipNames: { flex: 1, color: colors.inkSecondary, fontSize: 12, marginRight: 8 },
   partnershipFigures: { color: colors.ink, fontSize: 12, fontWeight: '600' },
 

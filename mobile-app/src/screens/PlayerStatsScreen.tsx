@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
+import { PlayerLink } from '../components/IdentityLink';
 import { api } from '../shared/api/apiClient';
 import { PlayerCareerStats, BattingRankingEntry, BowlingRankingEntry } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
@@ -199,7 +200,7 @@ function RankingsList({
           <View key={entry.player._id} style={styles.rankingRow}>
             <Text style={styles.rankingPosition}>#{idx + 1}</Text>
             <View style={styles.rankingInfo}>
-              <Text style={styles.rankingName}>{entry.player.name}</Text>
+              <PlayerLink id={entry.player._id} name={entry.player.name} style={styles.rankingName} numberOfLines={1} />
               <Text style={styles.rankingSub}>{subStat}: {entry.sub}</Text>
             </View>
             <Text style={styles.rankingKeyStat}>{entry.key} {keyStat}</Text>

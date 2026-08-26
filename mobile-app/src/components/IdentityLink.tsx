@@ -18,6 +18,12 @@ import { colors } from '../theme';
 // to where the user tapped. Without that registration this would either crash or bounce the user
 // into another tab.
 
+// ID-SPACE HAZARD, worth stating because it has already caused one latent bug in this codebase
+// (see ProfileScreen.openMyStats): a User id and a Player id are DIFFERENT documents. PlayerStats
+// takes a Player id. Anywhere the only id available is a User id - the predictions leaderboard
+// (entry.userId), message threads, follower lists - this component must NOT be used, because the
+// route would resolve to nothing. Those screens are deliberately left as plain text.
+
 interface Props {
   id?: string | null;
   name?: string | null;

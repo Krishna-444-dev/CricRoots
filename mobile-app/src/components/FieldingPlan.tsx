@@ -13,6 +13,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme';
+import { PlayerLink } from './IdentityLink';
 import { api } from '../shared/api/apiClient';
 
 function labelize(value: string): string {
@@ -66,7 +67,10 @@ export default function FieldingPlan({ playerId, playerName, roleLabel }: Fieldi
 
   return (
     <View style={styles.container}>
-      <Text style={styles.roleLabel} numberOfLines={1}>{roleLabel}: {playerName}</Text>
+      <View style={styles.roleLabelRow}>
+        <Text style={styles.roleLabel}>{roleLabel}: </Text>
+        <PlayerLink id={playerId} name={playerName} style={styles.roleLabel} numberOfLines={1} />
+      </View>
       {zones.length > 0 && (
         <View style={styles.zoneList}>
           {zones.slice(0, 4).map((z, i) => (
@@ -97,6 +101,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 12,
     padding: 12,
+  },
+  roleLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   roleLabel: {
     color: colors.inkMuted,

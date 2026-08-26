@@ -11,6 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import { colors } from '../theme';
+import { PlayerLink } from '../components/IdentityLink';
 import { api } from '../shared/api/apiClient';
 import { Team } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
@@ -281,7 +282,7 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
               {!!team.description && <Text style={styles.teamDesc}>{team.description}</Text>}
               <View style={styles.captainRow}>
                 <Text style={styles.captainLabel}>Captain</Text>
-                <Text style={styles.captainName}>{captainPlayer ? playerDisplayName(captainPlayer) : 'Unknown'}</Text>
+                <PlayerLink id={captainPlayer?._id} name={captainPlayer ? playerDisplayName(captainPlayer) : null} fallback="Unknown" style={styles.captainName} />
               </View>
             </View>
 
@@ -317,9 +318,7 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
                 </View>
                 {viceCaptainId ? (
                   <View style={styles.playerRow}>
-                    <Text style={[styles.playerName, { flex: 1 }]}>
-                      {viceCaptainPlayer ? playerDisplayName(viceCaptainPlayer) : 'Unknown'}
-                    </Text>
+                    <PlayerLink id={viceCaptainPlayer?._id} name={viceCaptainPlayer ? playerDisplayName(viceCaptainPlayer) : null} fallback="Unknown" style={[styles.playerName, { flex: 1 }] as any} />
                     <TouchableOpacity onPress={handleClearViceCaptain} disabled={clearingViceCaptain}>
                       <Text style={styles.removeText}>{clearingViceCaptain ? 'Removing...' : 'Remove'}</Text>
                     </TouchableOpacity>
@@ -339,7 +338,9 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
                 ) : (
                   coachPlayers.map((c: any) => (
                     <View key={c._id} style={styles.playerRow}>
-                      <Text style={[styles.playerName, { flex: 1 }]}>{playerDisplayName(c)}</Text>
+                      <View style={{ flex: 1 }}>
+                        <PlayerLink id={c._id} name={playerDisplayName(c)} style={styles.playerName} numberOfLines={1} />
+                      </View>
                       <TouchableOpacity onPress={() => handleRemoveCoach(c._id)} disabled={removingCoachId === c._id}>
                         <Text style={styles.removeText}>{removingCoachId === c._id ? 'Removing...' : 'Remove'}</Text>
                       </TouchableOpacity>
@@ -359,12 +360,14 @@ export default function TeamDetailScreen({ route, navigation }: Props) {
           return (
             <View style={styles.playerRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.playerName}>
-                  {playerDisplayName(player)}
-                  {isThisCaptain ? '  (C)' : ''}
-                  {isThisViceCaptain ? '  (VC)' : ''}
-                  {isThisCoach ? '  (Coach)' : ''}
-                </Text>
+                <View style={styles.playerNameRow}>
+                  <PlayerLink id={id} name={playerDisplayName(player)} style={styles.playerName} numberOfLines={1} />
+                  {(isThisCaptain || isThisViceCaptain || isThisCoach) && (
+                    <Text style={styles.playerRoleTag}>
+                      {isThisCaptain ? ' (C)' : ''}{isThisViceCaptain ? ' (VC)' : ''}{isThisCoach ? ' (Coach)' : ''}
+                    </Text>
+                  )}
+                </View>
                 {!!player?.specialization && <Text style={styles.playerMeta}>{player.specialization}</Text>}
               </View>
               {isAdmin && !isThisCaptain && (
@@ -567,6 +570,15 @@ const styles = StyleSheet.create({
     padding: 14,
     marginHorizontal: 16,
     marginBottom: 8,
+  },
+  playerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playerRoleTag: {
+    color: colors.inkMuted,
+    fontSize: 12,
+    fontWeight: '700',
   },
   playerName: { color: colors.ink, fontSize: 15, fontWeight: '600' },
   playerMeta: { color: colors.inkMuted, fontSize: 12, marginTop: 2 },

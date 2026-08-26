@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme';
+import { PlayerLink } from './IdentityLink';
 import type { LiveState } from '../shared/types';
 
 interface AtTheCreaseProps {
@@ -27,9 +28,12 @@ export default function AtTheCrease({ liveState }: AtTheCreaseProps) {
           const isStriker = i === 0;
           return (
             <View key={batsman.id} style={styles.row}>
-              <Text style={[styles.name, isStriker && styles.nameStriker]} numberOfLines={1}>
-                {batsman.name}{isStriker ? ' *' : ''}
-              </Text>
+              <PlayerLink
+                id={batsman.id}
+                name={`${batsman.name}${isStriker ? ' *' : ''}`}
+                style={[styles.name, isStriker && styles.nameStriker] as any}
+                numberOfLines={1}
+              />
               <Text style={styles.figures}>
                 {stats ? `${stats.runs} (${stats.balls})` : '0 (0)'}
                 {stats && stats.balls > 0 ? `  SR ${stats.strikeRate.toFixed(1)}` : ''}
@@ -40,7 +44,7 @@ export default function AtTheCrease({ liveState }: AtTheCreaseProps) {
       </View>
       {bowler && (
         <View style={styles.bowlerRow}>
-          <Text style={styles.name} numberOfLines={1}>{bowler.name}</Text>
+          <PlayerLink id={bowler.id} name={bowler.name} style={styles.name} numberOfLines={1} />
           <Text style={styles.figures}>
             {bowlerStats
               ? `${bowlerStats.wickets}-${bowlerStats.runs} (${bowlerStats.overs}.${bowlerStats.balls})  Econ ${bowlerStats.economy.toFixed(2)}`
