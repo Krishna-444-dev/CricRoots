@@ -29,9 +29,15 @@ interface Props {
   defaultOpen?: boolean;
   children: React.ReactNode;
   dense?: boolean;
+  // Shown beside the title - e.g. the bowler of an over.
+  subtitle?: React.ReactNode;
+  // Stays visible whether open or closed. This is what lets a collapsed row carry real content
+  // (an over's ball-by-ball chips) rather than only a label, which is why merging the Over by
+  // Over tab into this one loses nothing.
+  preview?: React.ReactNode;
 }
 
-export default function CollapsibleSection({ title, summary, defaultOpen = false, children, dense = false }: Props) {
+export default function CollapsibleSection({ title, summary, defaultOpen = false, children, dense = false, subtitle, preview }: Props) {
   const [open, setOpen] = useState(defaultOpen);
 
   const toggle = () => {
@@ -43,10 +49,12 @@ export default function CollapsibleSection({ title, summary, defaultOpen = false
     <View style={dense ? s.wrapDense : s.wrap}>
       <TouchableOpacity style={s.header} onPress={toggle} activeOpacity={0.7}>
         <Text style={[s.title, dense && s.titleDense]} numberOfLines={1}>{title}</Text>
+        {subtitle ? <View style={s.subtitle}>{subtitle}</View> : null}
         <View style={s.rule} />
         {!!summary && <Text style={s.summary} numberOfLines={1}>{summary}</Text>}
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={colors.inkMuted} />
       </TouchableOpacity>
+      {preview ? <View style={s.preview}>{preview}</View> : null}
       {open && <View style={dense ? s.bodyDense : s.body}>{children}</View>}
     </View>
   );
@@ -82,6 +90,8 @@ const s = StyleSheet.create({
     color: colors.inkMuted,
     fontVariant: ['tabular-nums'],
   },
+  subtitle: { flexShrink: 1 },
+  preview: { paddingHorizontal: 20, paddingBottom: 12, marginTop: -4 },
   body: { paddingTop: 2 },
   bodyDense: { paddingTop: 0 },
 });

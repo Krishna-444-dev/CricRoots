@@ -16,7 +16,7 @@ import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId, resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId } from '../shared/utils/matchAuth';
-import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver, commentaryOvers, ballOutcomeLabel, inningsExtras, fallOfWickets, inningsRunRate } from '../shared/utils/matchStats';
+import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, commentaryOvers, ballOutcomeLabel, inningsExtras, fallOfWickets, inningsRunRate } from '../shared/utils/matchStats';
 import { getInitials } from '../shared/utils/formatters';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
@@ -689,7 +689,7 @@ interface KeyMoment {
 // CricClubs-style tabbed match center, matching the web restructure (see MatchDetailScreen's
 // git history / web-app/app/match/[id]/page.tsx) - Info / Ball By Ball / Full Scorecard /
 // Over by Over / Charts, plus our own AI Insights tab.
-type TabKey = 'info' | 'story' | 'ballByBall' | 'scorecard' | 'overByOver' | 'charts' | 'mvp' | 'gallery' | 'aiInsights';
+type TabKey = 'info' | 'story' | 'ballByBall' | 'scorecard' | 'charts' | 'mvp' | 'gallery' | 'aiInsights';
 
 interface MVPEntry {
   playerId: string;
@@ -1226,7 +1226,6 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           ['story', 'Match Story'],
           ['ballByBall', 'Ball By Ball'],
           ['scorecard', 'Full Scorecard'],
-          ['overByOver', 'Over by Over'],
           ['charts', 'Charts'],
           ['mvp', 'MVP'],
           ['gallery', 'Gallery'],
@@ -1688,56 +1687,6 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
         </>
       )}
 
-      {activeTab === 'overByOver' && (
-        <>
-          {match.innings.every((inn) => inn.balls.length === 0) ? (
-            <View style={styles.section}>
-              <Text style={styles.reportsHint}>Over-by-over detail will appear here once the match starts.</Text>
-            </View>
-          ) : (
-            match.innings.map((innings, idx) => {
-              if (innings.balls.length === 0) return null;
-              return (
-                <View key={idx} style={styles.section}>
-                  <Text style={styles.sectionTitle}>
-                    {teamName(innings.team)} — {innings.runs}/{innings.wickets} ({innings.overs.toFixed(1)} ov)
-                  </Text>
-                  <View style={styles.overByOverCard}>
-                    {overByOver(innings.balls).slice().reverse().map((o) => (
-                      <View key={o.over} style={styles.overRow}>
-                        <View style={styles.overLabelCol}>
-                          <Text style={styles.overLabelText}>Over {o.over + 1}</Text>
-                          <PlayerLink
-                            id={o.bowlerId}
-                            name={o.bowlerId ? playerDirectory.get(o.bowlerId) : null}
-                            fallback="Bowler"
-                            style={styles.overBowlerName}
-                            numberOfLines={1}
-                          />
-                        </View>
-                        <View style={styles.overBallsWrap}>
-                          {o.balls.map((b, i) => (
-                            <View key={i} style={[styles.overBallChip, b.isWicket && styles.overBallChipWicket]}>
-                              <Text style={[styles.overBallChipText, b.isWicket && styles.overBallChipTextWicket]}>{b.label}</Text>
-                            </View>
-                          ))}
-                        </View>
-                        <View style={styles.overSummaryCol}>
-                          <Text style={styles.overSummaryText}>
-                            {o.runs} run{o.runs === 1 ? '' : 's'}{o.wickets > 0 ? `, ${o.wickets}w` : ''}
-                          </Text>
-                          <Text style={styles.overSummaryTotal}>{o.runningTotal}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </>
-      )}
-
       {activeTab === 'story' && (
         <View style={styles.section}>
           {match.story && match.story.length > 0 ? (
@@ -1799,6 +1748,37 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                     defaultOpen={oi === 0}
                     title={`Over ${o.over}${o.complete ? '' : ' · in progress'}`}
                     summary={`${o.runs} run${o.runs === 1 ? '' : 's'}${o.wickets ? ` · ${o.wickets} wkt` : ''}  ·  ${o.runsAfter}/${o.wicketsAfter}`}
+                    subtitle={
+                      o.bowlerId ? (
+                        <PlayerLink
+                          id={o.bowlerId}
+                          name={playerDirectory.get(o.bowlerId)}
+                          fallback="Bowler"
+                          style={styles.overBowlerName}
+                          numberOfLines={1}
+                        />
+                      ) : null
+                    }
+                    preview={
+                      /* The ball-outcome chips the Over by Over tab used to show. Visible while
+                         collapsed, so merging that tab into this one loses nothing - you still get
+                         the shape of the over at a glance, and opening it adds the commentary. */
+                      <View style={styles.overBallsWrap}>
+                        {[...o.balls].reverse().map((entry) => {
+                          const label = ballOutcomeLabel(entry.ball);
+                          return (
+                            <View
+                              key={entry.key}
+                              style={[styles.overBallChip, entry.ball.isWicket && styles.overBallChipWicket]}
+                            >
+                              <Text style={[styles.overBallChipText, entry.ball.isWicket && styles.overBallChipTextWicket]}>
+                                {label}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    }
                   >
                     {o.balls.map((entry) => {
                       const b = entry.ball;
@@ -2799,15 +2779,6 @@ const styles = StyleSheet.create({
   tossTextInTab: { marginHorizontal: 16, marginTop: 14 },
 
   // Over by Over tab.
-  overByOverCard: {
-    backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 4,
-  },
-  overRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 8,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  overLabelCol: { width: 78 },
-  overLabelText: { color: colors.inkMuted, fontSize: 11 },
   overBowlerName: { color: colors.ink, fontSize: 12, fontWeight: '700', marginTop: 1 },
   overBallsWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   overBallChip: {

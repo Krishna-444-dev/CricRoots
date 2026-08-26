@@ -107,7 +107,11 @@ export function maidenOversFor(balls: BallEvent[], playerId: string): number {
 }
 
 // Groups an innings' balls into overs with the bowler and a short per-ball outcome label each -
-// ported 1:1 from web-app/lib/matchStats.ts's overByOver, for the Over by Over tab.
+// ported 1:1 from web-app/lib/matchStats.ts's overByOver.
+//
+// No longer used by the mobile match screen: the Over by Over tab was merged into Ball By Ball,
+// whose over rows carry these chips themselves. Kept because the web app's own copy is still
+// live and the two are meant to stay 1:1 - deleting this side would silently break that parity.
 export interface OverEntry {
   over: number;
   bowlerId: string | null;
@@ -262,6 +266,7 @@ export function ballOutcomeLabel(b: BallEvent): string {
 export interface CommentaryOver {
   over: number;              // 1-based; 0 means the in-progress over that has not completed yet
   complete: boolean;
+  bowlerId: string | null;   // whoever bowled it - shown on the collapsed row
   runs: number;
   wickets: number;
   runsAfter: number;
@@ -290,6 +295,7 @@ export function commentaryOvers(balls: BallEvent[]): CommentaryOver[] {
         overs.push({
           over: entry.over + 1,
           complete: false,
+          bowlerId: pending[pending.length - 1]?.ball.bowlerId ?? null,
           ...summarise(pending),
           runsAfter: pending[0].runsAfter,
           wicketsAfter: pending[0].wicketsAfter,
@@ -300,6 +306,7 @@ export function commentaryOvers(balls: BallEvent[]): CommentaryOver[] {
       filling = {
         over: entry.over,
         complete: true,
+        bowlerId: entry.bowlerId,
         runs: entry.runs,
         wickets: entry.wickets,
         runsAfter: entry.runsAfter,
@@ -318,6 +325,7 @@ export function commentaryOvers(balls: BallEvent[]): CommentaryOver[] {
     overs.push({
       over: 1,
       complete: false,
+      bowlerId: pending[pending.length - 1]?.ball.bowlerId ?? null,
       ...summarise(pending),
       runsAfter: pending[0].runsAfter,
       wicketsAfter: pending[0].wicketsAfter,
