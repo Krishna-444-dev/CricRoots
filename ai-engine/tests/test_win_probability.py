@@ -89,3 +89,65 @@ class TestServingContract:
         m = RecommendationModel()
         with pytest.raises(FileNotFoundError):
             m.train_all_models(data_dir=str(tmp_path))
+
+
+class TestTacticalAdvice:
+    """The advisor's defects were F8 and F9 in documentation/ai-engine-audit.md.
+
+    These assert the properties that were violated, not the wording - a rewrite of the strings
+    should not break them, but reintroducing either defect must.
+    """
+
+    BAND_PHRASE = {
+        'Dominant': 'Well ahead',
+        'Balanced': 'finely poised',
+        'Challenging': 'Behind the required rate',
+    }
+
+    def _states(self):
+        for overs in (1, 5, 10, 15, 19):
+            for wkts in (0, 2, 4, 6, 8, 9):
+                for crr in (3.0, 6.0, 9.0, 13.0):
+                    for target in (100, 150, 200, 240):
+                        yield {
+                            'overs_remaining': overs, 'wickets_down': wkts,
+                            'current_run_rate': crr, 'target_score': target,
+                        }
+
+    def test_status_and_advice_never_contradict(self, model):
+        # F8: the two used different thresholds (0.7/0.4 vs 0.8/0.5) while shipping in the same
+        # payload and being rendered together, so 14.1% of states displayed a contradiction.
+        bad = []
+        for state in self._states():
+            out = model.get_tactical_summary(state)
+            if self.BAND_PHRASE[out['match_status']] not in out['tactical_advice']:
+                bad.append((out['match_status'], out['tactical_advice'][:40]))
+        assert bad == [], f'{len(bad)} states where status and advice disagree, e.g. {bad[:3]}'
+
+    def test_a_losing_chase_is_never_told_to_defend(self, model):
+        # F9: this is a CHASE model. A low win probability means behind the required rate, where
+        # batting defensively converts a hard chase into a certain loss.
+        offenders = []
+        for state in self._states():
+            out = model.get_tactical_summary(state)
+            if out['win_probability'] < 0.5:
+                text = out['tactical_advice'].lower()
+                if 'defensive' in text or 'preserving wickets' in text:
+                    offenders.append(out['tactical_advice'][:60])
+        assert offenders == [], f'defensive advice given while behind: {offenders[:3]}'
+
+    def test_advice_actually_reads_match_data(self, model):
+        # The third defect: match_data was accepted and never used. Two states with the SAME win
+        # probability band but different wickets in hand must not produce identical advice.
+        base = {'overs_remaining': 3, 'current_run_rate': 6.0, 'target_score': 220}
+        deep = model.get_tactical_summary({**base, 'wickets_down': 1})
+        thin = model.get_tactical_summary({**base, 'wickets_down': 8})
+        assert deep['match_status'] == thin['match_status'], 'test needs both in the same band'
+        assert deep['tactical_advice'] != thin['tactical_advice']
+
+    def test_bands_come_from_one_source(self):
+        from src.models.recommendation_model import _band, DOMINANT_ABOVE, BALANCED_ABOVE
+        assert _band(DOMINANT_ABOVE + 0.01) == 'Dominant'
+        assert _band(DOMINANT_ABOVE) == 'Balanced'
+        assert _band(BALANCED_ABOVE + 0.01) == 'Balanced'
+        assert _band(BALANCED_ABOVE) == 'Challenging'

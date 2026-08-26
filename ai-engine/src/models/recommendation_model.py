@@ -5,6 +5,22 @@ import joblib
 import os
 
 
+# One definition of the win-probability bands, used for BOTH the status label and the advice.
+# They were previously separate literals in two methods (0.7/0.4 and 0.8/0.5) that shipped in the
+# same payload and were rendered next to each other, so they contradicted each other on 14% of
+# states. Keeping one source is what makes that impossible rather than merely unlikely.
+DOMINANT_ABOVE = 0.7
+BALANCED_ABOVE = 0.4
+
+
+def _band(win_probability):
+    if win_probability > DOMINANT_ABOVE:
+        return 'Dominant'
+    if win_probability > BALANCED_ABOVE:
+        return 'Balanced'
+    return 'Challenging'
+
+
 class RecommendationModel:
     """Win-probability model for a limited-overs run chase.
 
@@ -85,7 +101,7 @@ class RecommendationModel:
         return {
             'success': True,
             'win_probability': prediction,
-            'status': 'Dominant' if prediction > 0.7 else 'Balanced' if prediction > 0.4 else 'Challenging'
+            'status': _band(prediction)
         }
 
     def get_tactical_summary(self, match_data):
@@ -102,23 +118,46 @@ class RecommendationModel:
         }
 
     def _generate_advice(self, win_prob, match_data):
-        # KNOWN DEFECTS, deliberately left unchanged by E1 and recorded in
-        # documentation/ai-engine-audit.md §6 (F8, F9):
-        #   1. These thresholds (0.8/0.5) disagree with predict_win_probability's status
-        #      thresholds (0.7/0.4). Both fields ship in the same payload and both clients render
-        #      them together, so p in [0.5, 0.8) shows "Dominant" beside "Aggressive approach".
-        #   2. The p < 0.5 branch advises defence. This is a CHASE model; a chasing side below 50%
-        #      is usually behind the required rate, where batting defensively is the losing line.
-        #   3. `match_data` is accepted and never read.
-        # Left alone on purpose: E1's gate (capture_client_visible_output.py) asserts that E1
-        # changes NOTHING a user sees, and any fix here is by definition a visible change. Fixing
-        # it is a separate, deliberate change with its own review.
-        if win_prob > 0.8:
-            return "Maintain current momentum. Focus on steady scoring and minimizing risks."
-        elif win_prob > 0.5:
-            return "Aggressive approach recommended. Increase run rate to pressure the opposition."
-        else:
-            return "Defensive strategy needed. Focus on building partnerships and preserving wickets."
+        """Turns a chase win probability into guidance a captain could act on.
+
+        Rewritten 2026-08-26 to fix two defects recorded in
+        documentation/ai-engine-audit.md §6 and left in place until now:
+
+        F8 - the advice thresholds were 0.8/0.5 while the status thresholds were 0.7/0.4, and both
+             fields ship in the same payload and are rendered together. 275 of 1944 sampled states
+             (14.1%) displayed a status and an advice that contradicted each other - "Dominant"
+             beside "Aggressive approach", or "Balanced" beside "Defensive strategy". They cannot
+             disagree now because both derive from _band().
+
+        F9 - the p < 0.5 branch advised DEFENCE. This model is trained exclusively on run chases
+             (extractWinProbabilityData.js emits second-innings rows only), and a chasing side with
+             a low win probability is, in the overwhelming majority of states, behind the required
+             rate. Batting defensively there does not preserve anything - it converts a hard chase
+             into a certain loss. The relationship is monotonic and needs no extra data: ahead means
+             protect the position, behind means take more risk.
+
+        The third defect - match_data accepted and never read - is fixed too, using `wickets_down`,
+        which is already in the payload. It matters precisely in the branch that was wrong: how a
+        side chases from behind depends entirely on whether there is a batting order left to spend.
+        """
+        wickets_down = match_data.get('wickets_down', 0) if isinstance(match_data, dict) else 0
+        wickets_in_hand = max(0, 10 - int(wickets_down))
+        band = _band(win_prob)
+
+        if band == 'Dominant':
+            return ('Well ahead of the chase. Keep it low-risk - rotate the strike, take the '
+                    'singles on offer and give nothing away.')
+
+        if band == 'Balanced':
+            return ('The chase is finely poised. Keep pace with the required rate through strike '
+                    'rotation and pick one bowler to attack rather than forcing every ball.')
+
+        # Behind the rate. The only question left is how much batting is left to spend.
+        if wickets_in_hand >= 4:
+            return ('Behind the required rate. Wickets in hand are worth spending - back a batter '
+                    'to take on the shorter boundary and go after the weakest bowler.')
+        return ('Behind the required rate with a thin tail. The set batter should farm the strike '
+                'and target one bowler; singles alone will not close this gap.')
 
     def save_models(self):
         joblib.dump(self.win_prob_model, os.path.join(self.model_dir, 'win_prob_model.pkl'))
