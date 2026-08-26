@@ -3,7 +3,7 @@
 // persistence (localStorage vs SecureStore) while sharing this logic.
 
 import { useState, useEffect, useCallback } from 'react';
-import { api, setAuthToken } from '../api/apiClient';
+import { api, setAuthToken, ApiError } from '../api/apiClient';
 
 export interface AuthUser {
   id: string;
@@ -83,9 +83,22 @@ export function createUseAuth(storage: StorageInterface): () => UseAuthReturn {
             error: null,
           });
         } catch (error) {
-          console.error('Failed to initialize auth:', error);
-          setAuthToken(null);
-          await storage.removeItem(TOKEN_STORAGE_KEY);
+          // Only an actual auth rejection should destroy the stored session.
+          //
+          // This used to clear the token on ANY failure, so a single unreachable request at launch
+          // - a cold backend, a tunnel restart, a moment of bad cellular, which is precisely the
+          // pilot's environment - logged the user out permanently and silently. A network error
+          // carries no HTTP status at all; that is the signal we never reached the server.
+          const status = (error as ApiError)?.status;
+          const isAuthFailure = status === 401 || status === 403;
+
+          if (isAuthFailure) {
+            setAuthToken(null);
+            await storage.removeItem(TOKEN_STORAGE_KEY);
+          } else {
+            console.warn('Could not verify session (keeping stored token):', error);
+          }
+
           setState({
             user: null,
             token: null,

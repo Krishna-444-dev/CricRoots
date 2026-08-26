@@ -40,6 +40,13 @@ export interface ApiResponse<T = any> {
   [key: string]: any;
 }
 
+// An Error carrying the HTTP status, so callers can distinguish an auth failure from anything
+// else. A network-level failure (fetch itself rejecting) has no status at all, which is exactly
+// the signal "we never reached the server".
+export interface ApiError extends Error {
+  status?: number;
+}
+
 async function apiFetch<T = any>(
   path: string,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
@@ -70,7 +77,13 @@ async function apiFetch<T = any>(
 
   if (!response.ok || data.success === false) {
     if (opts?.allowFailureResponse) return data as T;
-    throw new Error(data.message || `Request failed: ${response.status}`);
+    // Carry the HTTP status on the error. Without it a caller cannot tell "your token is no longer
+    // valid" (401/403, act on it) from "the server said no" or "the network dropped" (retry) - and
+    // useAuth was clearing the stored session for all three, so one flaky request at launch logged
+    // the user out for good.
+    const error = new Error(data.message || `Request failed: ${response.status}`) as ApiError;
+    error.status = response.status;
+    throw error;
   }
 
   return data as T;
