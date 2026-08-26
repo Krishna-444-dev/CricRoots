@@ -145,3 +145,108 @@ export function overByOver(balls: BallEvent[]): OverEntry[] {
 
   return overs;
 }
+
+// Full-innings commentary feed, newest first, with an end-of-over summary above each over's
+// deliveries - the layout every cricket scoring site uses (Cricinfo, CricClubs, CricHeroes).
+//
+// Replaces the previous "last 8 balls" slice in the Ball By Ball tab. The commentary text for
+// every delivery has always been stored on the ball (commentaryGenerator.js writes it at
+// record time); the UI simply never showed more than a handful of it, and the earlier innings
+// was unreachable entirely.
+//
+// Ball numbering follows the standard convention: the number shown is the position of the NEXT
+// legal delivery, so a wide and the legal ball that follows it both read "12.3". That is why the
+// counter advances on legal deliveries only.
+export interface CommentaryBall {
+  kind: 'ball';
+  key: string;
+  label: string;            // "19.6"
+  ball: BallEvent;
+  runsAfter: number;
+  wicketsAfter: number;
+}
+export interface CommentaryOverBreak {
+  kind: 'over-break';
+  key: string;
+  over: number;             // 1-based, the over that just finished
+  runs: number;
+  wickets: number;
+  runsAfter: number;
+  wicketsAfter: number;
+  bowlerId: string | null;
+}
+export type CommentaryEntry = CommentaryBall | CommentaryOverBreak;
+
+export function commentaryFeed(balls: BallEvent[]): CommentaryEntry[] {
+  const chronological: CommentaryEntry[] = [];
+  let legalBalls = 0;
+  let runs = 0;
+  let wickets = 0;
+  let overRuns = 0;
+  let overWickets = 0;
+  let overBowlerId: string | null = null;
+
+  balls.forEach((b, i) => {
+    const over = Math.floor(legalBalls / 6);
+    const ballInOver = (legalBalls % 6) + 1;
+    if (overBowlerId === null) overBowlerId = b.bowlerId ?? null;
+
+    runs += b.runs || 0;
+    overRuns += b.runs || 0;
+    if (b.isWicket) {
+      wickets += 1;
+      overWickets += 1;
+    }
+
+    chronological.push({
+      kind: 'ball',
+      key: `b${i}`,
+      label: `${over}.${ballInOver}`,
+      ball: b,
+      runsAfter: runs,
+      wicketsAfter: wickets
+    });
+
+    if (isLegalDelivery(b)) {
+      legalBalls += 1;
+      // An over ends on its sixth LEGAL delivery, so this check belongs after the increment.
+      if (legalBalls % 6 === 0) {
+        chronological.push({
+          kind: 'over-break',
+          key: `o${legalBalls / 6}`,
+          over: legalBalls / 6,
+          runs: overRuns,
+          wickets: overWickets,
+          runsAfter: runs,
+          wicketsAfter: wickets,
+          bowlerId: overBowlerId
+        });
+        overRuns = 0;
+        overWickets = 0;
+        overBowlerId = null;
+      }
+    }
+  });
+
+  return chronological.reverse();
+}
+
+// One-line outcome badge for a delivery: "6", "W", "wd", "4wd", "4b".
+//
+// Only wides and no-balls carry an automatic one-run penalty, so only those subtract it to show
+// the ADDITIONAL runs ("4wd" = the penalty plus four more). Byes and leg-byes have no penalty -
+// every run is a bye - so a four-bye delivery is "4b", not "3b".
+const EXTRA_TAG: Record<string, string> = {
+  wide: 'wd', 'no-ball': 'nb', bye: 'b', 'leg-bye': 'lb', penalty: 'pen'
+};
+const PENALTY_EXTRAS = ['wide', 'no-ball'];
+
+export function ballOutcomeLabel(b: BallEvent): string {
+  if (b.isWicket) return 'W';
+  if (b.isExtra) {
+    const tag = EXTRA_TAG[b.extraType] || b.extraType;
+    const extraRuns = PENALTY_EXTRAS.includes(b.extraType) ? (b.runs || 0) - 1 : (b.runs || 0);
+    return extraRuns > 0 ? `${extraRuns}${tag}` : tag;
+  }
+  return String(b.runs || 0);
+}

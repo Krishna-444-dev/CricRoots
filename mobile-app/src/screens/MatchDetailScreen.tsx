@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect, Path } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
+import { scorebook, NUM } from '../theme/scorebook';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { Match, BallEvent, Prediction, Player, RosterTeam, MatchPhoto } from '../shared/types';
@@ -13,7 +14,7 @@ import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId, resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId } from '../shared/utils/matchAuth';
-import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver } from '../shared/utils/matchStats';
+import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver, commentaryFeed, ballOutcomeLabel } from '../shared/utils/matchStats';
 import { getInitials } from '../shared/utils/formatters';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
@@ -748,6 +749,15 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const [squadsLoading, setSquadsLoading] = useState(false);
   const [squadsExpanded, setSquadsExpanded] = useState({ team1: false, team2: false });
 
+  // Which innings the Ball By Ball tab shows. Holds ONLY an explicit user choice - null means
+  // "follow whichever innings is active", so no effect is needed to sync it once the match loads.
+  //
+  // Declared up here with the other hooks on purpose: this component early-returns for the
+  // loading and not-found states below, so a useState placed after those returns runs on some
+  // renders and not others - which is exactly the "Rendered more hooks than during the previous
+  // render" crash, and how this was first written.
+  const [commentaryInningsChoice, setCommentaryInningsChoice] = useState<0 | 1 | null>(null);
+
   const load = useCallback(() => {
     api.matches
       .getMatchById(matchId)
@@ -1084,6 +1094,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   const targetScore = match.interruption ? match.interruption.target : (match.innings[0]?.runs || 0);
 
   const activeIdx = activeInningsIndex(match);
+  const commentaryIdx = commentaryInningsChoice ?? activeIdx;
+
   const currentInnings = match.innings[activeIdx];
   const activeBalls = match.innings[activeIdx]?.balls ?? [];
   const recentBalls = activeBalls.slice(-12);
@@ -1105,63 +1117,81 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.pitch400} />}
     >
-      <View style={styles.header}>
-        <Text style={styles.matchType}>{match.matchType} · {match.venue}</Text>
-        <Text style={styles.title}>{match.title}</Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusBadge, match.status === 'Live' && styles.statusBadgeLive]}>
-            <Text style={[styles.statusBadgeText, match.status === 'Live' && styles.statusBadgeTextLive]}>
-              {match.status}
-            </Text>
-          </View>
-          {match.status === 'Live' && powerplayOvers != null && currentInnings && currentInnings.overs < powerplayOvers && (
-            <View style={styles.powerplayBadge}>
-              <Text style={styles.powerplayBadgeText}>⚡ Powerplay (overs 1-{powerplayOvers})</Text>
+      {/* MATCH HEADER - the operational surface.
+          Reordered so the match SITUATION leads: what is the score, who is batting, what is still
+          required. Format/venue metadata is subordinate to that, not above it. During a live chase
+          the equation gets the largest type on the screen, because that is the number everyone at
+          a ground is actually tracking. */}
+      <View style={styles.matchHead}>
+        <View style={styles.matchHeadTop}>
+          {match.status === 'Live' ? (
+            <View style={scorebook.liveTag}>
+              <View style={scorebook.liveDot} />
+              <Text style={scorebook.liveTagText}>LIVE</Text>
             </View>
+          ) : (
+            <Text style={styles.matchHeadStatus}>{match.status.toUpperCase()}</Text>
           )}
+          <Text style={styles.matchHeadMeta} numberOfLines={1}>
+            {match.matchType} · {match.venue}
+          </Text>
         </View>
-        {momName && <Text style={styles.manOfTheMatchText}>🏆 Man of the Match: {momName}</Text>}
-      </View>
 
-      <View style={styles.scoreCard}>
-        {[0, 1].map((idx) => {
-          const innings = match.innings[idx];
+        {match.innings.map((innings, idx) => {
           const team = idx === 0 ? match.team1 : match.team2;
           const isActive = idx === activeIdx && match.status === 'Live';
+          const batted = innings.balls.length > 0 || innings.runs > 0;
           return (
-            <View key={idx} style={[styles.scoreRow, idx === 0 && styles.scoreRowDivider]}>
-              <View style={styles.scoreRowLeft}>
-                {isActive && <View style={styles.liveDot} />}
-                <Text style={styles.scoreTeamName}>{teamName(team)}</Text>
-              </View>
-              <Text style={styles.scoreValue}>
-                {innings ? `${innings.runs}/${innings.wickets}` : '-'}
-                <Text style={styles.scoreOvers}>{innings ? `  (${innings.overs.toFixed(1)} ov)` : ''}</Text>
+            <View key={idx} style={styles.inningsLine}>
+              <Text style={[styles.inningsTeam, isActive && styles.inningsTeamActive]} numberOfLines={1}>
+                {teamName(team)}
               </Text>
+              {batted ? (
+                <View style={styles.inningsFigures}>
+                  <Text style={[styles.inningsScore, isActive && styles.inningsScoreActive]}>
+                    {innings.runs}<Text style={styles.inningsSlash}>/</Text>{innings.wickets}
+                  </Text>
+                  <Text style={styles.inningsOvers}>{innings.overs.toFixed(1)}</Text>
+                </View>
+              ) : (
+                <Text style={styles.inningsYetToBat}>yet to bat</Text>
+              )}
             </View>
           );
         })}
 
+        {/* The equation - the single most important number during a chase. */}
+        {match.status === 'Live' && targetScore != null && activeIdx === 1 && (() => {
+          const need = Math.max(0, targetScore - (currentInnings?.runs ?? 0));
+          const whole = Math.floor(currentInnings?.overs ?? 0);
+          const legal = whole * 6 + Math.round(((currentInnings?.overs ?? 0) - whole) * 10);
+          const left = Math.max(0, (match.totalOvers ?? 20) * 6 - legal);
+          return need > 0 && left > 0 ? (
+            <View style={styles.equation}>
+              <Text style={styles.equationText}>
+                {need} <Text style={styles.equationWord}>needed from</Text> {left}
+              </Text>
+              <Text style={styles.equationRate}>
+                RRR {((need / left) * 6).toFixed(2)}
+              </Text>
+            </View>
+          ) : null;
+        })()}
+
         {match.status === 'Completed' && match.result && (
-          <Text style={styles.resultText}>
+          <Text style={styles.matchHeadResult}>
             {match.result.winningTeam == null
               ? 'Match tied'
-              : `${
-                  teamName(match.result.winningTeam === teamIdOf(match.team1) ? match.team1 : match.team2)
-                } won by ${match.result.marginValue} ${match.result.margin}`}
+              : `${teamName(resolveRefId(match.result.winningTeam) === resolveRefId(match.team1) ? match.team1 : match.team2)} won by ${match.result.marginValue} ${match.result.margin}`}
           </Text>
         )}
 
-        <View style={styles.targetRow}>
-          <Text style={styles.targetLabel}>{match.interruption ? 'Revised Target' : 'Target Score'}</Text>
-          <Text style={styles.targetValue}>{targetScore} runs</Text>
-        </View>
+        {match.status === 'Live' && powerplayOvers != null && currentInnings && currentInnings.overs < powerplayOvers && (
+          <Text style={styles.matchHeadPowerplay}>Powerplay · overs 1-{powerplayOvers}</Text>
+        )}
+        {momName && <Text style={styles.matchHeadMom}>Player of the match · {momName}</Text>}
       </View>
 
-      {/* Rain-rule interruption callout - see backend/src/services/rainRuleCalculator.js for
-          the calculation and its real accuracy/scope caveats (an approximation inspired by
-          Duckworth-Lewis-Stern, not the official licensed DLS algorithm). Mirrors web-app's
-          app/match/[id]/page.tsx wording exactly. */}
       {match.interruption && (
         <View style={styles.interruptionCallout}>
           <Text style={styles.interruptionTitle}>
@@ -1640,54 +1670,112 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
 
       {activeTab === 'ballByBall' && (
         <>
-      {recentBalls.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Deliveries</Text>
-          <View style={styles.chipRow}>
-            {recentBalls.map((ball, i) => {
-              const chip = ballChip(ball);
-              return (
-                <View key={i} style={[styles.chip, chip.style]}>
-                  <Text style={[styles.chipText, chip.textStyle]}>{chip.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      )}
-
-      {recentCommentary.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Commentary</Text>
-          {recentCommentary.map((ball, i) => (
-            <View key={i} style={styles.commentaryRow}>
-              <Text style={styles.commentaryText}>
-                {ball.commentary || `${ball.isWicket ? 'Wicket!' : `${ball.runs} run(s).`}`}
-              </Text>
+          {/* Full-innings commentary, newest first, with an end-of-over summary above each over -
+              the layout Cricinfo/CricClubs/CricHeroes use. This tab previously showed only the last
+              12 balls as chips plus the last 8 commentary lines, from a single derived innings; the
+              rest of the match's commentary was stored but never rendered. */}
+          {match.innings.every((inn) => inn.balls.length === 0) ? (
+            <View style={styles.section}>
+              <Text style={styles.reportsHint}>Commentary will appear here once the match starts.</Text>
             </View>
-          ))}
-        </View>
-      )}
-
-      {keyMoments && keyMoments.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔑 Key Moments</Text>
-          {keyMoments.map((moment) => {
-            const swungTowardsChasers = moment.winProbabilityAfter > moment.winProbabilityBefore;
-            return (
-              <View key={moment.ballIndex} style={styles.keyMomentRow}>
-                <Text style={styles.commentaryText}>
-                  {moment.commentary || `${moment.runs} run(s).`}
-                </Text>
-                <Text style={styles.keyMomentDelta}>
-                  Win probability {swungTowardsChasers ? '+' : '-'}{(moment.delta * 100).toFixed(1)}%
-                  {'  '}({(moment.winProbabilityBefore * 100).toFixed(0)}% → {(moment.winProbabilityAfter * 100).toFixed(0)}%)
-                </Text>
+          ) : (
+            <>
+              <View style={styles.inningsSwitchRow}>
+                {match.innings.map((inn, idx) => {
+                  if (inn.balls.length === 0) return null;
+                  const selected = idx === commentaryIdx;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.inningsSwitch, selected && styles.inningsSwitchActive]}
+                      onPress={() => setCommentaryInningsChoice(idx as 0 | 1)}
+                    >
+                      <Text style={[styles.inningsSwitchText, selected && styles.inningsSwitchTextActive]} numberOfLines={1}>
+                        {teamName(inn.team)}
+                      </Text>
+                      <Text style={[styles.inningsSwitchScore, selected && styles.inningsSwitchTextActive]}>
+                        {inn.runs}/{inn.wickets} ({inn.overs.toFixed(1)})
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            );
-          })}
-        </View>
-      )}
+
+              <View style={styles.section}>
+                {commentaryFeed(match.innings[commentaryIdx]?.balls ?? []).map((entry) => {
+                  if (entry.kind === 'over-break') {
+                    return (
+                      <View key={entry.key} style={styles.overBreakRow}>
+                        <View style={styles.overBreakLine} />
+                        <Text style={styles.overBreakText}>
+                          End of over {entry.over} · {entry.runs} run{entry.runs === 1 ? '' : 's'}
+                          {entry.wickets > 0 ? ` · ${entry.wickets} wkt${entry.wickets === 1 ? '' : 's'}` : ''}
+                          {'  '}·{'  '}{entry.runsAfter}/{entry.wicketsAfter}
+                        </Text>
+                        <View style={styles.overBreakLine} />
+                      </View>
+                    );
+                  }
+                  const b = entry.ball;
+                  const outcome = ballOutcomeLabel(b);
+                  const bowler = b.bowlerId ? playerDirectory.get(b.bowlerId) : null;
+                  const batter = b.batsmanId ? playerDirectory.get(b.batsmanId) : null;
+                  return (
+                    <View key={entry.key} style={styles.commentaryBallRow}>
+                      <Text style={styles.commentaryOverLabel}>{entry.label}</Text>
+                      <View
+                        style={[
+                          styles.commentaryOutcome,
+                          b.isWicket && styles.commentaryOutcomeWicket,
+                          !b.isWicket && b.runs >= 4 && !b.isExtra && styles.commentaryOutcomeBoundary
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.commentaryOutcomeText,
+                            (b.isWicket || (b.runs >= 4 && !b.isExtra)) && styles.commentaryOutcomeTextStrong
+                          ]}
+                        >
+                          {outcome}
+                        </Text>
+                      </View>
+                      <View style={styles.commentaryBody}>
+                        {(bowler || batter) && (
+                          <Text style={styles.commentaryPlayers} numberOfLines={1}>
+                            {bowler ?? 'Bowler'} to {batter ?? 'Batter'}
+                          </Text>
+                        )}
+                        <Text style={styles.commentaryText}>
+                          {b.commentary || (b.isWicket ? 'Wicket!' : `${b.runs} run${b.runs === 1 ? '' : 's'}.`)}
+                        </Text>
+                        <Text style={styles.commentaryScore}>{entry.runsAfter}/{entry.wicketsAfter}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {keyMoments && keyMoments.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🔑 Key Moments</Text>
+              {keyMoments.map((moment) => {
+                const swungTowardsChasers = moment.winProbabilityAfter > moment.winProbabilityBefore;
+                return (
+                  <View key={moment.ballIndex} style={styles.keyMomentRow}>
+                    <Text style={styles.commentaryText}>
+                      {moment.commentary || `${moment.runs} run(s).`}
+                    </Text>
+                    <Text style={styles.keyMomentDelta}>
+                      Win probability {swungTowardsChasers ? '+' : '-'}{(moment.delta * 100).toFixed(1)}%
+                      {'  '}({(moment.winProbabilityBefore * 100).toFixed(0)}% → {(moment.winProbabilityAfter * 100).toFixed(0)}%)
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </>
       )}
 
@@ -2106,6 +2194,222 @@ const styles = StyleSheet.create({
   chipExtra: { backgroundColor: colors.surfaceHover, borderWidth: 1, borderColor: colors.info || colors.border },
   chipTextExtra: { color: colors.inkSecondary, fontSize: 11 },
 
+  matchHead: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  matchHeadTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  matchHeadStatus: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    color: colors.inkMuted,
+  },
+  matchHeadMeta: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 11,
+    color: colors.inkMuted,
+    marginLeft: 12,
+  },
+  inningsLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingVertical: 7,
+    gap: 12,
+  },
+  inningsTeam: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.inkSecondary,
+  },
+  inningsTeamActive: {
+    color: colors.ink,
+  },
+  inningsFigures: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
+  },
+  inningsScore: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.inkSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  inningsScoreActive: {
+    color: colors.ink,
+    fontSize: 32,
+  },
+  inningsSlash: {
+    color: colors.inkMuted,
+    fontWeight: '500',
+  },
+  inningsOvers: {
+    width: 44,
+    textAlign: 'right',
+    fontSize: 13,
+    color: colors.inkMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  inningsYetToBat: {
+    fontSize: 12,
+    color: colors.inkMuted,
+    fontStyle: 'italic',
+  },
+  equation: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  equationText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.gold400,
+    fontVariant: ['tabular-nums'],
+  },
+  equationWord: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.inkSecondary,
+  },
+  equationRate: {
+    fontSize: 13,
+    color: colors.inkSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  matchHeadResult: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.pitch400,
+    marginTop: 14,
+  },
+  matchHeadPowerplay: {
+    fontSize: 11,
+    color: colors.gold400,
+    marginTop: 10,
+  },
+  matchHeadMom: {
+    fontSize: 11,
+    color: colors.inkMuted,
+    marginTop: 8,
+  },
+  inningsSwitchRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  inningsSwitch: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  inningsSwitchActive: {
+    borderColor: colors.pitch500,
+    backgroundColor: colors.pitch900,
+  },
+  inningsSwitchText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.inkSecondary,
+  },
+  inningsSwitchScore: {
+    fontSize: 12,
+    color: colors.inkMuted,
+    marginTop: 2,
+  },
+  inningsSwitchTextActive: {
+    color: colors.pitch400,
+  },
+  overBreakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginVertical: 14,
+  },
+  overBreakLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  overBreakText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.inkMuted,
+    letterSpacing: 0.3,
+  },
+  commentaryBallRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  commentaryOverLabel: {
+    width: 38,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.inkMuted,
+    paddingTop: 3,
+    fontVariant: ['tabular-nums'],
+  },
+  commentaryOutcome: {
+    minWidth: 30,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+  },
+  commentaryOutcomeWicket: {
+    backgroundColor: colors.wicket500,
+  },
+  commentaryOutcomeBoundary: {
+    backgroundColor: colors.pitch500,
+  },
+  commentaryOutcomeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.inkSecondary,
+  },
+  commentaryOutcomeTextStrong: {
+    color: '#FFFFFF',
+  },
+  commentaryBody: {
+    flex: 1,
+  },
+  commentaryPlayers: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.inkMuted,
+    marginBottom: 2,
+  },
+  commentaryScore: {
+    fontSize: 11,
+    color: colors.inkMuted,
+    marginTop: 3,
+    fontVariant: ['tabular-nums'],
+  },
   commentaryRow: {
     backgroundColor: colors.surface,
     borderRadius: 10,
