@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { scorebook, NUM } from '../theme/scorebook';
 import { PlayerLink, TeamLink } from '../components/IdentityLink';
+import CollapsibleSection from '../components/CollapsibleSection';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { Match, BallEvent, Prediction, Player, RosterTeam, MatchPhoto } from '../shared/types';
@@ -15,7 +16,7 @@ import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId, resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId } from '../shared/utils/matchAuth';
-import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver, commentaryFeed, ballOutcomeLabel } from '../shared/utils/matchStats';
+import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver, commentaryOvers, ballOutcomeLabel } from '../shared/utils/matchStats';
 import { getInitials } from '../shared/utils/formatters';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
@@ -1239,10 +1240,12 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
       {activeTab === 'info' && (
         <>
           {match.status === 'Completed' && !!match.summary && (
-            <View style={[styles.section, { marginTop: 14 }]}>
+            <CollapsibleSection title="Match Summary" defaultOpen={true}>
+              <View style={[styles.section, { marginTop: 14 }]}>
               <Text style={styles.sectionTitle}>Match Summary</Text>
               <Text style={styles.matchSummaryText}>{match.summary}</Text>
             </View>
+            </CollapsibleSection>
           )}
 
           {match.toss?.winningTeam && (
@@ -1261,8 +1264,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           {/* Recommended field placements for whoever's currently batting - see FieldingPlan.tsx
               for why this is a ranked text list rather than a diagram on mobile. */}
           {match.status === 'Live' && currentInnings?.liveState && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Recommended Field</Text>
+            <CollapsibleSection title="Recommended Field" defaultOpen={false}>
+          <View style={styles.section}>
               <View style={styles.fieldingList}>
                 {currentInnings.liveState.currentBatsmen.map((batsman, i) => (
                   batsman && (
@@ -1276,6 +1279,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                 ))}
               </View>
             </View>
+          </CollapsibleSection>
           )}
 
           {canScore && (
@@ -1293,8 +1297,8 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           avatar/captain-badge convention plus the Awards tab's collapse-to-a-few + toggle
           pattern. Skipped entirely for a team-less orphaned match. */}
       {(match.team1 || match.team2) && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Squads</Text>
+        <CollapsibleSection title="Squads" defaultOpen={false}>
+          <View style={styles.section}>
           <View style={styles.squadColumns}>
             {([0, 1] as const).map((idx) => {
               const teamRef = idx === 0 ? match.team1 : match.team2;
@@ -1350,13 +1354,14 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             })}
           </View>
         </View>
+          </CollapsibleSection>
       )}
 
       {/* Umpires - creator-only, mirrors web-app's app/match/[id]/page.tsx Umpires block.
           Umpires get the same scoring rights as the creator without needing to be rostered. */}
       {isOwner && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Umpires</Text>
+        <CollapsibleSection title="Umpires" defaultOpen={false}>
+          <View style={styles.section}>
           <View style={styles.umpireCard}>
             <Text style={styles.reportsHint}>
               Umpires can score this match the same way you can, without needing to be on either team&apos;s roster.
@@ -1388,10 +1393,12 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             {umpireError && <Text style={styles.umpireError}>{umpireError}</Text>}
           </View>
         </View>
+          </CollapsibleSection>
       )}
 
       {match.status === 'Scheduled' && (
-        <View style={styles.section}>
+        <CollapsibleSection title="Predict the Winner" defaultOpen={false}>
+          <View style={styles.section}>
           <Text style={styles.sectionTitle}>Predict the Winner</Text>
           <View style={styles.predictCard}>
             {!user && (
@@ -1452,6 +1459,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             )}
           </View>
         </View>
+        </CollapsibleSection>
       )}
 
       {match.status !== 'Scheduled' && prediction?.mine && (
@@ -1727,60 +1735,60 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                 })}
               </View>
 
+              {/* Grouped by over, collapsed by default, most recent over open.
+                  A flat feed of 120+ deliveries was a wall - and a scorebook is organised by over
+                  anyway, so each over now collapses to one line carrying its own summary and opens
+                  to the deliveries. */}
               <View style={styles.section}>
-                {commentaryFeed(match.innings[commentaryIdx]?.balls ?? []).map((entry) => {
-                  if (entry.kind === 'over-break') {
-                    return (
-                      <View key={entry.key} style={styles.overBreakRow}>
-                        <View style={styles.overBreakLine} />
-                        <Text style={styles.overBreakText}>
-                          End of over {entry.over} · {entry.runs} run{entry.runs === 1 ? '' : 's'}
-                          {entry.wickets > 0 ? ` · ${entry.wickets} wkt${entry.wickets === 1 ? '' : 's'}` : ''}
-                          {'  '}·{'  '}{entry.runsAfter}/{entry.wicketsAfter}
-                        </Text>
-                        <View style={styles.overBreakLine} />
-                      </View>
-                    );
-                  }
-                  const b = entry.ball;
-                  const outcome = ballOutcomeLabel(b);
-                  const bowler = b.bowlerId ? playerDirectory.get(b.bowlerId) : null;
-                  const batter = b.batsmanId ? playerDirectory.get(b.batsmanId) : null;
-                  return (
-                    <View key={entry.key} style={styles.commentaryBallRow}>
-                      <Text style={styles.commentaryOverLabel}>{entry.label}</Text>
-                      <View
-                        style={[
-                          styles.commentaryOutcome,
-                          b.isWicket && styles.commentaryOutcomeWicket,
-                          !b.isWicket && b.runs >= 4 && !b.isExtra && styles.commentaryOutcomeBoundary
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.commentaryOutcomeText,
-                            (b.isWicket || (b.runs >= 4 && !b.isExtra)) && styles.commentaryOutcomeTextStrong
-                          ]}
-                        >
-                          {outcome}
-                        </Text>
-                      </View>
-                      <View style={styles.commentaryBody}>
-                        {(bowler || batter) && (
-                          <View style={styles.commentaryPlayersRow}>
-                            <PlayerLink id={b.bowlerId} name={bowler} fallback="Bowler" style={styles.commentaryPlayers} numberOfLines={1} />
-                            <Text style={styles.commentaryPlayers}> to </Text>
-                            <PlayerLink id={b.batsmanId} name={batter} fallback="Batter" style={styles.commentaryPlayers} numberOfLines={1} />
+                {commentaryOvers(match.innings[commentaryIdx]?.balls ?? []).map((o, oi) => (
+                  <CollapsibleSection
+                    key={`${o.over}-${o.complete}`}
+                    dense
+                    defaultOpen={oi === 0}
+                    title={`Over ${o.over}${o.complete ? '' : ' · in progress'}`}
+                    summary={`${o.runs} run${o.runs === 1 ? '' : 's'}${o.wickets ? ` · ${o.wickets} wkt` : ''}  ·  ${o.runsAfter}/${o.wicketsAfter}`}
+                  >
+                    {o.balls.map((entry) => {
+                      const b = entry.ball;
+                      const outcome = ballOutcomeLabel(b);
+                      const bowler = b.bowlerId ? playerDirectory.get(b.bowlerId) : null;
+                      const batter = b.batsmanId ? playerDirectory.get(b.batsmanId) : null;
+                      return (
+                        <View key={entry.key} style={styles.commentaryBallRow}>
+                          <Text style={styles.commentaryOverLabel}>{entry.label}</Text>
+                          <View
+                            style={[
+                              styles.commentaryOutcome,
+                              b.isWicket && styles.commentaryOutcomeWicket,
+                              !b.isWicket && b.runs >= 4 && !b.isExtra && styles.commentaryOutcomeBoundary
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.commentaryOutcomeText,
+                                (b.isWicket || (b.runs >= 4 && !b.isExtra)) && styles.commentaryOutcomeTextStrong
+                              ]}
+                            >
+                              {outcome}
+                            </Text>
                           </View>
-                        )}
-                        <Text style={styles.commentaryText}>
-                          {b.commentary || (b.isWicket ? 'Wicket!' : `${b.runs} run${b.runs === 1 ? '' : 's'}.`)}
-                        </Text>
-                        <Text style={styles.commentaryScore}>{entry.runsAfter}/{entry.wicketsAfter}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
+                          <View style={styles.commentaryBody}>
+                            {(bowler || batter) && (
+                              <View style={styles.commentaryPlayersRow}>
+                                <PlayerLink id={b.bowlerId} name={bowler} fallback="Bowler" style={styles.commentaryPlayers} numberOfLines={1} />
+                                <Text style={styles.commentaryPlayers}> to </Text>
+                                <PlayerLink id={b.batsmanId} name={batter} fallback="Batter" style={styles.commentaryPlayers} numberOfLines={1} />
+                              </View>
+                            )}
+                            <Text style={styles.commentaryText}>
+                              {b.commentary || (b.isWicket ? 'Wicket!' : `${b.runs} run${b.runs === 1 ? '' : 's'}.`)}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </CollapsibleSection>
+                ))}
               </View>
             </>
           )}
@@ -1964,60 +1972,65 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           comment above); intentionally separate from the existing "Over-by-over" section
           above, which only shows the currently-batting innings. These cover both innings. */}
       {hasChartData && chartInnings && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Manhattan Chart</Text>
+        <CollapsibleSection title="Manhattan Chart" defaultOpen={false}>
+          <View style={styles.section}>
           <Text style={styles.reportsHint}>Runs scored per over</Text>
           <View style={styles.chartListCard}>
             <ManhattanChartSvg innings={chartInnings} />
           </View>
         </View>
+          </CollapsibleSection>
       )}
 
       {hasChartData && chartInnings && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Worm Chart</Text>
+        <CollapsibleSection title="Worm Chart" defaultOpen={false}>
+          <View style={styles.section}>
           <Text style={styles.reportsHint}>Cumulative team total after each over</Text>
           <View style={styles.chartListCard}>
             <WormChartSvg innings={chartInnings} />
           </View>
         </View>
+          </CollapsibleSection>
       )}
 
       {hasChartData && chartInnings && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Run Rate</Text>
+        <CollapsibleSection title="Run Rate" defaultOpen={false}>
+          <View style={styles.section}>
           <Text style={styles.reportsHint}>Run rate after each over</Text>
           <View style={styles.chartListCard}>
             <RunRateChartSvg innings={chartInnings} />
           </View>
         </View>
+          </CollapsibleSection>
       )}
 
       {hasExtrasData && chartInnings && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Extras</Text>
+        <CollapsibleSection title="Extras" defaultOpen={false}>
+          <View style={styles.section}>
           <Text style={styles.reportsHint}>Extra runs conceded, by type</Text>
           <View style={styles.chartListCard}>
             <ExtrasChartSvg innings={chartInnings} />
           </View>
         </View>
+          </CollapsibleSection>
       )}
 
       {hasRunsTypeData && chartInnings && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Type of Runs</Text>
+        <CollapsibleSection title="Type of Runs" defaultOpen={false}>
+          <View style={styles.section}>
           <Text style={styles.reportsHint}>Deliveries off the bat, by runs scored</Text>
           <View style={styles.chartListCard}>
             <RunsTypeChartSvg innings={chartInnings} />
           </View>
         </View>
+          </CollapsibleSection>
       )}
 
       {/* Boundary Ball Percentage - one donut per innings (a combined chart would mix two
           innings' distributions together), same per-innings card treatment Partnerships below uses. */}
       {hasBoundaryBallData && chartInnings && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Boundary Ball %</Text>
+        <CollapsibleSection title="Boundary Ball %" defaultOpen={false}>
+          <View style={styles.section}>
           <Text style={styles.reportsHint}>Boundaries by ball-of-the-over position</Text>
           {chartInnings.map((inn, idx) => (
             inn.boundaryBallBreakdown?.some((b) => b.count > 0) && (
@@ -2028,13 +2041,14 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             )
           ))}
         </View>
+          </CollapsibleSection>
       )}
 
       {/* Partnerships - chronological, following the innings in order like the scorecard
           above rather than sorted by size. */}
       {chartInnings?.some((inn) => inn.partnerships?.length > 0) && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Partnerships</Text>
+        <CollapsibleSection title="Partnerships" defaultOpen={false}>
+          <View style={styles.section}>
           {chartInnings.map((inn, idx) => (
             inn.partnerships?.length > 0 && (
               <View key={idx} style={styles.scorecardInnings}>
@@ -2062,6 +2076,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
             )
           ))}
         </View>
+          </CollapsibleSection>
       )}
         </>
       )}

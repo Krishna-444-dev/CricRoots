@@ -250,3 +250,79 @@ export function ballOutcomeLabel(b: BallEvent): string {
   }
   return String(b.runs || 0);
 }
+
+// The same commentary, grouped into overs - newest over first, deliveries newest-first inside it.
+//
+// A flat feed of 120+ rows is how the Ball By Ball tab became a wall. A scorebook is organised by
+// over, so this is both the clutter fix and the more native shape: each over collapses to one line
+// carrying its own summary (runs, wickets, score at the end of it), and opens to the deliveries.
+//
+// Derived from commentaryFeed rather than re-walking the balls, so the numbering, the running
+// totals and the extras handling cannot drift between the two views.
+export interface CommentaryOver {
+  over: number;              // 1-based; 0 means the in-progress over that has not completed yet
+  complete: boolean;
+  runs: number;
+  wickets: number;
+  runsAfter: number;
+  wicketsAfter: number;
+  balls: CommentaryBall[];   // newest first
+}
+
+export function commentaryOvers(balls: BallEvent[]): CommentaryOver[] {
+  // In a newest-first walk an over-break marker appears ABOVE the deliveries it summarises, so:
+  //   balls seen BEFORE a break  -> belong to the NEXT over (still in progress, or the last one)
+  //   balls seen AFTER a break   -> belong to THAT break's over
+  const feed = commentaryFeed(balls);
+  const overs: CommentaryOver[] = [];
+  let filling: CommentaryOver | null = null;   // the over currently receiving deliveries
+  let pending: CommentaryBall[] = [];          // deliveries seen before the first break
+
+  const summarise = (list: CommentaryBall[]) => ({
+    runs: list.reduce((a, b) => a + (b.ball.runs || 0), 0),
+    wickets: list.filter((b) => b.ball.isWicket).length,
+  });
+
+  for (const entry of feed) {
+    if (entry.kind === 'over-break') {
+      if (pending.length > 0) {
+        // The incomplete over above this break - the one still being bowled.
+        overs.push({
+          over: entry.over + 1,
+          complete: false,
+          ...summarise(pending),
+          runsAfter: pending[0].runsAfter,
+          wicketsAfter: pending[0].wicketsAfter,
+          balls: pending,
+        });
+        pending = [];
+      }
+      filling = {
+        over: entry.over,
+        complete: true,
+        runs: entry.runs,
+        wickets: entry.wickets,
+        runsAfter: entry.runsAfter,
+        wicketsAfter: entry.wicketsAfter,
+        balls: [],
+      };
+      overs.push(filling);
+      continue;
+    }
+    if (filling) filling.balls.push(entry);
+    else pending.push(entry);
+  }
+
+  // Whatever is left had no break above it: the innings' opening over.
+  if (pending.length > 0) {
+    overs.push({
+      over: 1,
+      complete: false,
+      ...summarise(pending),
+      runsAfter: pending[0].runsAfter,
+      wicketsAfter: pending[0].wicketsAfter,
+      balls: pending,
+    });
+  }
+  return overs.filter((o) => o.balls.length > 0);
+}
