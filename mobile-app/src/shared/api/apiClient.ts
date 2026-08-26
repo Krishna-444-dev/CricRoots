@@ -136,6 +136,12 @@ export const teamsAPI = {
   // Teams the current user is actually rostered on - what the Community screen scopes poll
   // creation/browsing to (same Player -> Team join leaguesAPI.getMyLeagues's backend
   // counterpart uses). See teamController.js's getMyTeams.
+  //
+  // Use this, never players/me/profile.teams. The backend resolves it from Team.players, the
+  // AUTHORITATIVE side of the relationship; Player.teams is a denormalised cache that only
+  // POST /teams/:id/add-player writes. Any player added by bulk import or simulation has an empty
+  // Player.teams - 168 of 169 in the seeded database - so reading that field tells a cricketer
+  // with a full season that they have no club.
   getMyTeams: () => apiFetch<{ success: true; teams: any[] }>('/teams/mine'),
   getTeamById: (teamId: string) => apiFetch<{ success: true; team: any }>(`/teams/${teamId}`),
   createTeam: (data: { name: string; description?: string; city: string }) =>

@@ -93,11 +93,14 @@ export default function HomeScreen({ navigation }: any) {
   const load = useCallback(() => {
     Promise.all([
       api.matches.getMatches().then((r) => r.matches).catch(() => []),
-      api.players.getMyProfile().then((r) => r.player).catch(() => null),
+      // NOT players/me/profile.teams - see apiClient.getMyTeams. That field is a denormalised
+      // cache only the add-player endpoint writes, so a player added by import or simulation has
+      // an empty one and Home would tell a cricketer with a full season that they have no club.
+      api.teams.getMyTeams().then((r) => r.teams).catch(() => []),
     ])
-      .then(([all, player]) => {
+      .then(([all, teams]) => {
         setMatches(all ?? []);
-        setMyTeamIds(((player?.teams ?? []) as any[]).map((t) => resolveRefId(t)).filter(Boolean) as string[]);
+        setMyTeamIds(((teams ?? []) as any[]).map((t) => resolveRefId(t)).filter(Boolean) as string[]);
       })
       .finally(() => setRefreshing(false));
   }, []);

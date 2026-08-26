@@ -21,6 +21,7 @@ export default function ProfileScreen({ navigation }: any) {
   // cricket links. A cricketer's profile should open on their cricket.
   const [me, setMe] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [myTeams, setMyTeams] = useState<any[]>([]);
 
   // Refetched on every focus (not just mount) so the badge clears promptly after reading a
   // thread and coming back, without needing a socket connection for this v1 pass.
@@ -50,6 +51,9 @@ export default function ProfileScreen({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       if (!user) return;
+      api.teams.getMyTeams()
+        .then(({ teams }) => setMyTeams(teams ?? []))
+        .catch(() => setMyTeams([]));
       api.players.getMyProfile()
         .then(({ player }) => {
           setMe(player);
@@ -104,7 +108,7 @@ export default function ProfileScreen({ navigation }: any) {
 
   const bat = stats?.batting ?? null;
   const bowl = stats?.bowling ?? null;
-  const teamNames: string[] = ((me?.teams ?? []) as any[]).map((t) => resolveRefName(t, 'Team')).filter(Boolean);
+  const teamNames: string[] = myTeams.map((t) => resolveRefName(t, 'Team')).filter(Boolean);
   const styleLine = [me?.specialization, me?.battingStyle && `${me.battingStyle} bat`, me?.bowlingStyle !== 'None' && me?.bowlingStyle]
     .filter(Boolean).join(' · ');
 
