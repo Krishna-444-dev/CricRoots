@@ -5,6 +5,7 @@ import Svg, { Polyline, Polygon, Line as SvgLine, Text as SvgText, Circle, Rect,
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { scorebook, NUM } from '../theme/scorebook';
+import { PlayerLink, TeamLink } from '../components/IdentityLink';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { Match, BallEvent, Prediction, Player, RosterTeam, MatchPhoto } from '../shared/types';
@@ -1143,9 +1144,14 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
           const batted = innings.balls.length > 0 || innings.runs > 0;
           return (
             <View key={idx} style={styles.inningsLine}>
-              <Text style={[styles.inningsTeam, isActive && styles.inningsTeamActive]} numberOfLines={1}>
-                {teamName(team)}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <TeamLink
+                  id={resolveRefId(team)}
+                  name={teamName(team)}
+                  style={[styles.inningsTeam, isActive && styles.inningsTeamActive] as any}
+                  numberOfLines={1}
+                />
+              </View>
               {batted ? (
                 <View style={styles.inningsFigures}>
                   <Text style={[styles.inningsScore, isActive && styles.inningsScoreActive]}>
@@ -1523,9 +1529,12 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                   return (
                     <View key={playerId} style={styles.scorecardRow}>
                       <View style={[styles.scorecardNameCol, { flexShrink: 1 }]}>
-                        <Text style={styles.scorecardNameText} numberOfLines={1}>
-                          {playerDirectory.get(playerId) ?? 'Player'}
-                        </Text>
+                        <PlayerLink
+                          id={playerId}
+                          name={playerDirectory.get(playerId)}
+                          style={styles.scorecardNameText}
+                          numberOfLines={1}
+                        />
                         <Text style={styles.scorecardDismissal} numberOfLines={1}>
                           {dismissal ?? 'not out'}
                         </Text>
@@ -1559,9 +1568,14 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                   const maidens = maidenOversFor(innings.balls, playerId);
                   return (
                     <View key={playerId} style={styles.scorecardRow}>
-                      <Text style={[styles.scorecardCell, styles.scorecardNameCol]} numberOfLines={1}>
-                        {playerDirectory.get(playerId) ?? 'Player'}
-                      </Text>
+                      <View style={styles.scorecardNameCol}>
+                        <PlayerLink
+                          id={playerId}
+                          name={playerDirectory.get(playerId)}
+                          style={styles.scorecardCell}
+                          numberOfLines={1}
+                        />
+                      </View>
                       <Text style={styles.scorecardCell}>{stats.overs.toFixed(1)}</Text>
                       <Text style={styles.scorecardCell}>{maidens}</Text>
                       <Text style={styles.scorecardCell}>{stats.runsConceded}</Text>
@@ -1625,9 +1639,13 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                       <View key={o.over} style={styles.overRow}>
                         <View style={styles.overLabelCol}>
                           <Text style={styles.overLabelText}>Over {o.over + 1}</Text>
-                          <Text style={styles.overBowlerName} numberOfLines={1}>
-                            {(o.bowlerId && playerDirectory.get(o.bowlerId)) ?? 'Bowler'}
-                          </Text>
+                          <PlayerLink
+                            id={o.bowlerId}
+                            name={o.bowlerId ? playerDirectory.get(o.bowlerId) : null}
+                            fallback="Bowler"
+                            style={styles.overBowlerName}
+                            numberOfLines={1}
+                          />
                         </View>
                         <View style={styles.overBallsWrap}>
                           {o.balls.map((b, i) => (
@@ -1741,9 +1759,11 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
                       </View>
                       <View style={styles.commentaryBody}>
                         {(bowler || batter) && (
-                          <Text style={styles.commentaryPlayers} numberOfLines={1}>
-                            {bowler ?? 'Bowler'} to {batter ?? 'Batter'}
-                          </Text>
+                          <View style={styles.commentaryPlayersRow}>
+                            <PlayerLink id={b.bowlerId} name={bowler} fallback="Bowler" style={styles.commentaryPlayers} numberOfLines={1} />
+                            <Text style={styles.commentaryPlayers}> to </Text>
+                            <PlayerLink id={b.batsmanId} name={batter} fallback="Batter" style={styles.commentaryPlayers} numberOfLines={1} />
+                          </View>
                         )}
                         <Text style={styles.commentaryText}>
                           {b.commentary || (b.isWicket ? 'Wicket!' : `${b.runs} run${b.runs === 1 ? '' : 's'}.`)}
@@ -2397,6 +2417,11 @@ const styles = StyleSheet.create({
   },
   commentaryBody: {
     flex: 1,
+  },
+  commentaryPlayersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
   },
   commentaryPlayers: {
     fontSize: 11,

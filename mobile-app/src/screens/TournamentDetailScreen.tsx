@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, FlatList, TextInput, Linking, Image } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { colors } from '../theme';
+import { TeamLink } from '../components/IdentityLink';
 import { api, resolveAttachmentUrl } from '../shared/api/apiClient';
 import { Tournament, Match, TournamentStanding, RosterTeam, Player } from '../shared/types';
 import { useAuth } from '../hooks/useAuth';
@@ -1181,7 +1182,14 @@ function StandingsTable({ standings }: { standings: TournamentStanding[] }) {
         {standings.map((row, idx) => (
           <View key={idx} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}>
             <Text style={[styles.tableCell, styles.colRank]}>{idx + 1}</Text>
-            <Text style={[styles.tableCell, styles.colTeam]} numberOfLines={1}>{teamName(row.team)}</Text>
+            <View style={styles.colTeam}>
+              <TeamLink
+                id={typeof row.team === 'string' ? row.team : (row.team as any)?._id}
+                name={teamName(row.team)}
+                style={styles.tableCell}
+                numberOfLines={1}
+              />
+            </View>
             <Text style={[styles.tableCell, styles.colStat]}>{row.played}</Text>
             <Text style={[styles.tableCell, styles.colStat]}>{row.won}</Text>
             <Text style={[styles.tableCell, styles.colStat]}>{row.lost}</Text>
