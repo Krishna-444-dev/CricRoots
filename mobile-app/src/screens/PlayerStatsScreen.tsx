@@ -305,7 +305,18 @@ export default function PlayerStatsScreen({ route, navigation }: any) {
         {canMessage && (
           <TouchableOpacity
             style={styles.messageButton}
-            onPress={() => navigation.navigate('MessageThread', { userId: messageTargetUserId, name: player?.name ?? 'Player' })}
+            // Explicitly cross-tab. MessageThread lives only in ProfileStack, and PlayerStats is
+            // now reachable from Matches, Teams and Tournaments too - so a bare
+            // navigate('MessageThread') silently no-ops from four of the five places this screen
+            // can be opened from. Messaging is a deliberate context switch, unlike opening a
+            // player profile, so jumping tabs is the right behaviour rather than registering
+            // MessageThread everywhere.
+            onPress={() =>
+              navigation.navigate('Profile', {
+                screen: 'MessageThread',
+                params: { userId: messageTargetUserId, name: player?.name ?? 'Player' },
+              })
+            }
           >
             <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.background} />
             <Text style={styles.messageButtonText}>Message</Text>

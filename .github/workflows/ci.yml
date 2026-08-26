@@ -84,3 +84,10 @@ jobs:
           cache-dependency-path: mobile-app/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      # Rules-of-Hooks order check. tsc cannot see a hook placed after an early return, and that
+      # defect crashes the whole screen at runtime - it shipped once in MatchDetailScreen.
+      - run: node scripts/check-hook-order.js
+      # Navigation reachability. React Navigation answers an unknown route with a console warning
+      # and a no-op, so a broken link is invisible in CI, typecheck and the bundle - the control
+      # just does nothing.
+      - run: node scripts/check-nav-targets.js
