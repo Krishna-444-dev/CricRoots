@@ -16,7 +16,7 @@ import FieldingPlan from '../components/FieldingPlan';
 import AITacticalAdvisor from '../components/AITacticalAdvisor';
 import { resolveRefId, resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId } from '../shared/utils/matchAuth';
-import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver, commentaryOvers, ballOutcomeLabel } from '../shared/utils/matchStats';
+import { battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, overByOver, commentaryOvers, ballOutcomeLabel, inningsExtras, fallOfWickets, inningsRunRate } from '../shared/utils/matchStats';
 import { getInitials } from '../shared/utils/formatters';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'MatchDetail'>;
@@ -759,6 +759,10 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
   // renders and not others - which is exactly the "Rendered more hooks than during the previous
   // render" crash, and how this was first written.
   const [commentaryInningsChoice, setCommentaryInningsChoice] = useState<0 | 1 | null>(null);
+  // Same pattern for the scorecard: null means "follow the active innings", so it needs no effect
+  // to sync once the match loads. Declared here for the same reason - a hook below the early
+  // returns changes React's hook count between renders and crashes the screen.
+  const [scorecardChoice, setScorecardChoice] = useState<0 | 1 | null>(null);
 
   const load = useCallback(() => {
     api.matches
@@ -1097,6 +1101,7 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
 
   const activeIdx = activeInningsIndex(match);
   const commentaryIdx = commentaryInningsChoice ?? activeIdx;
+  const scorecardIdx = scorecardChoice ?? activeIdx;
 
   const currentInnings = match.innings[activeIdx];
   const activeBalls = match.innings[activeIdx]?.balls ?? [];
@@ -1499,143 +1504,190 @@ export default function MatchDetailScreen({ route, navigation }: Props) {
 
       {activeTab === 'scorecard' && (
         <>
-      {/* Full Scorecard - read-only, visible to anyone viewing the match (not just the scorer;
-      LiveScoringScreen has its own copy of this for the scorer specifically). Batting/bowling
-      order is derived from first appearance in the ball log, same source playersWhoAppeared
-      below uses, since team.players isn't reliably populated with real rosters on this endpoint. */}
-      {match.innings.some((inn) => inn.balls.length > 0) && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Full Scorecard</Text>
-          {match.innings.map((innings, idx) => {
-            if (innings.balls.length === 0) return null;
-            const battingOrder: string[] = [];
-            const bowlingOrder: string[] = [];
-            for (const b of innings.balls) {
-              if (b.batsmanId && !battingOrder.includes(b.batsmanId)) battingOrder.push(b.batsmanId);
-              if (b.bowlerId && !bowlingOrder.includes(b.bowlerId)) bowlingOrder.push(b.bowlerId);
-            }
-            const roster = idx === 0 ? team1Roster : team2Roster;
-            const yetToBat = roster.filter((p) => !battingOrder.includes(p._id));
-            const showYetToBat = yetToBat.length > 0 && inningsInProgress(idx as 0 | 1, innings, roster, match);
-            return (
-              <View key={idx} style={styles.scorecardInnings}>
-                <Text style={styles.scorecardTeamName}>
-                  {teamName(innings.team)} - {innings.runs}/{innings.wickets} ({innings.overs.toFixed(1)} ov)
-                </Text>
+          {/* One innings at a time, chosen by the same switcher the commentary tab uses. Rendering
+              both innings meant four stacked tables - two batting, two bowling - and you almost
+              never want to read both at once.
 
-                <View style={styles.scorecardHeaderRow}>
-                  <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Batsman</Text>
-                  <Text style={styles.scorecardHeaderCell}>R</Text>
-                  <Text style={styles.scorecardHeaderCell}>B</Text>
-                  <Text style={styles.scorecardHeaderCell}>4s</Text>
-                  <Text style={styles.scorecardHeaderCell}>6s</Text>
-                  <Text style={styles.scorecardHeaderCell}>SR</Text>
-                </View>
-                {battingOrder.map((playerId) => {
-                  const stats = battingStatsFor(innings.balls, playerId);
-                  const dismissal = dismissalFor(innings.balls, playerId, (id) => (id ? playerDirectory.get(id) : undefined));
+              Laid out the way a scorecard is actually printed: batters with their dismissal, then
+              extras broken down, then the total, then fall of wickets, then the bowling. The
+              extras and total lines are what make it read as a scorecard rather than a table, and
+              fall of wickets is the only place the SHAPE of an innings is visible. */}
+          {!match.innings.some((inn) => inn.balls.length > 0) ? (
+            <View style={styles.section}>
+              <Text style={styles.reportsHint}>The scorecard will fill in as the match is scored.</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.inningsSwitchRow}>
+                {match.innings.map((inn, idx) => {
+                  if (inn.balls.length === 0) return null;
+                  const selected = idx === scorecardIdx;
                   return (
-                    <View key={playerId} style={styles.scorecardRow}>
-                      <View style={[styles.scorecardNameCol, { flexShrink: 1 }]}>
-                        <PlayerLink
-                          id={playerId}
-                          name={playerDirectory.get(playerId)}
-                          style={styles.scorecardNameText}
-                          numberOfLines={1}
-                        />
-                        <Text style={styles.scorecardDismissal} numberOfLines={1}>
-                          {dismissal ?? 'not out'}
-                        </Text>
-                      </View>
-                      <Text style={styles.scorecardCell}>{stats.runs}</Text>
-                      <Text style={styles.scorecardCell}>{stats.ballsFaced}</Text>
-                      <Text style={styles.scorecardCell}>{stats.fours}</Text>
-                      <Text style={styles.scorecardCell}>{stats.sixes}</Text>
-                      <Text style={styles.scorecardCell}>{stats.strikeRate.toFixed(1)}</Text>
-                    </View>
-                  );
-                })}
-                {showYetToBat && (
-                  <Text style={styles.scorecardYetToBat}>
-                    Yet to bat:{' '}
-                    {yetToBat.map((p, i) => (
-                      <Text key={p._id}>
-                        {i > 0 ? '  ·  ' : ''}
-                        <Text onPress={() => navigation.push('PlayerStats', { playerId: p._id })} style={styles.inlinePlayerLink}>
-                          {playerDirectory.get(p._id) ?? resolveRefName(p.user, 'Player')}
-                        </Text>
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.inningsSwitch, selected && styles.inningsSwitchActive]}
+                      onPress={() => setScorecardChoice(idx as 0 | 1)}
+                    >
+                      <Text style={[styles.inningsSwitchText, selected && styles.inningsSwitchTextActive]} numberOfLines={1}>
+                        {teamName(inn.team)}
                       </Text>
-                    ))}
-                  </Text>
-                )}
-
-                <View style={[styles.scorecardHeaderRow, { marginTop: 10 }]}>
-                  <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Bowler</Text>
-                  <Text style={styles.scorecardHeaderCell}>O</Text>
-                  <Text style={styles.scorecardHeaderCell}>M</Text>
-                  <Text style={styles.scorecardHeaderCell}>R</Text>
-                  <Text style={styles.scorecardHeaderCell}>W</Text>
-                  <Text style={styles.scorecardHeaderCell}>ER</Text>
-                  <Text style={styles.scorecardHeaderCell}>WD</Text>
-                  <Text style={styles.scorecardHeaderCell}>NB</Text>
-                </View>
-                {bowlingOrder.map((playerId) => {
-                  const stats = bowlingStatsFor(innings.balls, playerId);
-                  const maidens = maidenOversFor(innings.balls, playerId);
-                  return (
-                    <View key={playerId} style={styles.scorecardRow}>
-                      <View style={styles.scorecardNameCol}>
-                        <PlayerLink
-                          id={playerId}
-                          name={playerDirectory.get(playerId)}
-                          style={styles.scorecardCell}
-                          numberOfLines={1}
-                        />
-                      </View>
-                      <Text style={styles.scorecardCell}>{stats.overs.toFixed(1)}</Text>
-                      <Text style={styles.scorecardCell}>{maidens}</Text>
-                      <Text style={styles.scorecardCell}>{stats.runsConceded}</Text>
-                      <Text style={styles.scorecardCell}>{stats.wickets}</Text>
-                      <Text style={styles.scorecardCell}>{stats.economy.toFixed(2)}</Text>
-                      <Text style={styles.scorecardCell}>{stats.wides}</Text>
-                      <Text style={styles.scorecardCell}>{stats.noBalls}</Text>
-                    </View>
+                      <Text style={[styles.inningsSwitchScore, selected && styles.inningsSwitchTextActive]}>
+                        {inn.runs}/{inn.wickets} ({inn.overs.toFixed(1)})
+                      </Text>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
-            );
-          })}
-        </View>
-      )}
 
-      {/* Player Performance Reports - mobile port of web-app's per-player report links. */}
-      {playersWhoAppeared(match.innings).length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Player Performance Reports</Text>
-          <Text style={styles.reportsHint}>
-            This match&apos;s numbers vs. career average, recent form, and a tactical read on every dismissal.
-          </Text>
-          <View style={styles.reportChipRow}>
-            {playersWhoAppeared(match.innings).map((playerId) => (
-              <TouchableOpacity
-                key={playerId}
-                style={styles.reportChip}
-                onPress={() => navigation.navigate('PerformanceReport', { matchId: match._id, playerId })}
-              >
-                <Text style={styles.reportChipText}>
-                  {playerDirectory.get(playerId) ?? 'View report'} &rarr;
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
+              {(() => {
+                const innings = match.innings[scorecardIdx];
+                if (!innings || innings.balls.length === 0) return null;
+                const battingOrder: string[] = [];
+                const bowlingOrder: string[] = [];
+                for (const b of innings.balls) {
+                  if (b.batsmanId && !battingOrder.includes(b.batsmanId)) battingOrder.push(b.batsmanId);
+                  if (b.bowlerId && !bowlingOrder.includes(b.bowlerId)) bowlingOrder.push(b.bowlerId);
+                }
+                const roster = scorecardIdx === 0 ? team1Roster : team2Roster;
+                const yetToBat = roster.filter((p) => !battingOrder.includes(p._id));
+                const stillBatting = inningsInProgress(scorecardIdx as 0 | 1, innings, roster, match);
+                const extras = inningsExtras(innings.balls);
+                const fow = fallOfWickets(innings.balls);
+                const topScore = Math.max(0, ...battingOrder.map((id) => battingStatsFor(innings.balls, id).runs));
+
+                return (
+                  <View style={styles.section}>
+                    <View style={styles.cardHeadRow}>
+                      <Text style={styles.cardHeadLabel}>BATTING</Text>
+                      <Text style={styles.cardHeadFigures}>
+                        {innings.runs}/{innings.wickets}
+                        <Text style={styles.cardHeadOvers}>  {innings.overs.toFixed(1)} ov  ·  RR {inningsRunRate(innings.balls).toFixed(2)}</Text>
+                      </Text>
+                    </View>
+
+                    <View style={styles.scorecardHeaderRow}>
+                      <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Batter</Text>
+                      <Text style={styles.scorecardHeaderCell}>R</Text>
+                      <Text style={styles.scorecardHeaderCell}>B</Text>
+                      <Text style={styles.scorecardHeaderCell}>4s</Text>
+                      <Text style={styles.scorecardHeaderCell}>6s</Text>
+                      <Text style={styles.scorecardHeaderCell}>SR</Text>
+                    </View>
+
+                    {battingOrder.map((playerId) => {
+                      const st = battingStatsFor(innings.balls, playerId);
+                      const dismissal = dismissalFor(innings.balls, playerId, (id) => (id ? playerDirectory.get(id) : undefined));
+                      const notOut = !dismissal;
+                      const milestone = st.runs >= 50;
+                      return (
+                        <View key={playerId} style={styles.scorecardRow}>
+                          <View style={[styles.scorecardNameCol, { flexShrink: 1 }]}>
+                            <View style={styles.batterNameRow}>
+                              <PlayerLink id={playerId} name={playerDirectory.get(playerId)} style={styles.scorecardNameText} numberOfLines={1} />
+                              {notOut && <Text style={styles.notOutMark}>*</Text>}
+                              {milestone && (
+                                <View style={styles.milestonePill}>
+                                  <Text style={styles.milestonePillText}>{st.runs >= 100 ? '100' : '50'}</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.scorecardDismissal} numberOfLines={1}>{dismissal ?? 'not out'}</Text>
+                          </View>
+                          <Text style={[styles.scorecardCell, styles.runsCell, st.runs === topScore && st.runs > 0 && styles.topScoreCell]}>{st.runs}</Text>
+                          <Text style={styles.scorecardCell}>{st.ballsFaced}</Text>
+                          <Text style={styles.scorecardCell}>{st.fours}</Text>
+                          <Text style={styles.scorecardCell}>{st.sixes}</Text>
+                          <Text style={styles.scorecardCell}>{st.strikeRate.toFixed(1)}</Text>
+                        </View>
+                      );
+                    })}
+
+                    <View style={styles.extrasRow}>
+                      <Text style={styles.extrasLabel}>Extras</Text>
+                      <Text style={styles.extrasDetail} numberOfLines={1}>
+                        {[
+                          extras.byes ? `b ${extras.byes}` : null,
+                          extras.legByes ? `lb ${extras.legByes}` : null,
+                          extras.wides ? `w ${extras.wides}` : null,
+                          extras.noBalls ? `nb ${extras.noBalls}` : null,
+                          extras.penalty ? `p ${extras.penalty}` : null,
+                        ].filter(Boolean).join(', ') || 'none'}
+                      </Text>
+                      <Text style={styles.extrasTotal}>{extras.total}</Text>
+                    </View>
+
+                    <View style={styles.totalRow}>
+                      <Text style={styles.totalLabel}>TOTAL</Text>
+                      <Text style={styles.totalDetail}>
+                        {innings.overs.toFixed(1)} ov{stillBatting ? '' : `  ·  ${innings.wickets} wkt`}
+                      </Text>
+                      <Text style={styles.totalFigure}>{innings.runs}/{innings.wickets}</Text>
+                    </View>
+
+                    {yetToBat.length > 0 && (
+                      <Text style={styles.scorecardYetToBat}>
+                        {stillBatting ? 'Yet to bat: ' : 'Did not bat: '}
+                        {yetToBat.map((p, i) => (
+                          <Text key={p._id}>
+                            {i > 0 ? ', ' : ''}
+                            <Text onPress={() => navigation.push('PlayerStats', { playerId: p._id })} style={styles.inlinePlayerLink}>
+                              {playerDirectory.get(p._id) ?? resolveRefName(p.user, 'Player')}
+                            </Text>
+                          </Text>
+                        ))}
+                      </Text>
+                    )}
+
+                    {fow.length > 0 && (
+                      <CollapsibleSection dense title="Fall of wickets" summary={`${fow.length} wkt`}>
+                        <View style={styles.fowWrap}>
+                          {fow.map((w) => (
+                            <View key={w.wicket} style={styles.fowItem}>
+                              <Text style={styles.fowScore}>{w.wicket}-{w.runs}</Text>
+                              <Text style={styles.fowMeta} numberOfLines={1}>
+                                {(w.playerId && playerDirectory.get(w.playerId)) ?? 'Batter'} · {w.oversLabel}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </CollapsibleSection>
+                    )}
+
+                    <View style={[styles.cardHeadRow, { marginTop: 22 }]}>
+                      <Text style={styles.cardHeadLabel}>BOWLING</Text>
+                    </View>
+                    <View style={styles.scorecardHeaderRow}>
+                      <Text style={[styles.scorecardHeaderCell, styles.scorecardNameCol]}>Bowler</Text>
+                      <Text style={styles.scorecardHeaderCell}>O</Text>
+                      <Text style={styles.scorecardHeaderCell}>M</Text>
+                      <Text style={styles.scorecardHeaderCell}>R</Text>
+                      <Text style={styles.scorecardHeaderCell}>W</Text>
+                      <Text style={styles.scorecardHeaderCell}>Econ</Text>
+                    </View>
+                    {bowlingOrder.map((playerId) => {
+                      const st = bowlingStatsFor(innings.balls, playerId);
+                      const maidens = maidenOversFor(innings.balls, playerId);
+                      return (
+                        <View key={playerId} style={styles.scorecardRow}>
+                          <View style={styles.scorecardNameCol}>
+                            <PlayerLink id={playerId} name={playerDirectory.get(playerId)} style={styles.scorecardNameText} numberOfLines={1} />
+                          </View>
+                          <Text style={styles.scorecardCell}>{st.overs.toFixed(1)}</Text>
+                          <Text style={styles.scorecardCell}>{maidens}</Text>
+                          <Text style={styles.scorecardCell}>{st.runsConceded}</Text>
+                          <Text style={[styles.scorecardCell, styles.runsCell, st.wickets >= 3 && styles.topScoreCell]}>{st.wickets}</Text>
+                          <Text style={styles.scorecardCell}>{st.economy.toFixed(2)}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
+            </>
+          )}
         </>
       )}
 
-      {/* Over by Over - per-over rows (bowler, a chip per ball with a short outcome label,
-          over total, running score), computed fresh from ball data via matchStats.overByOver.
-          Mirrors web-app's new Over by Over tab. */}
       {activeTab === 'overByOver' && (
         <>
           {match.innings.every((inn) => inn.balls.length === 0) ? (
@@ -2362,6 +2414,134 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.inkMuted,
     marginTop: 8,
+  },
+  cardHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 10,
+  },
+  cardHeadLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    color: colors.inkMuted,
+  },
+  cardHeadFigures: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.ink,
+    fontVariant: ['tabular-nums'],
+  },
+  cardHeadOvers: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.inkMuted,
+  },
+  batterNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  notOutMark: {
+    color: colors.pitch400,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  milestonePill: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: colors.gold600,
+  },
+  milestonePillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#1B1200',
+  },
+  runsCell: {
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  topScoreCell: {
+    color: colors.pitch400,
+  },
+  extrasRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  extrasLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.inkSecondary,
+    width: 54,
+  },
+  extrasDetail: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.inkMuted,
+  },
+  extrasTotal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.inkSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderTopWidth: 2,
+    borderTopColor: colors.borderStrong,
+  },
+  totalLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: colors.ink,
+    width: 54,
+  },
+  totalDetail: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.inkMuted,
+  },
+  totalFigure: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.ink,
+    fontVariant: ['tabular-nums'],
+  },
+  fowWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 10,
+  },
+  fowItem: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 104,
+  },
+  fowScore: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.ink,
+    fontVariant: ['tabular-nums'],
+  },
+  fowMeta: {
+    fontSize: 10,
+    color: colors.inkMuted,
+    marginTop: 2,
   },
   inningsSwitchRow: {
     flexDirection: 'row',

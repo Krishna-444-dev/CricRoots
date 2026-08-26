@@ -326,3 +326,70 @@ export function commentaryOvers(balls: BallEvent[]): CommentaryOver[] {
   }
   return overs.filter((o) => o.balls.length > 0);
 }
+
+// Extras, broken down the way a scorecard prints them: b, lb, w, nb, p.
+//
+// Wides and no-balls carry an automatic one-run penalty, so their `runs` is the penalty plus
+// anything run off it - which is exactly what a scorecard's "w 7" means, so no adjustment here.
+// Byes and leg-byes have no penalty; every run is the extra itself.
+export interface InningsExtras {
+  byes: number;
+  legByes: number;
+  wides: number;
+  noBalls: number;
+  penalty: number;
+  total: number;
+}
+
+export function inningsExtras(balls: BallEvent[]): InningsExtras {
+  const e: InningsExtras = { byes: 0, legByes: 0, wides: 0, noBalls: 0, penalty: 0, total: 0 };
+  for (const b of balls) {
+    if (!b.isExtra) continue;
+    const r = b.runs || 0;
+    if (b.extraType === 'bye') e.byes += r;
+    else if (b.extraType === 'leg-bye') e.legByes += r;
+    else if (b.extraType === 'wide') e.wides += r;
+    else if (b.extraType === 'no-ball') e.noBalls += r;
+    else if (b.extraType === 'penalty') e.penalty += r;
+  }
+  e.total = e.byes + e.legByes + e.wides + e.noBalls + e.penalty;
+  return e;
+}
+
+// Fall of wickets - "1-24 (Sharma, 3.2)" - the line that turns a table into a scorecard, because
+// it is the only place the SHAPE of an innings is visible: three wickets in four overs reads
+// completely differently from three spread across twenty.
+export interface FallOfWicket {
+  wicket: number;         // 1-based
+  runs: number;           // team score when the wicket fell, INCLUDING this delivery
+  oversLabel: string;     // "3.2" - cricket notation, matching how overs are quoted everywhere
+  playerId: string | null;
+}
+
+export function fallOfWickets(balls: BallEvent[]): FallOfWicket[] {
+  const out: FallOfWicket[] = [];
+  let runs = 0;
+  let legal = 0;
+  for (const b of balls) {
+    runs += b.runs || 0;
+    if (isLegalDelivery(b)) legal += 1;
+    if (b.isWicket) {
+      out.push({
+        wicket: out.length + 1,
+        runs,
+        oversLabel: `${Math.floor(legal / 6)}.${legal % 6}`,
+        playerId: b.batsmanId ?? null,
+      });
+    }
+  }
+  return out;
+}
+
+// Team run rate for an innings, from legal deliveries rather than the stored cricket-notation
+// overs field - dividing by "16.2" treats 2 balls as 0.2 of an over and inflates the rate.
+export function inningsRunRate(balls: BallEvent[]): number {
+  const legal = balls.filter(isLegalDelivery).length;
+  if (legal === 0) return 0;
+  const runs = balls.reduce((a, b) => a + (b.runs || 0), 0);
+  return runs / (legal / 6);
+}
