@@ -190,6 +190,14 @@ export const matchesAPI = {
   // A 423 response means someone else currently holds the scoring lock (see scoringLockAPI).
   recordBall: (matchId: string, ballEvent: any) => apiFetch(`/matches/${matchId}/record-ball`, 'POST', ballEvent),
   getScorecard: (matchId: string) => apiFetch<{ success: true; scorecard: any; aiInsights: any }>(`/matches/${matchId}/scorecard`),
+  // Reverses the most recently recorded delivery. Repeatable - six calls walk back an over.
+  // The removed ball is preserved server-side in innings.undoneBalls, so a correction is a
+  // recorded event rather than a hole in the log.
+  undoLastBall: (matchId: string, body: { inningsIndex: number; liveState?: any }) =>
+    apiFetch<{ success: true; undone: { ballNumber: number; runs: number; isWicket: boolean };
+               innings: { runs: number; wickets: number; overs: number; ballCount: number } }>(
+      `/matches/${matchId}/undo-ball`, 'POST', body
+    ),
   getAIInsights: (matchId: string) => apiFetch(`/matches/${matchId}/ai-insights`),
   // Real recommendation grounded in the bowling team's actual roster and the matchup-shrinkage
   // engine (ranks candidates by likelihood of dismissing the current striker, falling back to

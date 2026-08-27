@@ -10,6 +10,7 @@ const {
   getMatch,
   updateMatch,
   recordBall,
+  undoLastBall,
   getScorecard,
   getMatchCharts,
   getMatchMVP,
@@ -48,6 +49,7 @@ router.get('/:matchId/performance-report/:playerId', getPlayerPerformanceReport)
 router.post('/', protect, createMatch);
 router.put('/:id', protect, updateMatch);
 router.post('/:id/record-ball', protect, recordBall);
+router.post('/:id/undo-ball', protect, undoLastBall);
 router.post('/:id/apply-interruption', protect, applyInterruption);
 router.post('/:id/umpires', protect, addUmpire);
 router.delete('/:id/umpires/:userId', protect, removeUmpire);

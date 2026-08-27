@@ -105,6 +105,18 @@ const matchSchema = new mongoose.Schema({
     // appears in it). Opaque to the schema on purpose - shape is owned by the frontend
     // (see web-app/components/scoring/BallByBallScoring.tsx's InningsData type).
     liveState: { type: mongoose.Schema.Types.Mixed, default: null },
+    // Balls removed by the scorer's undo. Kept, never discarded (D20 - observational data is not
+    // overwritten to tidy up), but held OUTSIDE `balls` on purpose.
+    //
+    // The alternative - a flag on the ball, left in place - would require every one of the TWENTY
+    // files that read innings.balls to filter it, and missing one silently leaves a deleted
+    // delivery counted in a scorecard, a stat or the training extraction. Moving it to a field
+    // nothing derives from means no existing consumer changes at all.
+    undoneBalls: [{
+      ball: mongoose.Schema.Types.Mixed,
+      undoneBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      undoneAt: { type: Date, default: Date.now }
+    }],
     balls: [{
       ballNumber: Number,
       batsmanId: mongoose.Schema.Types.ObjectId,

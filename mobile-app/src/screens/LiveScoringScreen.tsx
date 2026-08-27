@@ -19,7 +19,8 @@ import type { MatchesStackParamList } from '../navigation/stacks/MatchesStack';
 import LiveMatchupPanel from '../components/LiveMatchupPanel';
 import { resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId, rosterIds } from '../shared/utils/matchAuth';
-import { isLegalDelivery, battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor } from '../shared/utils/matchStats';
+import { Ionicons } from '@expo/vector-icons';
+import { isLegalDelivery, battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, ballOutcomeLabel } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'LiveScoring'>;
 
@@ -335,6 +336,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   const [shotZone, setShotZone] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [ballError, setBallError] = useState<string | null>(null);
+  const [undoing, setUndoing] = useState(false);
 
   // --- Wicket modal ---
   const [wicketModalVisible, setWicketModalVisible] = useState(false);
@@ -616,6 +618,47 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Undo the last delivery. Confirmed first, because it is destructive from the scorer's point of
+  // view even though the server preserves the ball - and because a scorer's thumb is already
+  // moving fast over this screen.
+  async function handleUndoLastBall() {
+    if (!match || undoing || submitting) return;
+    const last = currentBalls[currentBalls.length - 1];
+    if (!last) return;
+
+    const describe = last.isWicket
+      ? 'the wicket'
+      : last.isExtra
+        ? `the ${last.extraType} (${last.runs} run${last.runs === 1 ? '' : 's'})`
+        : `${last.runs} run${last.runs === 1 ? '' : 's'}`;
+
+    Alert.alert(
+      'Undo last ball?',
+      `This removes ${describe} from the innings. You can score the delivery again straight after.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Undo',
+          style: 'destructive',
+          onPress: async () => {
+            setUndoing(true);
+            setBallError(null);
+            try {
+              await api.matches.undoLastBall(match._id, { inningsIndex });
+              const { match: fresh } = await api.matches.getMatchById(match._id);
+              setMatch(fresh);
+              resetPendingState();
+            } catch (e) {
+              setBallError(e instanceof Error ? e.message : 'Could not undo the last ball');
+            } finally {
+              setUndoing(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   function openWicketModal() {
@@ -1124,6 +1167,19 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
         )}
       </View>
 
+      {currentBalls.length > 0 && (
+        <TouchableOpacity
+          style={[styles.undoButton, (undoing || submitting) && styles.buttonDisabled]}
+          onPress={handleUndoLastBall}
+          disabled={undoing || submitting}
+        >
+          <Ionicons name="arrow-undo" size={15} color={colors.wicket400} />
+          <Text style={styles.undoButtonText}>
+            {undoing ? 'Undoing...' : `Undo last ball (${ballOutcomeLabel(currentBalls[currentBalls.length - 1])})`}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {ballError && <Text style={styles.errorTextInline}>{ballError}</Text>}
 
       <View style={styles.section}>
@@ -1395,6 +1451,23 @@ const styles = StyleSheet.create({
   muted: { color: colors.inkMuted, textAlign: 'center', fontSize: 13 },
   mutedSmall: { color: colors.inkMuted, fontSize: 12 },
   errorTitle: { color: colors.ink, fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  undoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.wicket600,
+  },
+  undoButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.wicket400,
+  },
   errorTextInline: { color: colors.wicket400, fontSize: 13, marginTop: 8, paddingHorizontal: 16 },
 
   setupContent: { padding: 16, paddingBottom: 48 },

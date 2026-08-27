@@ -145,6 +145,18 @@ class SocketManager {
   }
 
   /**
+   * Emit a ball-undone event so every other viewer's score rolls back too, rather than sitting on
+   * a total the scorer has already corrected.
+   */
+  emitBallUndone(matchId, payload) {
+    this.io.to(`match-${matchId}`).emit('ball-undone', {
+      matchId,
+      ...payload,
+      timestamp: new Date()
+    });
+  }
+
+  /**
    * Emit wicket event
    */
   emitWicket(matchId, wicketData) {

@@ -795,6 +795,98 @@ exports.getPlayerPerformanceReport = async (req, res) => {
   }
 };
 
+// @desc    Undo the most recently recorded ball in an innings
+// @route   POST /api/matches/:id/undo-ball
+// @access  Private (whoever holds the scoring lock)
+//
+// Repeatable: call it six times to walk back an over. That is deliberately the only primitive -
+// "undo the over" as a single operation would need to define what an over IS in the presence of
+// wides and no-balls, and get it wrong differently from the six places that already define it.
+//
+// The removed delivery is MOVED to innings.undoneBalls, not deleted. D20: observational data is
+// never overwritten to fit the current view. It is held outside `balls` rather than flagged in
+// place because twenty files read innings.balls, and a flag would need every one of them to
+// filter it - one miss leaves a deleted ball counted in a scorecard or in the training extraction.
+exports.undoLastBall = async (req, res) => {
+  try {
+    const { inningsIndex = 0, liveState } = req.body;
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+    if (!(await canManageMatch(match, req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not authorized to score this match' });
+    }
+    // A completed match has already produced a result, a Man of the Match, player stats and
+    // tournament standings from this ball log. Undoing underneath all of that would leave them
+    // silently disagreeing with the scorecard, so it is refused rather than half-handled.
+    if (match.status === 'Completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'This match is completed. Reopen it before correcting the ball log.'
+      });
+    }
+    if (isLockFresh(match.activeScorer) && match.activeScorer.user.toString() !== req.user.id) {
+      return res.status(423).json({
+        success: false,
+        message: `${match.activeScorer.name} is currently scoring this match`
+      });
+    }
+
+    const innings = match.innings[inningsIndex];
+    if (!innings) {
+      return res.status(400).json({ success: false, message: 'Invalid innings index' });
+    }
+    if (!innings.balls || innings.balls.length === 0) {
+      return res.status(400).json({ success: false, message: 'There are no deliveries to undo in this innings.' });
+    }
+
+    const removed = innings.balls[innings.balls.length - 1];
+    innings.balls.splice(innings.balls.length - 1, 1);
+    innings.undoneBalls.push({
+      ball: removed.toObject ? removed.toObject() : removed,
+      undoneBy: req.user.id,
+      undoneAt: new Date()
+    });
+
+    // RECOMPUTED from the remaining ball log, not decremented. The ball log is the authoritative
+    // record; subtracting assumes the running totals were right in the first place, which is
+    // exactly the assumption an undo exists to repair.
+    innings.runs = innings.balls.reduce((sum, b) => sum + (b.runs || 0), 0);
+    innings.wickets = innings.balls.filter((b) => b.isWicket).length;
+    const legalBalls = innings.balls.filter(
+      (b) => !(b.isExtra && ['wide', 'no-ball'].includes(b.extraType))
+    ).length;
+    innings.overs = Math.floor(legalBalls / 6) + (legalBalls % 6) / 10;
+
+    if (liveState) {
+      innings.liveState = liveState;
+      match.markModified(`innings.${inningsIndex}.liveState`);
+    }
+    match.markModified(`innings.${inningsIndex}.undoneBalls`);
+
+    if (match.activeScorer && match.activeScorer.user.toString() === req.user.id) {
+      match.activeScorer.lastActiveAt = new Date();
+    }
+
+    await match.save();
+
+    req.socketManager?.emitBallUndone?.(match._id, {
+      inningsIndex,
+      removedBallNumber: removed.ballNumber,
+      innings: { runs: innings.runs, wickets: innings.wickets, overs: innings.overs }
+    });
+
+    res.status(200).json({
+      success: true,
+      undone: { ballNumber: removed.ballNumber, runs: removed.runs, isWicket: removed.isWicket },
+      innings: { runs: innings.runs, wickets: innings.wickets, overs: innings.overs, ballCount: innings.balls.length }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get AI tactical insights for a match
 // @route   GET /api/matches/:id/ai-insights
 // @access  Public
