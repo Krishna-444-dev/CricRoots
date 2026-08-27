@@ -20,6 +20,7 @@ import LiveMatchupPanel from '../components/LiveMatchupPanel';
 import { resolveRefName } from '../shared/utils/resolveRef';
 import { computeCanScore, resolveUserId, rosterIds } from '../shared/utils/matchAuth';
 import { Ionicons } from '@expo/vector-icons';
+import PitchMap from '../components/PitchMap';
 import { isLegalDelivery, battingStatsFor, bowlingStatsFor, maidenOversFor, dismissalFor, ballOutcomeLabel } from '../shared/utils/matchStats';
 
 type Props = NativeStackScreenProps<MatchesStackParamList, 'LiveScoring'>;
@@ -337,6 +338,18 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [ballError, setBallError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
+  // Line/length carried over from the previous delivery, and the bowler they were tagged for.
+  //
+  // resetPendingState used to wipe both to 'unknown' after every ball, so tagging meant re-picking
+  // from thirteen chips 240 times a match - and consecutive deliveries from the same bowler are
+  // highly correlated, so that discarded the best available starting point.
+  //
+  // Bounded to the SAME BOWLER on purpose. Carrying a line across a bowling change would quietly
+  // turn missing data into wrong data, which is worse: 'unknown' is honest, a stale tag is not.
+  // The carried value is also rendered as an outline rather than a fill, so it never looks like an
+  // observation somebody actually made this ball.
+  const [carriedTag, setCarriedTag] = useState<{ line: string; length: string; bowlerId: string } | null>(null);
+  const [tagTouchedThisBall, setTagTouchedThisBall] = useState(false);
 
   // --- Wicket modal ---
   const [wicketModalVisible, setWicketModalVisible] = useState(false);
@@ -536,12 +549,23 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     setWicketType('bowled');
     setFielderId(null);
     setFielderPosition(null);
-    setDetailExpanded(false);
-    setLine('unknown');
-    setLength('unknown');
+    // detailExpanded is deliberately NOT reset: a scorer who opened the tagging panel is tagging
+    // this match, and re-collapsing it every ball made them re-open it 240 times.
     setShotType(null);
     setShotZone(null);
     setBallError(null);
+    setTagTouchedThisBall(false);
+  }
+
+  // Applies the carried line/length for the incoming delivery, if it is the same bowler.
+  function applyCarriedTag(nextBowlerId: string | null) {
+    if (carriedTag && nextBowlerId && carriedTag.bowlerId === nextBowlerId) {
+      setLine(carriedTag.line);
+      setLength(carriedTag.length);
+    } else {
+      setLine('unknown');
+      setLength('unknown');
+    }
   }
 
   const currentBalls = match?.innings[inningsIndex]?.balls ?? [];
@@ -605,6 +629,9 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     try {
       const res = await api.matches.recordBall(matchId, { inningsIndex, ...ballEvent, liveState });
       setMatch(res.match);
+      if (line !== 'unknown' && length !== 'unknown' && bowlerId) {
+        setCarriedTag({ line, length, bowlerId });
+      }
       setStrikerId(nextStrikerId);
       setNonStrikerId(nextNonStrikerId);
       if (overCompletes) {
@@ -613,6 +640,9 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
         setOverCompleteModalVisible(true);
       }
       resetPendingState();
+      // A completed over means a new bowler, so nothing is carried. Same bowler mid-over keeps the
+      // line/length as a starting point, marked as carried until the scorer touches the pitch map.
+      applyCarriedTag(overCompletes ? null : bowlerId);
     } catch (e) {
       setBallError(e instanceof Error ? e.message : 'Failed to record ball');
     } finally {
@@ -650,6 +680,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
               const { match: fresh } = await api.matches.getMatchById(match._id);
               setMatch(fresh);
               resetPendingState();
+              applyCarriedTag(bowlerId);
             } catch (e) {
               setBallError(e instanceof Error ? e.message : 'Could not undo the last ball');
             } finally {
@@ -753,6 +784,7 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
       setNewBatsmanId(null);
       setWicketModalVisible(false);
       resetPendingState();
+      applyCarriedTag(bowlerId);
     } catch (e) {
       setBallError(e instanceof Error ? e.message : 'Failed to record wicket');
     } finally {
@@ -772,7 +804,9 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
     setNonStrikerId(null);
     setBowlerId(null);
     setOutPlayerIds(new Set());
+    setCarriedTag(null);
     resetPendingState();
+    applyCarriedTag(null);
   }
 
   async function handleFinishMatch() {
@@ -1139,17 +1173,16 @@ export default function LiveScoringScreen({ route, navigation }: Props) {
         </TouchableOpacity>
         {detailExpanded && (
           <View style={styles.detailBox}>
-            <ChipGroup
-              label="Line"
-              options={LINES.map((l) => ({ id: l, label: labelize(l) }))}
-              value={line === 'unknown' ? null : line}
-              onChange={setLine}
-            />
-            <ChipGroup
-              label="Length"
-              options={LENGTHS.map((l) => ({ id: l, label: labelize(l) }))}
-              value={length === 'unknown' ? null : length}
-              onChange={setLength}
+            <Text style={styles.chipGroupLabel}>Line & length</Text>
+            <PitchMap
+              line={line}
+              length={length}
+              carriedOver={!tagTouchedThisBall && !!carriedTag}
+              onSelect={(l, len) => {
+                setLine(l);
+                setLength(len);
+                setTagTouchedThisBall(true);
+              }}
             />
             <ChipGroup
               label="Shot zone"
