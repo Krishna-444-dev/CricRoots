@@ -106,3 +106,6 @@ ai-engine/src/models/trained_models/*.pkl
 
 # ai-engine local venv (created for diagnostics; not part of the image)
 ai-engine/.venv/
+
+# Local dev database (scripts/dev/mongo.js)
+.dev-data/
